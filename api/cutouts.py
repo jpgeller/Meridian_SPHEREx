@@ -31,7 +31,10 @@ astropy_log.setLevel("WARNING")  # SPHEREx SIP headers trigger a harmless INFO m
 PIXEL_SCALE_ARCSEC = 6.15
 # Mask planes that mean "this pixel value is not usable". Names come from the FLAGS
 # header (MSKNnnnn / MSKMnnnn), so a renumbering upstream does not break us.
-BAD_PLANES = {"TRANSIENT", "OVERFLOW", "SUR_ERROR", "NONFUNC", "MISSING_DATA", "HOT"}
+BAD_PLANES = {"TRANSIENT", "NONFUNC", "MISSING_DATA", "HOT"}
+# Saturated cores of bright stars. Their values are unreliable but the star is real, so we
+# send +Infinity (drawn at full brightness, excluded from maths) instead of NaN (no data).
+SATURATED_PLANES = {"OVERFLOW", "SUR_ERROR", "NONLINEAR"}
 # Planes worth reporting to users (percent of pixels in the field).
 REPORT_PLANES = ["SOURCE", "OUTLIER", "PERSIST", "GHOST", "GHOST_FPA", "GHOST_EXT", "STREAK",
                  "BLOOM", "SNOWBALL", "HALO", "DICHROIC", "NONFUNC", "TRANSIENT", "HOT", "COLD"]
@@ -79,18 +82,42 @@ def download_cutout(frame: dict, ra: float, dec: float, fov: float, retries: int
     for attempt in range(retries):
         try:
             r = httpx.get(url, timeout=60.0, follow_redirects=True)
+            if r.status_code == 503 and attempt == 0:
+                # Some files make the cutout service fail every time (seen 14 Nov 2026 on QR3)
+                # while the file itself downloads fine. Don't wait for retries: use the full file.
+                break
             r.raise_for_status()
             cache.write_atomic(p, r.content)
             return r.content
         except httpx.HTTPError as err:
             last = err
             time.sleep(2 * (attempt + 1))
-    raise RuntimeError(f"cutout download failed: {last}")
+    # Cutout service failed (503 or repeated errors): fall back to the whole file.
+    return download_full(frame)
+
+
+def download_full(frame: dict) -> bytes:
+    """Fallback: the whole Level 2 file (~65 MB), cached. process() reprojects it onto the
+    small target grid exactly like a cutout, so the result is identical."""
+    p = cache.path_for("full", frame["access_url"], ".fits")
+    if p.exists() and p.stat().st_size > 0:
+        return p.read_bytes()
+    last = None
+    for attempt in range(2):
+        try:
+            r = httpx.get(frame["access_url"], timeout=300.0, follow_redirects=True)
+            r.raise_for_status()
+            cache.write_atomic(p, r.content)
+            return r.content
+        except httpx.HTTPError as err:
+            last = err
+            time.sleep(3)
+    raise RuntimeError(f"image download failed ({type(last).__name__})")
 
 
 def process(frame: dict, ra: float, dec: float, fov: float) -> dict:
     """Returns {'image','variance': float32 2D arrays (row 0 = south), 'meta': dict}."""
-    key = f"{frame['access_url']}|{ra:.5f},{dec:.5f},{fov:.4f}|v1"
+    key = f"{frame['access_url']}|{ra:.5f},{dec:.5f},{fov:.4f}|v4"
     p = cache.path_for("aligned", key, ".npz")
     if p.exists():
         with np.load(p, allow_pickle=False) as z:
@@ -106,8 +133,16 @@ def process(frame: dict, ra: float, dec: float, fov: float) -> dict:
             flags = hdul["FLAGS"].data.astype(np.int64)
             planes = mask_planes(hdul["FLAGS"].header)
             bad_bits = sum(m for name, m in planes.items() if name in BAD_PLANES)
-            bad = (flags & bad_bits) != 0
+            sat_bits = sum(m for name, m in planes.items() if name in SATURATED_PLANES)
+            # Saturation wins: bright star cores are also flagged NONFUNC/TRANSIENT and have
+            # NaN values, but they are real stars, not broken pixels (checked on Barnard's Star).
+            sat = (flags & sat_bits) != 0
+            bad = ((flags & bad_bits) != 0) & ~sat
             img[bad | ~np.isfinite(img)] = np.nan
+            # Fill saturated cores with the brightest valid value before interpolating, so
+            # bilinear reprojection does not spread NaN into a dark ring around bright stars.
+            peak = np.nanmax(img[~sat]) if np.any(np.isfinite(img[~sat])) else 0.0
+            img[sat] = peak
             var[bad | ~np.isfinite(var)] = np.nan
 
             src = WCS(hdr)
@@ -119,6 +154,9 @@ def process(frame: dict, ra: float, dec: float, fov: float) -> dict:
             image, cover = reproject_interp((img, src), tw, shape_out=shape, order="bilinear")
             variance, _ = reproject_interp((var, src), tw, shape_out=shape, order="bilinear")
             image[cover < 0.5] = np.nan
+            sat_r, _ = reproject_interp((sat.astype(np.float64), src), tw, shape_out=shape, order="nearest-neighbor")
+            saturated = np.nan_to_num(sat_r) > 0.5
+            image[saturated] = np.inf
 
             n = flags.size
             flag_pct = {name: round(100.0 * np.count_nonzero(flags & planes[name]) / n, 2)
@@ -135,6 +173,7 @@ def process(frame: dict, ra: float, dec: float, fov: float) -> dict:
                 "pixel_scale_arcsec": PIXEL_SCALE_ARCSEC,
                 "bunit": hdr.get("BUNIT", "MJy/sr"),
                 "bad_pct": round(100.0 * np.count_nonzero(bad) / n, 2),
+                "saturated_px": int(np.count_nonzero(saturated)),
                 "coverage_pct": round(100.0 * float(np.mean(cover >= 0.5)), 1),
                 "flags_pct": flag_pct,
             }
@@ -159,6 +198,7 @@ def to_png(image: np.ndarray, lo: float | None = None, hi: float | None = None) 
     """Quick-look PNG: asinh stretch, north up (FITS row 0 is south, so flip)."""
     from PIL import Image
 
+    sat = np.isposinf(image)
     finite = image[np.isfinite(image)]
     if finite.size == 0:
         arr = np.zeros(image.shape, dtype=np.uint8)
@@ -168,6 +208,7 @@ def to_png(image: np.ndarray, lo: float | None = None, hi: float | None = None) 
         x = np.clip((image - lo) / max(hi - lo, 1e-12), 0, 1)
         x = np.arcsinh(10 * x) / np.arcsinh(10)
         arr = np.nan_to_num(x * 255, nan=0).astype(np.uint8)
+        arr[sat] = 255
     out = io.BytesIO()
     Image.fromarray(np.flipud(arr)).save(out, format="PNG")
     return out.getvalue()

@@ -114,7 +114,9 @@ async def cutout(
         "X-Width": str(arr.shape[1]),
         "X-Height": str(arr.shape[0]),
         "X-Meta": json.dumps(result["meta"], separators=(",", ":")),
-        "Cache-Control": "public, max-age=86400",
+        # The server cache answers in ~7 ms; letting browsers cache would serve stale
+        # pixels after a processing change (bit us on 14 Nov 2026).
+        "Cache-Control": "no-cache",
     }
     if fmt == "png":
         return Response(cutouts.to_png(arr), media_type="image/png", headers=headers)

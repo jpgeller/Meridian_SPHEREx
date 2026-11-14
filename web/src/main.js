@@ -5,6 +5,7 @@ import { createSky } from './sky/sky.js';
 import { createControls } from './ui/controls.js';
 import { createHandoff } from './sky/handoff.js';
 import { createFieldView } from './field/fieldView.js';
+import { createPlayer } from './field/player.js';
 
 const statusEl = document.querySelector('#status');
 const { name: urlName } = startCore();
@@ -31,7 +32,12 @@ sky = await createSky('#sky', { store, commands, onStatus: renderStatus });
 window.aladin = sky.aladin; // console debugging
 createControls(document.querySelector('#ui'), { store, commands, getWavelengths: () => sky.wavelengths });
 createHandoff(document.querySelector('#handoff'), { store, commands });
-export const field = createFieldView(document.querySelector('#field-root'), { store, commands });
+export const field = createFieldView(document.querySelector('#field-root'), {
+  store,
+  commands,
+  getWavelengths: () => sky.wavelengths,
+});
+createPlayer(field.stage, { store, commands });
 store.subscribe(() => renderStatus());
 
 if (urlName) run('fly_to', { target: urlName, fov: store.get().fov < 5 ? store.get().fov : undefined }, 'url');
