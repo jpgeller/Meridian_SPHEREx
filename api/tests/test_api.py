@@ -113,3 +113,14 @@ def test_skypatch_is_twice_as_sharp_and_north_up():
     png = client.get(m["url"])
     assert png.status_code == 200 and png.headers["content-type"] == "image/png"
     assert skypatch.MAX_FOV == 0.6 and m["lo"] < m["hi"]
+
+
+def test_colour_mix_properties_and_validation():
+    r = client.get("/api/hips/mix/62-46-22/properties")
+    if r.status_code != 200:
+        pytest.skip("IRSA properties not reachable offline")
+    assert "dataproduct_type     = image" in r.text and "hips_cube_depth" not in r.text
+    assert "ivo://meridian/spherex_mix_62_46_22" in r.text
+    assert client.get("/api/hips/mix/50-46-22/properties").status_code == 404  # blank frame
+    assert client.get("/api/hips/mix/62-46/properties").status_code == 404
+    assert client.get("/api/hips/mix/62-46-22/Norder3/Dir0/..%2F..%2Fsecret.png").status_code in (404, 422)

@@ -50,6 +50,8 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   to 0.743 µm (F_MAX). Wait until `layer.added` is true before setting it. The cube has no time information.
 - Views: 3D sphere `'SIN'`; Planetarium `'STG'` (≤160°); whole sky `aladin.setProjection('AIT'); aladin.setFrame('galactic'); setFoV(360)`.
   Aladin can't keep a fixed flat map while panning (it always re-projects around the view centre).
+- Colour views: `web/src/sky/colorViews.js`. Mixes are server-built colour HiPS at `/api/hips/mix/R-G-B` (`api/colormix.py`).
+  Aladin lowercases colormap names when applying them: register custom colormaps in lowercase.
 - The HiPS cube stops at order 5 (12.9″/px) and Aladin draws tiles with NEAREST filtering (hard-coded), so deep zoom looks
   blocky. `web/src/sky/nativeLayer.js` + `/api/skypatch` overlay full-resolution (6.15″) patches below 1.5°. PNG overlays via
   `A.image(url, {imgFormat:'png', wcs})` need CD1_1 < 0 and CD2_2 > 0 (rows top = north).

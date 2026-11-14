@@ -6,6 +6,9 @@ import json
 
 import numpy as np
 from fastapi import FastAPI, HTTPException, Query, Response
+from fastapi.responses import PlainTextResponse, RedirectResponse
+
+import colormix
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -224,3 +227,45 @@ async def sky_patch_png(key: str = Query(..., max_length=200)):
         return Response(skypatch.patch_png(key), media_type="image/png", headers={"Cache-Control": "public, max-age=3600"})
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="unknown patch")
+
+
+# --- Colour mixes of the all-sky map ---------------------------------------------------
+# A virtual HiPS per mix of three SPHEREx bands (red, green, blue): each tile is built from
+# IRSA's three band tiles and cached (colormix.py). Aladin shows it as an ordinary colour map.
+@app.get("/api/hips/mix/{mix}/properties", response_class=PlainTextResponse)
+async def mix_properties(mix: str):
+    try:
+        bands = colormix.parse_mix(mix)
+        return await colormix.properties(bands)
+    except ValueError as err:
+        raise HTTPException(status_code=404, detail=str(err))
+
+
+@app.get("/api/hips/mix/{mix}/Moc.fits")
+async def mix_moc(mix: str):
+    return RedirectResponse(f"{colormix.SPHEREX_HIPS}/Moc.fits", status_code=307)
+
+
+@app.get("/api/hips/mix/{mix}/{order}/{tile_dir}/{tile}")
+async def mix_tile(mix: str, order: str, tile_dir: str, tile: str):
+    try:
+        bands = colormix.parse_mix(mix)
+        png = await colormix.tile(bands, f"{order}/{tile_dir}/{tile}")
+    except ValueError as err:
+        raise HTTPException(status_code=404, detail=str(err))
+    if png is None:
+        raise HTTPException(status_code=404, detail="no data")
+    return Response(png, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/api/hips/mix/{mix}/{order}/{tile}")
+async def mix_allsky(mix: str, order: str, tile: str):
+    """Norder3/Allsky.png: the low-resolution preview Aladin loads first."""
+    try:
+        bands = colormix.parse_mix(mix)
+        png = await colormix.tile(bands, f"{order}/{tile}")
+    except ValueError as err:
+        raise HTTPException(status_code=404, detail=str(err))
+    if png is None:
+        raise HTTPException(status_code=404, detail="no data")
+    return Response(png, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})

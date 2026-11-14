@@ -361,6 +361,25 @@ SPHEREx's own pixels are 6.15″, twice as fine.
 
 ---
 
+## Step 14 — Colour views of the full map  `[x]`
+**Files:** `web/src/sky/colorViews.js`, `api/colormix.py`, `/api/hips/mix/{R-G-B}/…`; state `color` + `mix` (URL `color=`, `mix=`).
+
+Infrared has no visible colour; IRSA's cube is one grey picture per band, so switching bands barely changed the map.
+- **Grey** (one band as brightness) and **Tinted band** (default): the band drawn in its detector's ribbon colour
+  (D1 blue → D6 rose), so moving the slider visibly changes the map.
+- **False-colour mixes**, three bands as red/green/blue (longest in red): **Infrared colour** 87/42/22 (4.50/2.00/1.25 µm),
+  **Dust glow** 62/46/22 (3.29 µm PAH dust emission in red → orange dust lanes), **Ices** 65/59/52 (3.03 µm water-ice
+  absorption in green → purple icy clouds), and **Your mix** (any three bands). The band slider is disabled in mixes.
+- Mixes are built **on the server**: each HiPS tile = IRSA's three band tiles stacked as RGB, cached (`api/cache/hipsmix`), served
+  as a virtual colour HiPS. Why not three blended layers in the browser: Aladin 3.8.2 shares settings between layers of the same
+  survey address, and its additive blending didn't combine them in tests.
+- Gotchas: Aladin **lowercases colormap names when applying them** but not when registering (`addColormap`), so use lowercase
+  names. IRSA's **1.0 µm tiles have gaps near the Galactic centre** (yellow bars in a mix), so the Infrared preset uses 1.25 µm for blue.
+- Full-resolution patches follow the colour view (tinted with the same colormap); they're off in colour mixes (they're single-band).
+- Images: `docs/img/colour_views.png`, `docs/img/colour_tinted_bands.png`.
+
+---
+
 ## Optional (final version): sharp tile level for the whole sky  `[ ]`
 Goal: full SPHEREx quality (≈6.4″/px) everywhere on the sphere, not only in zoomed patches. Deferred on 15 Nov 2026:
 build all other requirements first.

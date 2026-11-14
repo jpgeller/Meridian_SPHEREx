@@ -11,6 +11,8 @@ export const COMPARES = ['off', 'side', 'timeline', 'blink'];
 // Operations on SPHEREx frames of different dates (field view)
 export const OPS = ['none', 'blink', 'add', 'subtract'];
 export const LAYERS = ['gaia', 'wise', 'flags', 'simbad'];
+// Colour views of the full map: one band in grey or tinted, or a false-colour mix of three bands
+export const COLORS = ['grey', 'tint', 'ir', 'dust', 'ice', 'custom'];
 
 export const FOV_MIN = 0.01; // degrees
 export const FOV_MAX = 360;
@@ -28,6 +30,8 @@ export const DEFAULTS = Object.freeze({
   ffov: 0.1, // field-view size, one of FIELD_FOVS
   proj: 'SIN',
   band: 40,
+  color: 'tint', // full-map colour view (COLORS)
+  mix: [62, 46, 22], // custom colour mix: red, green, blue bands
   mode: 'single',
   rgb: ['D6', 'D4', 'D2'], // colour mix: red, green, blue; each a band (1-101) or a detector 'D1'..'D6'
   formula: '',
@@ -60,6 +64,13 @@ export function sanitize(patch, current = DEFAULTS) {
       case 'mode': MODES.includes(v) ? (out.mode = v) : warn(k, v); break;
       case 'compare': COMPARES.includes(v) ? (out.compare = v) : warn(k, v); break;
       case 'op': OPS.includes(v) ? (out.op = v) : warn(k, v); break;
+      case 'color': COLORS.includes(v) ? (out.color = v) : warn(k, v); break;
+      case 'mix': {
+        // three real bands (blank frames 0, 50, 51 have no all-sky tiles)
+        const ok = Array.isArray(v) && v.length === 3 && v.every((b) => Number.isInteger(b) && b >= 1 && b <= 101 && b !== 50 && b !== 51);
+        ok ? (out.mix = [...v]) : warn(k, v);
+        break;
+      }
       case 'ra': isNum(v) ? (out.ra = wrapRa(v)) : warn(k, v); break;
       case 'dec': isNum(v) ? (out.dec = round5(clamp(v, -90, 90))) : warn(k, v); break;
       case 'fov': isNum(v) && v > 0 ? (out.fov = clamp(v, FOV_MIN, FOV_MAX)) : warn(k, v); break;

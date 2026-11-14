@@ -10,6 +10,7 @@ import { parseCoordinates } from '../core/coords.js';
 import { SPHEREX_HIPS, loadWavelengths, waitForLayer, showBand } from './spherexCube.js';
 import { PRESETS, presetById, presetForText } from './presets.js';
 import { createNativeLayer } from './nativeLayer.js';
+import { createColorViews } from './colorViews.js';
 
 const DEFAULT_FIELD_FOV = 0.5; // degrees, after flying to a named object
 const SPHERE_FOV_AFTER_ALLSKY = 60;
@@ -44,6 +45,7 @@ export async function createSky(container, { store, commands, onStatus = () => {
       sky.layer = layer;
       sky.ready = true;
       showBand(layer, store.get().band);
+      sky.colors.apply(store.get()); // tint or colour mix from the start (and from the URL)
       onStatus();
     })
     .catch((err) => onStatus(`Sky failed to load: ${err.message}`));
@@ -135,6 +137,9 @@ export async function createSky(container, { store, commands, onStatus = () => {
     },
     { label: 'Set view type', args: { proj: "'SIN' (3D globe), 'STG' (planetarium) or 'AIT' (whole sky, Gaia style)" } },
   );
+
+  // Colour views: grey, tinted band, or false-colour mixes (see colorViews.js)
+  sky.colors = createColorViews(aladin, sky, { store, onStatus });
 
   // Sharper than the all-sky tiles when zoomed in (see nativeLayer.js)
   sky.native = createNativeLayer(aladin, { store, commands, onStatus });

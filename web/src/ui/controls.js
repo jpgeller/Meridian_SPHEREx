@@ -2,6 +2,7 @@
 // commands and reads state, so it can be restyled or replaced freely.
 import { PRESETS } from '../sky/presets.js';
 import { detectorOf, BAND_MIN, BAND_MAX } from '../core/bands.js';
+import { COLOR_PRESETS, mixBands } from '../sky/colorViews.js';
 
 const html = String.raw;
 
@@ -32,6 +33,21 @@ export function createControls(root, { store, commands, getWavelengths }) {
         <button type="button" data-proj="STG" title="As if standing inside the sky: shapes stay the same as they move">Planetarium</button>
         <button type="button" data-proj="AIT">Whole sky</button>
       </div>
+
+      <label>Colours <span class="muted">(infrared has no real colour: these are translations)</span></label>
+      <div class="row wrap" role="radiogroup" aria-label="Colour view">
+        <button type="button" role="radio" data-color="grey" title="One band as brightness">Grey</button>
+        <button type="button" role="radio" data-color="tint" title="One band, coloured like its detector on the ribbon">Tinted band</button>
+        ${Object.entries(COLOR_PRESETS).map(([id, p]) => `<button type="button" role="radio" data-color="${id}" title="${p.note}">${p.label}</button>`).join('')}
+        <button type="button" role="radio" data-color="custom" title="Pick three bands for red, green and blue">Your mix</button>
+      </div>
+      <form id="mix-form" class="row mix-form" hidden aria-label="Your colour mix">
+        <label>R <input id="mix-r" type="number" min="1" max="101" /></label>
+        <label>G <input id="mix-g" type="number" min="1" max="101" /></label>
+        <label>B <input id="mix-b" type="number" min="1" max="101" /></label>
+        <button type="submit">Apply</button>
+      </form>
+      <p id="color-note" class="muted color-note"></p>
     </section>`;
 
   const $ = (sel) => root.querySelector(sel);
@@ -59,6 +75,14 @@ export function createControls(root, { store, commands, getWavelengths }) {
     b.addEventListener('click', () => commands.run('set_projection', { proj: b.dataset.proj }, 'ui')),
   );
   commands.register('focus_search', () => input.focus(), { label: 'Search', keys: ['/'] });
+  root.querySelectorAll('[data-color]').forEach((b) =>
+    b.addEventListener('click', () => commands.run('set_color', { color: b.dataset.color }, 'ui')),
+  );
+  $('#mix-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const mix = ['#mix-r', '#mix-g', '#mix-b'].map((id) => Number($(id).value));
+    commands.run('set_mix', { mix }, 'ui');
+  });
 
   // --- state -> UI ------------------------------------------------------------------
   function render(state) {
@@ -71,6 +95,21 @@ export function createControls(root, { store, commands, getWavelengths }) {
     root.querySelectorAll('[data-proj]').forEach((b) =>
       b.setAttribute('aria-pressed', String(b.dataset.proj === state.proj)),
     );
+    root.querySelectorAll('[data-color]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.color === state.color)));
+    const mixed = mixBands(state);
+    band.disabled = Boolean(mixed); // a colour mix uses its own three bands
+    const mixForm = $('#mix-form');
+    mixForm.hidden = state.color !== 'custom';
+    ['#mix-r', '#mix-g', '#mix-b'].forEach((id, i) => {
+      if (document.activeElement !== $(id)) $(id).value = String(state.mix[i]);
+    });
+    const wl2 = getWavelengths?.();
+    const um = (b) => (wl2 ? `${wl2[b].toFixed(2)} µm` : `band ${b}`);
+    $('#color-note').textContent = mixed
+      ? `Red ${um(mixed[0])} · green ${um(mixed[1])} · blue ${um(mixed[2])}. The band slider is not used in colour mixes.`
+      : state.color === 'tint'
+        ? 'Each detector has its own tint (see the ribbon), so changing band changes the colour.'
+        : 'Brightness of one band, no colour added.';
   }
   store.subscribe((state) => render(state));
   window.addEventListener('meridian:wavelengths', () => render(store.get()));

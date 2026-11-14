@@ -456,3 +456,33 @@ body.field-open .handoff {
 #spec-svg {
   max-height: 200px;
 }
+
+/* --- colour views --- */
+#controls button[role='radio'][aria-checked='true'] {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+.mix-form[hidden] {
+  display: none;
+}
+.mix-form label {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 4px;
+  margin: 0 !important;
+}
+.mix-form input {
+  width: 52px;
+  padding: 6px;
+  border-radius: 6px;
+  border: 1px solid #2b375f;
+  background: #0d1430;
+  color: var(--text);
+}
+.color-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+#controls input[type='range']:disabled {
+  opacity: 0.4;
+}

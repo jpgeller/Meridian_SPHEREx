@@ -181,3 +181,19 @@ test('commands: toggle_layer and field commands', () => {
   assert.equal(store.get().view, 'sky');
   assert.equal(store.get().playing, false);
 });
+
+test('colour views: valid presets and custom mixes; blank bands refused', () => {
+  const store = createStore();
+  assert.equal(store.get().color, 'tint');
+  store.set({ color: 'dust' });
+  assert.equal(store.get().color, 'dust');
+  quiet(() => store.set({ color: 'neon', mix: [50, 46, 22] }));
+  assert.equal(store.get().color, 'dust');
+  assert.deepEqual(store.get().mix, [62, 46, 22]);
+  store.set({ color: 'custom', mix: [87, 42, 22] });
+  const q = toQuery(store.get());
+  assert.match(q, /color=custom&.*mix=87,42,22|mix=87,42,22.*color=custom/);
+  const s2 = createStore();
+  s2.set(parseQuery(q).patch);
+  assert.deepEqual(s2.get().mix, [87, 42, 22]);
+});

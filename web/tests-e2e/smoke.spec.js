@@ -137,3 +137,22 @@ test('the band label shows the wavelength once it is known', async ({ page }) =>
   await ready(page);
   await expect(page.locator('#band-label')).toContainText('1.905 µm', { timeout: 20_000 });
 });
+
+test('colour views: tinted band follows the detector; presets and custom mixes swap the map', async ({ page }) => {
+  await page.goto('/?band=40');
+  await ready(page);
+  // While the map swaps between the band cube and a colour mix there is briefly no base layer.
+  const cmap = () => page.evaluate(() => aladin.getBaseImageLayer()?.getColorCfg?.().getColormap() ?? null);
+  const base = () => page.evaluate(() => { const l = aladin.getBaseImageLayer(); return l ? (l.url ?? l.id) : ''; });
+  await expect.poll(cmap, { timeout: 20_000 }).toBe('meridian-d3'); // band 40 = detector D3
+  await page.evaluate(() => meridian.run('set_band', { band: 90 }));
+  await expect.poll(cmap).toBe('meridian-d6');
+  await page.getByRole('radio', { name: 'Dust glow' }).click();
+  await expect.poll(base).toContain('/api/hips/mix/62-46-22');
+  await expect(page).toHaveURL(/color=dust/);
+  await expect(page.locator('#band')).toBeDisabled();
+  await page.getByRole('radio', { name: 'Grey' }).click();
+  await expect.poll(base, { timeout: 20_000 }).toContain('spherex_allsky_cube');
+  await expect.poll(cmap).toBe('grey');
+  await expect(page.locator('#band')).toBeEnabled();
+});

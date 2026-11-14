@@ -10,6 +10,7 @@
 // Patches have feathered edges, so neighbours blend without seams.
 import A from 'aladin-lite';
 import { CELL, PATCH, cellsForView } from './grid.js';
+import { mixBands, tintColormap } from './colorViews.js';
 
 export { CELL };
 
@@ -25,7 +26,7 @@ export function createNativeLayer(aladin, { store, commands, onStatus = () => {}
   let scale = null; // { band, lo, hi }: one brightness scale for the whole view (from the centre patch)
   let timer = null;
 
-  const keyOf = (c, band, smooth) => `${c.ra},${c.dec}|${band}|${smooth}`; // scale is fixed per band
+  const keyOf = (c, band, smooth) => `${c.ra},${c.dec}|${band}|${smooth}|${store.get().color}`; // scale is fixed per band
 
   function removeLayer(name) {
     try {
@@ -56,7 +57,8 @@ export function createNativeLayer(aladin, { store, commands, onStatus = () => {}
 
   async function update() {
     const s = store.get();
-    if (!local.enabled || s.view !== 'sky' || s.proj === 'AIT' || s.fov >= NATIVE_SHOW_FOV) {
+    // Sharp patches are single-band: shown with the grey or tinted views, not with colour mixes.
+    if (!local.enabled || s.view !== 'sky' || s.proj === 'AIT' || s.fov >= NATIVE_SHOW_FOV || mixBands(s)) {
       clearAll();
       return;
     }
@@ -94,7 +96,8 @@ export function createNativeLayer(aladin, { store, commands, onStatus = () => {}
         if (gen !== generation) return;
         if (!scale) scale = { band: s.band, lo: meta.lo, hi: meta.hi };
         const name = `${PREFIX}${c.ra}_${c.dec}`;
-        const img = A.image(new URL(meta.url, location.href).href, { name: 'SPHEREx full resolution', imgFormat: 'png', wcs: meta.wcs });
+        const colormap = s.color === 'tint' ? tintColormap(s.band) : 'grey'; // match the map's colour view
+        const img = A.image(new URL(meta.url, location.href).href, { name: 'SPHEREx full resolution', imgFormat: 'png', wcs: meta.wcs, colormap });
         aladin.setOverlayImageLayer(img, name);
         shown.set(key, { name, meta });
         describe(s.band);
@@ -122,7 +125,7 @@ export function createNativeLayer(aladin, { store, commands, onStatus = () => {}
     timer = setTimeout(update, 500);
   };
   store.subscribe((s, changed) => {
-    if (['ra', 'dec', 'fov', 'band', 'view', 'proj'].some((k) => changed.includes(k))) schedule();
+    if (['ra', 'dec', 'fov', 'band', 'view', 'proj', 'color', 'mix'].some((k) => changed.includes(k))) schedule();
   });
 
   commands.register(

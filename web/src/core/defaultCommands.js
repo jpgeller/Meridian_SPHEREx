@@ -74,6 +74,15 @@ export function registerDefaultCommands(commands, store) {
     args: { mode: 'single | detector | rgb | custom', rgb: '[r,g,b] bands', formula: 'e.g. b88 - b40' },
   });
 
+  register('set_color', ({ color }) => set({ color }), {
+    label: 'Colour view of the map',
+    args: { color: 'grey | tint | ir (infrared colour) | dust (dust glow) | ice (ices) | custom' },
+  });
+  register('set_mix', ({ mix }) => set({ color: 'custom', mix }), {
+    label: 'Custom colour mix',
+    args: { mix: '[red band, green band, blue band], e.g. [62, 46, 22]' },
+  });
+
   // --- field view -------------------------------------------------------------
   register(
     'open_field',
