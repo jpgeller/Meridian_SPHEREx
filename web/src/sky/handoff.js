@@ -1,5 +1,5 @@
 // Offers the time-lapse once the user has zoomed in. It never opens it automatically:
-// a surprise view change is disorienting, especially for gaze users.
+// a surprise view change is disorienting.
 import { FIELD_OPEN_MAX_FOV } from '../core/defaultCommands.js';
 
 export function createHandoff(root, { store, commands }) {

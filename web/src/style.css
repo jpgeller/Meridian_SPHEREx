@@ -127,7 +127,7 @@ kbd {
   left: 50%;
   bottom: 56px;
   transform: translateX(-50%);
-  min-height: 48px; /* large target: also a future gaze target */
+  min-height: 48px; /* large target */
   padding: 10px 18px;
   border-radius: 10px;
   border: 2px solid var(--amber);
@@ -455,74 +455,4 @@ body.field-open .handoff {
 }
 #spec-svg {
   max-height: 200px;
-}
-
-/* --- gaze feedback --- */
-.gaze-layer {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 1000;
-}
-.gaze-dot {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 181, 71, 0.85);
-  background: rgba(255, 181, 71, 0.15);
-  will-change: transform;
-}
-.gaze-bar {
-  position: absolute;
-  height: 5px;
-  border-radius: 3px;
-  background: rgba(233, 238, 251, 0.25);
-  overflow: hidden;
-}
-.gaze-bar-fill {
-  height: 100%;
-  background: var(--amber);
-}
-.gaze-rest {
-  position: absolute;
-  right: 0;
-  top: 0;
-  width: 150px;
-  height: 110px;
-  box-sizing: border-box;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  justify-content: flex-end;
-  border-bottom-left-radius: 14px;
-  border: 1px dashed #4a5a8c;
-  background: rgba(10, 15, 31, 0.6);
-  color: var(--muted);
-  font-size: 11px;
-}
-.gaze-rest strong {
-  color: var(--text);
-  font-size: 13px;
-}
-.gaze-rest.paused {
-  border: 2px solid var(--amber);
-  color: var(--amber);
-}
-.gaze-sim {
-  position: absolute;
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 6px 12px;
-  border-radius: 8px;
-  background: var(--panel);
-  color: var(--amber);
-  font-size: 12px;
-}
-.gaze-pressed {
-  outline: 3px solid var(--amber) !important;
 }

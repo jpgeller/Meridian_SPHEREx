@@ -2,7 +2,7 @@
 // date operations (blink, add, subtract). Two stages:
 //   1. sequence  – which images make up the time-lapse (built in sequence.js; Step 8 adds band modes)
 //   2. operation – state.op: none (time-lapse) | blink | add | subtract, on dates chosen in state.t
-// Every control is a command, so keyboard, gaze and the guide drive it the same way.
+// Every control is a command, so keyboard, external controllers and the guide drive it the same way.
 import { loadFrameList, bandsWithData } from './frames.js';
 import { buildSequence, sequenceKey } from './sequence.js';
 import { drawFrame, drawRGB, sharedStretch, rgbStretches } from './render.js';

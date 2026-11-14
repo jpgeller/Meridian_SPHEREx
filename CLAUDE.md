@@ -40,8 +40,8 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   Console: `meridian.run(...)`, `meridian.store.get()`, `meridian.commands.list()`.
 - The backend never sends full 65 MB SPHEREx files. Always use cutouts (`access_url + ?center=RA,DECd&size=DEG`) and cache them in `api/cache/`.
 - Show uncertainty and limits honestly. Never claim discoveries.
-- Eye tracking: gaze samples → `web/src/input/gaze.js` (dwell presses visible buttons in `#ui`, `#handoff`, `#field-root`, or
-  `[data-gaze]`). New controls must be real `<button>`s (or carry `data-gaze`) to be usable by gaze. Contract: docs/EYE_TRACKING.md.
+- Eye tracking is NOT built here: Yassin's team integrates it through the command bridge (`web/src/core/messages.js`).
+  Keep every control a real `<button>` running a command, so their gaze layer can find and press it. See docs/EYE_TRACKING.md.
 
 ## Verified data facts (Nov 2026). Do not re-derive these.
 - SPHEREx HiPS cube: `https://irsa.ipac.caltech.edu/data/hips/SPHEREx/spherex_allsky_cube`. 102 frames, PNG tiles,

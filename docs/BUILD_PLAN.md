@@ -332,7 +332,8 @@ the WISE 0855 timeline scrolls 2010 to 2026.
 ---
 
 ## Merge later (not in this plan)
-- **Eye tracking: app side done (15 Nov 2026).** `web/src/input/gazeCore.js` (pure logic: dwell 0.8 s adjustable 0.4–1.5 s,
+- **Eye tracking: handed to Yassin's team (15 Nov 2026).** A first app-side version was built, then removed so this team
+  focuses on mapping; it is in git history (commit 89f89ae). What it was: `web/src/input/gazeCore.js` (pure logic: dwell 0.8 s adjustable 0.4–1.5 s,
   24 px snapping, 120 ms smoothing, no double presses, sky-only edge panning, top-right rest zone, low-confidence/lost tracking)
   and `web/src/input/gaze.js` (finds buttons, progress bar, presses them, replies `{type:'targets'}` to the tracker, and a mouse
   simulator via `?gaze=mouse` or `g`). Guide for the tracker author: **docs/EYE_TRACKING.md**. Tests: 9 unit + 5 Playwright

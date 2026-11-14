@@ -1,12 +1,8 @@
-// window.postMessage -> commands. This is the contract with the eye-tracking module
-// (see the spec, "Contract between the eye-tracking module and the app"):
+// window.postMessage -> commands. The hook for external controllers (the eye-tracking
+// integration by Yassin's team, an AI guide...); see docs/EYE_TRACKING.md:
 //
 //   { type: 'command', name: 'zoom_in' }
 //   { type: 'command', name: 'set_band', args: { band: 72 } }
-//   { type: 'gaze', x, y, confidence, t }   -> re-emitted as a `meridian:gaze` event for the
-//                                             gaze adapter (web/src/input/gaze.js); x, y in CSS px
-//   app -> tracker: { type: 'targets', items: [{ id, label, x, y, w, h }] } whenever the
-//                   buttons on screen change, so the tracker can snap to them
 //   { type: 'list_commands' }               -> replies { type: 'commands', items: [...] }
 //
 // Only messages from allowed origins are accepted. By default: this page's own origin and
@@ -40,13 +36,6 @@ export function startMessages(commands, { allowedOrigins = [], target = window }
         // Async commands (fly_to) answer when they finish; a Promise cannot be posted.
         if (result.pending) result.value.then(() => reply({ ok: true }), (err) => reply({ ok: false, error: String(err?.message ?? err) }));
         else reply(result);
-        break;
-      }
-      case 'gaze': {
-        if (!Number.isFinite(msg.x) || !Number.isFinite(msg.y)) return;
-        // `reply` lets the gaze adapter send the on-screen targets back to this tracker.
-        const reply = (data) => e.source?.postMessage?.(data, { targetOrigin: e.origin });
-        target.dispatchEvent(new CustomEvent('meridian:gaze', { detail: { ...msg, reply } }));
         break;
       }
       case 'list_commands':
