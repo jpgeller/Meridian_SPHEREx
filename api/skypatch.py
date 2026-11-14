@@ -26,12 +26,13 @@ import cache
 import cutouts
 import spherex
 
-MAX_FOV = 0.5
+MAX_FOV = 0.6  # 0.5 deg grid cells + overlap so feathered edges cross-blend
 MIN_FOV = 0.05
 MAX_FRAMES = 4
 SMOOTH_FACTOR = 4  # upsampling for the smooth version
 FOLD = {0: 1, 50: 49, 51: 52}  # blank cube bands fold into neighbours (same as the web app)
-VERSION = "v1"
+VERSION = "v3"  # v3: shared stretch (lo/hi) across a view
+FEATHER = 0.06  # fraction of the patch over which the edges fade out (no visible seams)
 
 
 def _display_band(b):
@@ -50,24 +51,29 @@ def _pick_frames(ra: float, dec: float, band: int) -> tuple[list[dict], int]:
     return picked[:MAX_FRAMES], used
 
 
-def _stretch(img: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """asinh stretch to 8 bit; returns (grey, alpha). NaN -> transparent, +inf -> white."""
+def _stretch(img: np.ndarray, lo: float | None = None, hi: float | None = None):
+    """asinh stretch to 8 bit; returns (grey, alpha, lo, hi). NaN -> transparent, +inf -> white.
+    Pass lo/hi to reuse another patch's scale, so neighbouring patches match in brightness."""
     sat = np.isposinf(img)
     good = np.isfinite(img)
     grey = np.zeros(img.shape, dtype=np.uint8)
     if good.any():
-        lo, hi = np.percentile(img[good], [1, 99.7])
+        if lo is None or hi is None:
+            lo, hi = (float(v) for v in np.percentile(img[good], [1, 99.7]))
         x = np.clip((img - lo) / max(hi - lo, 1e-12), 0, 1)
         x = np.arcsinh(10 * x) / np.arcsinh(10)
         grey = np.nan_to_num(x * 255, nan=0, posinf=255).astype(np.uint8)
     grey[sat] = 255
     alpha = np.where(good | sat, 255, 0).astype(np.uint8)
-    return grey, alpha
+    return grey, alpha, lo, hi
 
 
-def sky_patch(ra: float, dec: float, fov: float, band: int, smooth: bool = True) -> dict:
+def sky_patch(ra: float, dec: float, fov: float, band: int, smooth: bool = True,
+              lo: float | None = None, hi: float | None = None) -> dict:
     fov = float(min(MAX_FOV, max(MIN_FOV, fov)))
-    key = f"{ra:.5f},{dec:.5f}|{fov:.4f}|b{band}|{'s' if smooth else 'n'}|{cutouts.PROCESS_VERSION}|{VERSION}"
+    if lo is not None and hi is not None:
+        lo, hi = float(f"{lo:.4g}"), float(f"{hi:.4g}")  # round so cache keys repeat
+    key = f"{ra:.5f},{dec:.5f}|{fov:.4f}|b{band}|{'s' if smooth else 'n'}|{lo},{hi}|{cutouts.PROCESS_VERSION}|{VERSION}"
     meta_hit = cache.get_json("skypatch", key)
     png_path = cache.path_for("skypatch", key, ".png")
     if meta_hit and png_path.exists():
@@ -96,7 +102,11 @@ def sky_patch(ra: float, dec: float, fov: float, band: int, smooth: bool = True)
         img = np.nanmedian(finite, axis=0) if len(results) > 1 else finite[0]
     img[n_sat > n_ok] = np.inf  # saturated in most frames: a bright star core
 
-    grey, alpha = _stretch(img)
+    grey, alpha, lo_used, hi_used = _stretch(img, lo, hi)
+    # Fade the outer edges so neighbouring patches and the all-sky tiles blend without seams.
+    n_px = img.shape[0]
+    ramp = np.clip(np.minimum(np.arange(n_px), np.arange(n_px)[::-1]) / max(FEATHER * n_px, 1), 0, 1)
+    alpha = (alpha * np.minimum.outer(ramp, ramp)).astype(np.uint8)
     # FITS order has row 0 at the south; PNG row 0 is the top (north).
     grey, alpha = np.flipud(grey), np.flipud(alpha)
     tw, (n, _) = cutouts.target_wcs(ra, dec, fov)
@@ -119,6 +129,7 @@ def sky_patch(ra: float, dec: float, fov: float, band: int, smooth: bool = True)
         "dates": sorted(r["meta"]["date_iso"] for r in results if r["meta"].get("date_iso")),
         "pixel_scale_arcsec": cutouts.PIXEL_SCALE_ARCSEC,
         "smooth": smooth,
+        "lo": lo_used, "hi": hi_used,  # the brightness scale; pass back for neighbouring patches
         # WCS for Aladin's A.image: TAN, north up, east left. Image rows run top (north) to
         # bottom like the PNG; the sign of CD2_2 is verified against the HiPS stars.
         "wcs": {

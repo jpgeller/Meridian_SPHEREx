@@ -204,10 +204,12 @@ async def sky_patch(
     fov: float = Query(0.25, ge=0.02, le=2.0),
     band: int = Query(40, ge=0, le=101),
     smooth: bool = Query(True, description="upsample smoothly (display only, no new detail)"),
+    lo: float | None = Query(None, description="reuse a brightness scale (from a neighbouring patch)"),
+    hi: float | None = Query(None),
 ) -> dict:
     """A full-resolution (6.15"/px) SPHEREx patch for the 3D sky, with its WCS. The PNG is at `url`."""
     try:
-        meta = await run_in_threadpool(skypatch.sky_patch, ra, dec, fov, band, smooth)
+        meta = await run_in_threadpool(skypatch.sky_patch, ra, dec, fov, band, smooth, lo, hi)
     except LookupError as err:
         raise HTTPException(status_code=404, detail=str(err))
     except Exception as err:

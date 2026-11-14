@@ -23,7 +23,7 @@ export const DEFAULTS = Object.freeze({
   view: 'sky',
   ra: 266.4168, // Milky Way centre
   dec: -29.0078,
-  fov: 60,
+  fov: 180, // open on the whole globe, not zoomed in on the Milky Way
   ffov: 0.1, // field-view size, one of FIELD_FOVS
   proj: 'SIN',
   band: 40,

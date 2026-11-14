@@ -7,3 +7,4 @@ numpy
 pillow
 httpx
 pytest
+astropy-healpix  # only for experiments/tile_prototype.py

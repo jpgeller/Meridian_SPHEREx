@@ -1,85 +1,122 @@
 // Full-resolution SPHEREx layer for the 3D sky.
 //
-// IRSA's all-sky tiles stop at 12.9"/px, so past ~3 deg of zoom Aladin just magnifies them
-// (blocky). When the view is zoomed in, this lays a patch built from the original SPHEREx
-// images (6.15"/px, twice as sharp) over the sphere, optionally smoothed (display
-// interpolation, no new detail). It follows panning and band changes.
+// IRSA's all-sky tiles stop at 12.9"/px, so past a few degrees of zoom Aladin just magnifies
+// them (blocky). When the view is zoomed in, this covers it with patches built from the
+// original SPHEREx images (6.15"/px, twice as sharp), optionally smoothed (display
+// interpolation, no new detail).
+//
+// Patches sit on a fixed sky grid of CELL degrees, so panning reuses patches already loaded
+// (and the API caches each one). The visible cells are loaded centre-first, at most MAX_CELLS.
+// Patches have feathered edges, so neighbours blend without seams.
 import A from 'aladin-lite';
+import { CELL, PATCH, cellsForView } from './grid.js';
 
-export const NATIVE_SHOW_FOV = 1.5; // degrees: below this the patch is shown
-const MAX_PATCH_FOV = 0.5; // the API's limit (wavelength drifts across wider patches)
-const LAYER = 'spherex-native';
+export { CELL };
+
+export const NATIVE_SHOW_FOV = 1.5; // degrees: below this the full-resolution layer is shown
+const MAX_CELLS = 9;
+const PARALLEL = 2; // patches built at once (each downloads several images)
+const PREFIX = 'spherex-native-';
 
 export function createNativeLayer(aladin, { store, commands, onStatus = () => {} }) {
   const local = { enabled: true, smooth: true };
-  let current = null; // { key, ra, dec, fov, band, smooth }
-  let token = 0;
+  const shown = new Map(); // key -> { name, meta }
+  let generation = 0;
+  let scale = null; // { band, lo, hi }: one brightness scale for the whole view (from the centre patch)
   let timer = null;
 
-  const patchFovFor = (viewFov) => Math.min(MAX_PATCH_FOV, Math.max(0.05, viewFov * 1.3));
-  // Snap the patch centre to a grid of a quarter patch, so small pans reuse the same patch.
-  const snap = (v, step) => Math.round(v / step) * step;
+  const keyOf = (c, band, smooth) => `${c.ra},${c.dec}|${band}|${smooth}`; // scale is fixed per band
 
-  function wanted(s) {
-    if (!local.enabled || s.view !== 'sky' || s.proj !== 'SIN' || s.fov >= NATIVE_SHOW_FOV) return null;
-    const fov = Number(patchFovFor(s.fov).toFixed(3));
-    const step = fov / 4;
-    const dec = snap(s.dec, step);
-    const ra = snap(s.ra, step / Math.max(Math.cos((dec * Math.PI) / 180), 0.05));
-    return { ra: Number(((ra + 360) % 360).toFixed(5)), dec: Number(dec.toFixed(5)), fov, band: s.band, smooth: local.smooth };
+  function removeLayer(name) {
+    try {
+      aladin.removeImageLayer(name);
+    } catch {
+      /* already gone */
+    }
   }
 
-  const keyOf = (w) => (w ? `${w.ra},${w.dec},${w.fov},${w.band},${w.smooth}` : '');
+  function clearAll() {
+    const had = shown.size > 0;
+    for (const { name } of shown.values()) removeLayer(name);
+    shown.clear();
+    generation++; // ignore patches still on their way
+    if (had) onStatus(''); // back to the default status line (all-sky tiles)
+  }
 
-  function clear() {
-    if (current) {
-      try {
-        aladin.removeImageLayer(LAYER);
-      } catch {
-        /* layer may already be gone */
-      }
-      onStatus(''); // back to the default status line (all-sky tiles)
-    }
-    current = null;
-    token++; // ignore any patch still on its way
+  function describe(band) {
+    const metas = [...shown.values()].map((v) => v.meta);
+    if (!metas.length) return;
+    const nImages = metas.reduce((n, m) => n + m.n_frames, 0);
+    const wl = metas[0].wavelength_um;
+    onStatus(
+      `Full-resolution SPHEREx · 6.15″ pixels · band ${band} · ${wl.toFixed(2)} µm · ${metas.length} patch${metas.length > 1 ? 'es' : ''}, ` +
+        `${nImages} images${local.smooth ? ' · smoothed for display' : ''}`,
+    );
   }
 
   async function update() {
-    const w = wanted(store.get());
-    const key = keyOf(w);
-    if (!w) {
-      clear();
+    const s = store.get();
+    if (!local.enabled || s.view !== 'sky' || s.proj !== 'SIN' || s.fov >= NATIVE_SHOW_FOV) {
+      clearAll();
       return;
     }
-    if (current?.key === key) return;
-    const my = ++token;
-    onStatus('Loading full-resolution SPHEREx images…');
-    try {
-      const q = new URLSearchParams({ ra: w.ra, dec: w.dec, fov: w.fov, band: w.band, smooth: w.smooth });
-      const r = await fetch(`/api/skypatch?${q}`);
-      const meta = await r.json();
-      if (!r.ok) throw new Error(meta.detail ?? `patch failed (${r.status})`);
-      if (my !== token) return;
-      const img = A.image(new URL(meta.url, location.href).href, {
-        name: 'SPHEREx full resolution',
-        imgFormat: 'png',
-        wcs: meta.wcs,
-      });
-      aladin.setOverlayImageLayer(img, LAYER);
-      current = { key, ...w };
-      const bandNote = meta.band !== w.band ? ` (nearest band with images: ${meta.band})` : '';
-      onStatus(
-        `Full-resolution SPHEREx · 6.15″ pixels · band ${meta.band}${bandNote} · ${meta.wavelength_um.toFixed(2)} µm · ` +
-          `${meta.n_frames} image${meta.n_frames > 1 ? 's' : ''}${w.smooth ? ' · smoothed for display' : ''}`,
-      );
-    } catch (err) {
-      if (my !== token) return;
-      console.error('[native]', err);
-      onStatus(/no images/.test(err.message) ? 'No full-resolution SPHEREx images here yet' : 'Full-resolution images unavailable right now');
+    const gen = ++generation;
+    const cells = cellsForView(s.ra, s.dec, s.fov);
+    const wanted = new Map(cells.map((c) => [keyOf(c, s.band, local.smooth), c]));
+    // Drop patches that left the view or belong to another band/smoothing.
+    for (const [key, v] of shown) {
+      if (!wanted.has(key)) {
+        removeLayer(v.name);
+        shown.delete(key);
+      }
     }
+    if (scale && scale.band !== s.band) {
+      // New band: new brightness scale, so every patch is rebuilt from the centre outwards.
+      for (const v of shown.values()) removeLayer(v.name);
+      shown.clear();
+      scale = null;
+    }
+    const todo = [...wanted].filter(([key]) => !shown.has(key));
+    if (!todo.length) {
+      describe(s.band);
+      return;
+    }
+    onStatus(`Loading full-resolution SPHEREx images… (${shown.size}/${wanted.size} patches)`);
+    let failures = 0;
+
+    async function load([key, c]) {
+      try {
+        const params = { ra: c.ra, dec: c.dec, fov: PATCH, band: s.band, smooth: local.smooth };
+        if (scale) Object.assign(params, { lo: scale.lo, hi: scale.hi });
+        const r = await fetch(`/api/skypatch?${new URLSearchParams(params)}`);
+        const meta = await r.json();
+        if (!r.ok) throw new Error(meta.detail ?? `patch failed (${r.status})`);
+        if (gen !== generation) return;
+        if (!scale) scale = { band: s.band, lo: meta.lo, hi: meta.hi };
+        const name = `${PREFIX}${c.ra}_${c.dec}`;
+        const img = A.image(new URL(meta.url, location.href).href, { name: 'SPHEREx full resolution', imgFormat: 'png', wcs: meta.wcs });
+        aladin.setOverlayImageLayer(img, name);
+        shown.set(key, { name, meta });
+        describe(s.band);
+      } catch (err) {
+        failures++;
+        console.warn('[native]', err.message);
+      }
+    }
+
+    // The centre patch goes first and sets one brightness scale for the whole view, so the
+    // other patches match it. If it fails, the others still load (each with its own scale).
+    const queue = [...todo];
+    if (!scale) await load(queue.shift());
+    const worker = async () => {
+      while (queue.length && gen === generation) await load(queue.shift());
+    };
+    await Promise.all(Array.from({ length: PARALLEL }, worker));
+    if (gen !== generation) return;
+    if (!shown.size) onStatus(failures ? 'Full-resolution images unavailable here right now' : '');
   }
 
-  // Wait until panning/zooming settles before asking for a patch.
+  // Wait until panning/zooming settles before asking for patches.
   const schedule = () => {
     clearTimeout(timer);
     timer = setTimeout(update, 500);
@@ -93,7 +130,7 @@ export function createNativeLayer(aladin, { store, commands, onStatus = () => {}
     () => {
       local.enabled = !local.enabled;
       if (!local.enabled) {
-        clear();
+        clearAll();
         onStatus('Full-resolution layer off');
       } else schedule();
       return local.enabled;
@@ -111,5 +148,5 @@ export function createNativeLayer(aladin, { store, commands, onStatus = () => {}
   );
 
   schedule();
-  return { update, get state() { return { ...local, current }; } };
+  return { update, get state() { return { ...local, patches: shown.size }; } };
 }

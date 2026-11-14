@@ -112,4 +112,4 @@ def test_skypatch_is_twice_as_sharp_and_north_up():
     assert abs(w["CD2_2"] * 3600 - cu.PIXEL_SCALE_ARCSEC) < 1e-6  # 6.15"/px, vs 12.9" for the HiPS tiles
     png = client.get(m["url"])
     assert png.status_code == 200 and png.headers["content-type"] == "image/png"
-    assert skypatch.MAX_FOV == 0.5
+    assert skypatch.MAX_FOV == 0.6 and m["lo"] < m["hi"]

@@ -144,3 +144,17 @@ test('deep fields keep one frame per band per visit (the most recent)', () => {
   const many = Array.from({ length: 10 }, (_, i) => ({ id: `m${i}`, visit: 5, detector: 3, band: 40 + i, mjd: 100 + i }));
   assert.deepEqual(capPerVisitBand(many).map((f) => f.band), [40, 43, 46, 49]);
 });
+
+import { cellsForView, CELL } from '../src/sky/grid.js';
+test('full-resolution grid: cells cover the view, nearest first, capped, stable while panning', () => {
+  const a = cellsForView(100.1, 20.1, 1.2);
+  assert.ok(a.length >= 4 && a.length <= 9);
+  assert.ok(a[0].d <= a.at(-1).d);
+  // a small pan keeps the same cells (they snap to a fixed grid)
+  const b = cellsForView(100.12, 20.11, 1.2);
+  assert.deepEqual(new Set(a.map((c) => `${c.ra},${c.dec}`)).size, a.length);
+  assert.equal(a[0].ra, b[0].ra);
+  // a tiny view needs just the cell under it (plus neighbours only if near an edge)
+  assert.ok(cellsForView(100, 20, 0.1).length <= 4);
+  assert.equal(CELL, 0.5);
+});

@@ -348,6 +348,28 @@ SPHEREx's own pixels are 6.15″, twice as fine.
 - Limit, said honestly: nothing can show detail finer than 6.15″; that's the telescope.
 - Before/after: `docs/img/zoom_before_allsky_tiles.png`, `docs/img/zoom_after_full_resolution.png` (Barnard's Star, 0.3°).
 - IRSA's search sometimes returns a transient 502 "proxy error": `spherex._query` now retries 3 times.
+- **Whole zoomed view at full quality (15 Nov):** below 1.5° the view is covered by a fixed grid of patches (`web/src/sky/grid.js`:
+  0.5° spacing, 0.6° patches so neighbours overlap, ≤9 patches, centre first, 2 at a time). Edges are feathered (6%), and the centre
+  patch's brightness scale (`lo`/`hi`, returned by the API) is reused by the rest, so the mosaic is seamless. Barnard's Star at 1.2°:
+  9 patches from 28 images, about 50 s cold, instant when cached. Panning reuses cells (fixed grid).
+- **Opening view:** the 3D globe zoomed out to 180° (was 60° on the Milky Way's centre, which looked like "only the Milky Way").
+  The data covers the whole sky (whole-sky view and the north galactic pole checked).
+
+---
+
+## Optional (final version): sharp tile level for the whole sky  `[ ]`
+Goal: full SPHEREx quality (≈6.4″/px) everywhere on the sphere, not only in zoomed patches. Deferred on 15 Nov 2026:
+build all other requirements first.
+
+- Idea: add HiPS **order 6** (512×512 tiles, 6.44″/px, 49 152 tiles over the sky), built **on demand** by our API from the Level 2
+  images and cached; orders 0–5 keep coming from IRSA. Per tile pixel, use only images that saw that spot at the chosen band's
+  wavelength (per-pixel spectral WCS), like IRSA does, so there's no wavelength drift and no 0.5° patch limit.
+- Prototype: `api/experiments/tile_prototype.py RA DEC BAND OUT_DIR` (search → header-only wavelength masks → partial cutouts →
+  median), with timings for each stage.
+- Not measured yet: IRSA's search service was down (502) during both attempts on 15 Nov. Expected from the parts already measured:
+  ~10–30 images per tile and band, ~0.5–2 min for the first view of a tile, instant afterwards. Pre-building the whole sky is
+  impractical (TBs of source images); pre-build only the demo areas.
+- Effort estimate: about half a day plus tuning, replacing `nativeLayer.js` with a custom HiPS endpoint.
 
 ---
 
