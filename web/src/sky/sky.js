@@ -13,6 +13,7 @@ import { createNativeLayer } from './nativeLayer.js';
 
 const DEFAULT_FIELD_FOV = 0.5; // degrees, after flying to a named object
 const SPHERE_FOV_AFTER_ALLSKY = 60;
+const PLANETARIUM_MAX_FOV = 160; // stereographic stretches a lot beyond this
 
 export async function createSky(container, { store, commands, onStatus = () => {} }) {
   await A.init;
@@ -35,6 +36,7 @@ export async function createSky(container, { store, commands, onStatus = () => {
   // --- band -------------------------------------------------------------------
   loadWavelengths().then((w) => {
     sky.wavelengths = w;
+    window.dispatchEvent(new CustomEvent('meridian:wavelengths')); // panels redraw their band labels
     onStatus();
   });
   waitForLayer(aladin)
@@ -128,9 +130,10 @@ export async function createSky(container, { store, commands, onStatus = () => {
       const patch = { proj };
       if (proj === 'AIT') Object.assign(patch, { fov: 360, ra: 266.4168, dec: -29.0078 });
       if (proj === 'SIN' && store.get().fov > 180) patch.fov = SPHERE_FOV_AFTER_ALLSKY;
+      if (proj === 'STG' && store.get().fov > PLANETARIUM_MAX_FOV) patch.fov = 120;
       store.set(patch, 'command');
     },
-    { label: 'Set view type', args: { proj: "'SIN' (3D sphere) or 'AIT' (whole sky, Gaia style)" } },
+    { label: 'Set view type', args: { proj: "'SIN' (3D globe), 'STG' (planetarium) or 'AIT' (whole sky, Gaia style)" } },
   );
 
   // Sharper than the all-sky tiles when zoomed in (see nativeLayer.js)

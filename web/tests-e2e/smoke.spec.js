@@ -118,3 +118,22 @@ test('zooming in replaces the blocky all-sky tiles with the full-resolution laye
   await page.evaluate(() => meridian.run('set_projection', { proj: 'AIT' }));
   await expect(page.locator('#status')).not.toContainText('Full-resolution SPHEREx ·', { timeout: 10_000 });
 });
+
+test('three view types: globe, planetarium and whole sky', async ({ page }) => {
+  await page.goto('/');
+  await ready(page);
+  await page.getByRole('button', { name: 'Planetarium' }).click();
+  await expect.poll(() => page.evaluate(() => aladin.getProjectionName())).toBe('STG');
+  await expect(page).toHaveURL(/proj=STG/);
+  expect(await page.evaluate(() => meridian.store.get().fov)).toBeLessThanOrEqual(160);
+  await page.getByRole('button', { name: 'Whole sky' }).click();
+  await expect.poll(() => page.evaluate(() => aladin.getProjectionName())).toBe('AIT');
+  await page.getByRole('button', { name: '3D sphere' }).click();
+  await expect.poll(() => page.evaluate(() => aladin.getProjectionName())).toBe('SIN');
+});
+
+test('the band label shows the wavelength once it is known', async ({ page }) => {
+  await page.goto('/?band=40');
+  await ready(page);
+  await expect(page.locator('#band-label')).toContainText('1.905 µm', { timeout: 20_000 });
+});

@@ -4,7 +4,8 @@
 import { normalizeBand } from './bands.js';
 
 export const VIEWS = ['sky', 'field'];
-export const PROJECTIONS = ['SIN', 'AIT'];
+// SIN: 3D globe · STG: planetarium (stereographic, shapes kept as they move) · AIT: whole sky (Gaia style)
+export const PROJECTIONS = ['SIN', 'STG', 'AIT'];
 export const MODES = ['single', 'detector', 'rgb', 'custom'];
 export const COMPARES = ['off', 'side', 'timeline', 'blink'];
 // Operations on SPHEREx frames of different dates (field view)

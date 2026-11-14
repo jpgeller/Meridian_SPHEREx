@@ -56,7 +56,7 @@ export function createNativeLayer(aladin, { store, commands, onStatus = () => {}
 
   async function update() {
     const s = store.get();
-    if (!local.enabled || s.view !== 'sky' || s.proj !== 'SIN' || s.fov >= NATIVE_SHOW_FOV) {
+    if (!local.enabled || s.view !== 'sky' || s.proj === 'AIT' || s.fov >= NATIVE_SHOW_FOV) {
       clearAll();
       return;
     }

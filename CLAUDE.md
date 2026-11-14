@@ -48,7 +48,8 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   files `_k` ascend in wavelength. Frames 0, 50, 51 are blank (404). Aladin's `setSliceNumber` loads the WRONG tile;
   use `layer.setFrequency({value: F_MIN + (k+0.5)/102*(F_MAX-F_MIN), unit:'Hz'})` with F = c/λ, λ from 5.009 µm (F_MIN)
   to 0.743 µm (F_MAX). Wait until `layer.added` is true before setting it. The cube has no time information.
-- Gaia-style view: `aladin.setProjection('AIT'); aladin.setFrame('galactic'); setFoV(360)`. 3D sphere: `'SIN'`.
+- Views: 3D sphere `'SIN'`; Planetarium `'STG'` (≤160°); whole sky `aladin.setProjection('AIT'); aladin.setFrame('galactic'); setFoV(360)`.
+  Aladin can't keep a fixed flat map while panning (it always re-projects around the view centre).
 - The HiPS cube stops at order 5 (12.9″/px) and Aladin draws tiles with NEAREST filtering (hard-coded), so deep zoom looks
   blocky. `web/src/sky/nativeLayer.js` + `/api/skypatch` overlay full-resolution (6.15″) patches below 1.5°. PNG overlays via
   `A.image(url, {imgFormat:'png', wcs})` need CD1_1 < 0 and CD2_2 > 0 (rows top = north).

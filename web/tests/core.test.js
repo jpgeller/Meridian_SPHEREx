@@ -72,6 +72,12 @@ test('coords: decimal and sexagesimal forms', () => {
   assert.equal(parseCoordinates('400 10'), null);
 });
 
+test('state: planetarium view is a valid projection', () => {
+  const store = createStore();
+  store.set({ proj: 'STG' });
+  assert.equal(store.get().proj, 'STG');
+});
+
 test('url: round trip keeps state, defaults are omitted', () => {
   const store = createStore();
   store.set({ ra: 133.7951, dec: -7.2451, fov: 2, band: 72, proj: 'AIT', mode: 'rgb', rgb: ['D6', 72, 40], layers: ['gaia'] });

@@ -28,7 +28,8 @@ export function createControls(root, { store, commands, getWavelengths }) {
       <div class="ribbon" aria-hidden="true"></div>
 
       <div class="row" role="group" aria-label="View type">
-        <button type="button" data-proj="SIN">3D sphere</button>
+        <button type="button" data-proj="SIN" title="The sky as a globe">3D sphere</button>
+        <button type="button" data-proj="STG" title="As if standing inside the sky: shapes stay the same as they move">Planetarium</button>
         <button type="button" data-proj="AIT">Whole sky</button>
       </div>
     </section>`;
@@ -72,6 +73,7 @@ export function createControls(root, { store, commands, getWavelengths }) {
     );
   }
   store.subscribe((state) => render(state));
+  window.addEventListener('meridian:wavelengths', () => render(store.get()));
   render(store.get());
   return { render: () => render(store.get()) };
 }

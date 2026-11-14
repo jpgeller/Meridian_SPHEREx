@@ -116,6 +116,7 @@ export function createFieldView(root, { store, commands, getWavelengths = () => 
     wasOpen = open;
   }
   store.subscribe(render);
+  window.addEventListener('meridian:wavelengths', () => render(store.get()));
   render(store.get());
 
   return { stage: root.querySelector('#field-stage') };

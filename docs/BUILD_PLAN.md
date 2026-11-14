@@ -352,6 +352,10 @@ SPHEREx's own pixels are 6.15″, twice as fine.
   0.5° spacing, 0.6° patches so neighbours overlap, ≤9 patches, centre first, 2 at a time). Edges are feathered (6%), and the centre
   patch's brightness scale (`lo`/`hi`, returned by the API) is reused by the rest, so the mosaic is seamless. Barnard's Star at 1.2°:
   9 patches from 28 images, about 50 s cold, instant when cached. Panning reuses cells (fixed grid).
+- **Three view types (15 Nov):** `SIN` 3D globe, **`STG` Planetarium** (stereographic: shapes stay the same as they move, like
+  standing inside the sky; ≤160°), `AIT` whole sky. All Aladin views already show the sky from the inside (east on the left); the
+  globe's look comes from SIN squeezing things towards its edge. A fixed flat Gaia-style map (ESA's EDR3 page is a single
+  deep-zoom image) would need a different viewer, because Aladin always re-projects around the view centre; not done, by choice.
 - **Opening view:** the 3D globe zoomed out to 180° (was 60° on the Milky Way's centre, which looked like "only the Milky Way").
   The data covers the whole sky (whole-sky view and the north galactic pole checked).
 
