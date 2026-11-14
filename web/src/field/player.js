@@ -70,6 +70,8 @@ export function createPlayer(stage, { store, commands }) {
   let blinkTimer = null;
   let blinkPhase = 0;
   const derived = new Map(); // memoised add/subtract results for the current sequence
+  let shownFrame = null; // what is on the canvas now (for overlays)
+  const showListeners = [];
 
   // --- controls -> commands --------------------------------------------------------
   $('#p-prev').addEventListener('click', () => commands.run('step_prev', {}, 'ui'));
@@ -247,6 +249,7 @@ export function createPlayer(stage, { store, commands }) {
     const view = current(s);
     if (view.frame.rgb) drawRGB(canvas, view.frame, view.stretch);
     else drawFrame(canvas, view.frame, view.stretch, view.cmap);
+    shownFrame = view.frame;
     const text = describe(s, view);
     caption.textContent = text + note;
     canvas.setAttribute('aria-label', `SPHEREx image. ${text}`);
@@ -258,6 +261,7 @@ export function createPlayer(stage, { store, commands }) {
     epochsEl.querySelectorAll('[data-epoch]').forEach((b) =>
       b.classList.toggle('current', Number(b.dataset.epoch) === (view.index ?? -1)),
     );
+    for (const fn of showListeners) fn(view);
   }
 
   function renderEpochs(s) {
@@ -337,5 +341,16 @@ export function createPlayer(stage, { store, commands }) {
   });
   if (store.get().view === 'field') reload(store.get());
 
-  return { getSequence: () => seq, getStretch: () => stretch };
+  return {
+    getSequence: () => seq,
+    getStretch: () => stretch,
+    getShownFrame: () => shownFrame,
+    onShow: (fn) => showListeners.push(fn),
+    elements: {
+      view: stage.querySelector('.player-view'),
+      canvasWrap: stage.querySelector('.canvas-wrap'),
+      canvas,
+      bar: stage.querySelectorAll('.player-bar')[1],
+    },
+  };
 }

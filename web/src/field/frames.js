@@ -1,7 +1,7 @@
 // Field data: which SPHEREx frames exist at a position, and their aligned cutouts.
 // Network results are memoised per position so moving between bands is instant.
 
-const MAX_PARALLEL = 6;
+const MAX_PARALLEL = 4; // IRSA's cutout service throttles (503) under heavier parallel load
 
 // Cube bands 0, 50 and 51 are blank in the all-sky mosaic, so the band control skips them,
 // but real images exist at those wavelengths. Fold them into the neighbouring band.

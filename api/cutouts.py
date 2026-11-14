@@ -72,7 +72,7 @@ def target_wcs(ra: float, dec: float, fov: float) -> tuple[WCS, tuple[int, int]]
     return w, (n, n)
 
 
-def download_cutout(frame: dict, ra: float, dec: float, fov: float, retries: int = 3) -> bytes:
+def download_cutout(frame: dict, ra: float, dec: float, fov: float) -> bytes:
     key = f"{frame['access_url']}|{ra:.5f},{dec:.5f},{fov:.4f}"
     p = cache.path_for("cutout", key, ".fits")
     if p.exists() and p.stat().st_size > 0:
@@ -80,30 +80,41 @@ def download_cutout(frame: dict, ra: float, dec: float, fov: float, retries: int
     # The cutout box is a bit larger than the field so reprojection never runs off the edge.
     size = round(fov * 1.25 + 2 * PIXEL_SCALE_ARCSEC / 3600, 5)
     url = f"{frame['access_url']}?center={ra},{dec}d&size={size}"
-    last = None
-    for attempt in range(retries):
+    # IRSA's cutout service answers 503 when busy (e.g. many parallel requests); it recovers
+    # within seconds (503, 503, 200 observed 14 Nov 2026). Back off and retry before falling
+    # back to the 65 MB full file.
+    for wait in (0, 3, 6, 12):
+        if wait:
+            time.sleep(wait)
         try:
             r = httpx.get(url, timeout=60.0, follow_redirects=True)
-            if r.status_code == 503 and attempt == 0:
-                # Some files make the cutout service fail every time (seen 14 Nov 2026 on QR3)
-                # while the file itself downloads fine. Don't wait for retries: use the full file.
-                break
+            if r.status_code == 503:
+                continue
             r.raise_for_status()
             cache.write_atomic(p, r.content)
             return r.content
-        except httpx.HTTPError as err:
-            last = err
-            time.sleep(2 * (attempt + 1))
+        except httpx.HTTPError:
+            continue
     # Cutout service failed (503 or repeated errors): fall back to the whole file.
     return download_full(frame)
 
 
+_FULL_LOCK = __import__("threading").Semaphore(2)  # at most 2 big downloads at once
+
+
 def download_full(frame: dict) -> bytes:
-    """Fallback: the whole Level 2 file (~65 MB), cached. process() reprojects it onto the
+    """Last resort: the whole Level 2 file (~65 MB), cached. process() reprojects it onto the
     small target grid exactly like a cutout, so the result is identical."""
     p = cache.path_for("full", frame["access_url"], ".fits")
     if p.exists() and p.stat().st_size > 0:
         return p.read_bytes()
+    with _FULL_LOCK:
+        if p.exists() and p.stat().st_size > 0:
+            return p.read_bytes()
+        return _download_full_locked(frame, p)
+
+
+def _download_full_locked(frame: dict, p) -> bytes:
     last = None
     for attempt in range(2):
         try:

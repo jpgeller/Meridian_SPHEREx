@@ -10,6 +10,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
 import resolve as resolver
+import context
 import cutouts
 import spherex
 
@@ -121,3 +122,55 @@ async def cutout(
     if fmt == "png":
         return Response(cutouts.to_png(arr), media_type="image/png", headers=headers)
     return Response(np.ascontiguousarray(arr, dtype="<f4").tobytes(), media_type="application/octet-stream", headers=headers)
+
+
+@app.get("/api/context/wise")
+async def wise_context(
+    ra: float = Query(..., ge=0, lt=360),
+    dec: float = Query(..., ge=-90, le=90),
+    fov: float = Query(0.1, ge=0.02, le=1.0),
+    band: int = Query(2, ge=1, le=2, description="1 = W1 (3.4 um), 2 = W2 (4.6 um)"),
+) -> dict:
+    """WISE/NEOWISE epochs of this field (2010 onward); images via /api/context/wise/frame."""
+    try:
+        info = await run_in_threadpool(context.wise_frames, ra, dec, fov, band)
+    except Exception as err:
+        raise HTTPException(status_code=503, detail=f"WISE images unavailable: {err}")
+    frames = [
+        {**{k: v for k, v in f.items() if k != "key"},
+         "url": f"/api/context/wise/frame?ra={ra}&dec={dec}&fov={fov}&band={band}&index={f['index']}"}
+        for f in info["frames"]
+    ]
+    return {k: v for k, v in info.items() if not k.startswith("_")} | {"frames": frames}
+
+
+@app.get("/api/context/wise/frame")
+async def wise_frame(
+    ra: float = Query(..., ge=0, lt=360),
+    dec: float = Query(..., ge=-90, le=90),
+    fov: float = Query(0.1, ge=0.02, le=1.0),
+    band: int = Query(2, ge=1, le=2),
+    index: int = Query(..., ge=0, le=100),
+):
+    """One WISE epoch as a north-up PNG centred on (ra, dec), same field of view as SPHEREx."""
+    try:
+        png = await run_in_threadpool(context.wise_frame_png, ra, dec, fov, band, index)
+    except IndexError:
+        raise HTTPException(status_code=404, detail="no such WISE epoch")
+    except Exception as err:
+        raise HTTPException(status_code=503, detail=f"WISE image unavailable: {err}")
+    return Response(png, media_type="image/png", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/api/context/gaia")
+async def gaia_context(
+    ra: float = Query(..., ge=0, lt=360),
+    dec: float = Query(..., ge=-90, le=90),
+    fov: float = Query(0.1, ge=0.02, le=1.0),
+    mjd: float | None = Query(None, ge=40000, le=80000, description="move stars to this date"),
+) -> dict:
+    """Gaia DR3 stars in the field, positions moved from 2016.0 to `mjd` with proper motion."""
+    try:
+        return await run_in_threadpool(context.gaia_sources, ra, dec, fov, mjd)
+    except Exception as err:
+        raise HTTPException(status_code=503, detail=f"Gaia unavailable: {err}")

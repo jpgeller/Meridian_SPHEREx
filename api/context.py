@@ -7,7 +7,8 @@ rows run north-up (row 0 = north), which we verified against Gaia stars (within 
 We reproject every frame onto a north-up grid centred on the target at 2.75"/px, so WISE
 and SPHEREx fields line up by construction.
 
-Gaia: DR3 cone from MAST, positions at epoch 2016.0, moved to any date with proper motion.
+Gaia: DR3 cone from the ESA archive, positions at epoch 2016.0, moved to any date with
+proper motion. (MAST only has DR2 at epoch 2015.5; see _gaia_cone.)
 """
 from __future__ import annotations
 
@@ -131,26 +132,51 @@ def wise_frame_png(ra: float, dec: float, fov: float, band: int, index: int) -> 
 
 
 # --- Gaia --------------------------------------------------------------------------
+GAIA_TAP = "https://gea.esac.esa.int/tap-server/tap/sync"
+
+
 def _gaia_cone(ra: float, dec: float, radius_deg: float) -> list[dict]:
-    key = f"{ra:.4f},{dec:.4f}|{radius_deg:.4f}"
+    """Gaia DR3 from the ESA archive (positions at epoch 2016.0).
+
+    Not MAST: astroquery's MAST Gaia catalogue only serves DR2 (epoch 2015.5) and silently
+    falls back to it when asked for version 3 (found 14 Nov 2026).
+    """
+    key = f"dr3|{ra:.4f},{dec:.4f}|{radius_deg:.4f}"
     hit = cache.get_json("gaia", key)
     if hit is not None:
         return hit
-    from astroquery.mast import Catalogs  # slow import
-    import astropy.units as u
+    query = (
+        f"SELECT TOP {MAX_GAIA} source_id, ra, dec, pmra, pmdec, parallax, phot_g_mean_mag, bp_rp "
+        "FROM gaiadr3.gaia_source "
+        f"WHERE 1=CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', {ra:.6f}, {dec:.6f}, {radius_deg:.5f})) "
+        "ORDER BY phot_g_mean_mag"
+    )
+    last = None
+    for attempt in range(3):
+        try:
+            r = httpx.post(GAIA_TAP, data={"REQUEST": "doQuery", "LANG": "ADQL", "FORMAT": "csv", "QUERY": query}, timeout=90.0)
+            r.raise_for_status()
+            break
+        except httpx.HTTPError as err:
+            last = err
+            time.sleep(2 * (attempt + 1))
+    else:
+        raise RuntimeError(f"Gaia archive unavailable ({type(last).__name__})")
+    import csv
 
-    t = Catalogs.query_region(SkyCoord(ra, dec, unit="deg"), radius=radius_deg * u.deg, catalog="Gaia", version=3)
-    t.sort("phot_g_mean_mag")
+    def num(v):
+        try:
+            f = float(v)
+            return f if math.isfinite(f) else None
+        except (TypeError, ValueError):
+            return None
+
     rows = []
-    for r in t[:MAX_GAIA]:
-        def num(name):
-            v = r[name]
-            return None if np.ma.is_masked(v) or not np.isfinite(float(v)) else float(v)
+    for rec in csv.DictReader(io.StringIO(r.text)):
         rows.append({
-            "source_id": str(r["source_id"]),
-            "ra": float(r["ra"]), "dec": float(r["dec"]),
-            "pmra": num("pmra"), "pmdec": num("pmdec"), "parallax": num("parallax"),
-            "g_mag": num("phot_g_mean_mag"), "bp_rp": num("bp_rp"),
+            "source_id": rec["source_id"], "ra": float(rec["ra"]), "dec": float(rec["dec"]),
+            "pmra": num(rec["pmra"]), "pmdec": num(rec["pmdec"]), "parallax": num(rec["parallax"]),
+            "g_mag": num(rec["phot_g_mean_mag"]), "bp_rp": num(rec["bp_rp"]),
         })
     cache.put_json("gaia", key, rows)
     return rows
@@ -177,7 +203,7 @@ def gaia_sources(ra: float, dec: float, fov: float, mjd: float | None = None) ->
     return {
         "ra": ra, "dec": dec, "fov": fov,
         "epoch_mjd": mjd if mjd is not None else GAIA_EPOCH_MJD,
-        "catalog": "Gaia DR3 (MAST)",
+        "catalog": "Gaia DR3 (ESA archive), epoch 2016.0",
         "n": len(out),
         "sources": out,
     }

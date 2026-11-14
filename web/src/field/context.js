@@ -1,0 +1,256 @@
+// Context from other missions in the field view (Step 9):
+//   compare = 'side'     : WISE (chosen epoch) next to SPHEREx, same patch and size
+//   compare = 'timeline' : one scrubber from WISE 2010 to SPHEREx 2026
+//   compare = 'blink'    : WISE W2 (4.6 µm) against the SPHEREx frame on screen
+//   layer 'gaia'         : Gaia DR3 stars as circles, moved to the date of each image
+// Positions use a small-field gnomonic approximation (fields are ≤ 1°).
+
+const GAIA_EPOCH_MJD = 57388.5; // 2016.0
+const SPHEREX_SCALE = 6.15; // arcsec/px
+const BLINK_HZ = 2;
+const GAIA_MAX_MAG = 18; // fainter Gaia stars clutter a 6′ field without helping
+const fmtDate = (iso) =>
+  iso ? new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+const isoToMjd = (iso) => Date.parse(iso) / 86400000 + 40587;
+
+/** Pixel position (x right, y down, north up, east left) of a sky point in a field image. */
+export function skyToPixel(ra, dec, ra0, dec0, scaleArcsec, size) {
+  const c = (size - 1) / 2;
+  let dra = ra - ra0;
+  if (dra > 180) dra -= 360;
+  if (dra < -180) dra += 360;
+  const x = c - (dra * Math.cos((dec0 * Math.PI) / 180) * 3600) / scaleArcsec;
+  const y = c - ((dec - dec0) * 3600) / scaleArcsec;
+  return { x, y };
+}
+
+/** Move a Gaia star (2016.0) to a date given as MJD. */
+export function gaiaAt(star, mjd) {
+  if (star.pmra == null || star.pmdec == null) return { ra: star.ra, dec: star.dec };
+  const years = (mjd - GAIA_EPOCH_MJD) / 365.25;
+  const cosd = Math.max(Math.cos((star.dec * Math.PI) / 180), 1e-6);
+  return { ra: star.ra + (star.pmra * years) / 3.6e6 / cosd, dec: star.dec + (star.pmdec * years) / 3.6e6 };
+}
+
+export function createContext(player, { store, commands }) {
+  const { view: viewEl, canvasWrap, canvas, bar } = player.elements;
+
+  // --- DOM ---------------------------------------------------------------------------
+  bar.insertAdjacentHTML(
+    'beforeend',
+    `<span class="sep" aria-hidden="true"></span>
+     <div role="radiogroup" aria-label="Other missions" class="row wrap" id="ctx-modes">
+       <button type="button" role="radio" data-compare="off">SPHEREx only</button>
+       <button type="button" role="radio" data-compare="side">Side by side with WISE</button>
+       <button type="button" role="radio" data-compare="timeline">Timeline 2010→2026</button>
+       <button type="button" role="radio" data-compare="blink">Blink WISE / SPHEREx</button>
+     </div>
+     <label class="inline"><input type="checkbox" id="ctx-gaia" /> Gaia stars</label>`,
+  );
+  const side = document.createElement('div');
+  side.className = 'canvas-wrap ctx-wrap';
+  side.hidden = true;
+  side.innerHTML = `
+    <img id="wise-img" alt="" />
+    <svg class="overlay" id="wise-overlay" aria-hidden="true"></svg>
+    <p class="ctx-label" id="wise-label"></p>`;
+  viewEl.append(side);
+  const sxOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  sxOverlay.setAttribute('class', 'overlay');
+  sxOverlay.setAttribute('aria-hidden', 'true');
+  canvasWrap.append(sxOverlay);
+
+  const timeline = document.createElement('div');
+  timeline.className = 'player-bar ctx-timeline';
+  timeline.hidden = true;
+  timeline.innerHTML = `
+    <label for="ctx-scrub" class="inline">Timeline</label>
+    <input type="range" id="ctx-scrub" min="0" max="0" value="0" />
+    <span id="ctx-when" class="muted"></span>`;
+  bar.after(timeline);
+
+  const wiseImg = side.querySelector('#wise-img');
+  const wiseOverlay = side.querySelector('#wise-overlay');
+  const wiseLabel = side.querySelector('#wise-label');
+  const scrubEl = timeline.querySelector('#ctx-scrub');
+  const whenEl = timeline.querySelector('#ctx-when');
+
+  // --- data --------------------------------------------------------------------------
+  let wise = null; // { frames: [{index, mjd, date_iso, url}] }
+  let gaia = null; // { sources: [...] } at 2016.0
+  let fieldKey = '';
+  let tlIndex = 0;
+  let blinkTimer = null;
+  let blinkPhase = 0;
+  let wiseEpoch = -1; // -1 = latest
+
+  async function loadContext(s) {
+    const key = `${s.ra.toFixed(5)},${s.dec.toFixed(5)}|${s.ffov}`;
+    if (key === fieldKey) return;
+    fieldKey = key;
+    wise = null;
+    gaia = null;
+    const q = `ra=${s.ra.toFixed(5)}&dec=${s.dec.toFixed(5)}&fov=${s.ffov}`;
+    if (s.compare !== 'off') {
+      wiseLabel.textContent = 'Loading WISE images…';
+      fetch(`/api/context/wise?${q}&band=2`)
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then((d) => {
+          if (key !== fieldKey) return;
+          wise = d;
+          render();
+        })
+        .catch((err) => {
+          console.error('[context] WISE', err);
+          if (key === fieldKey) wiseLabel.textContent = 'WISE images are not available right now.';
+        });
+    }
+    if (s.layers.includes('gaia')) {
+      fetch(`/api/context/gaia?${q}`)
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then((d) => {
+          if (key !== fieldKey) return;
+          gaia = d;
+          render();
+        })
+        .catch((err) => console.error('[context] Gaia', err));
+    }
+  }
+
+  // --- drawing -------------------------------------------------------------------------
+  function drawGaia(svg, s, mjd, scale, size) {
+    svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+    if (!gaia || !s.layers.includes('gaia') || !size) {
+      svg.innerHTML = '';
+      return;
+    }
+    const parts = [];
+    for (const star of gaia.sources) {
+      if (star.g_mag == null || star.g_mag > GAIA_MAX_MAG) continue;
+      const p = gaiaAt(star, mjd);
+      const { x, y } = skyToPixel(p.ra, p.dec, s.ra, s.dec, scale, size);
+      if (x < -2 || y < -2 || x > size + 1 || y > size + 1) continue;
+      const r = Math.max(0.9, (GAIA_MAX_MAG + 1 - star.g_mag) * 0.18) * (6.15 / scale);
+      // +0.5: pixel centres sit at integer + 0.5 in SVG coordinates
+      parts.push(`<circle cx="${(x + 0.5).toFixed(2)}" cy="${(y + 0.5).toFixed(2)}" r="${r.toFixed(2)}"><title>Gaia DR3 ${star.source_id}, G=${star.g_mag.toFixed(1)}</title></circle>`);
+    }
+    svg.innerHTML = parts.join('');
+  }
+
+  function wiseFrame(i) {
+    if (!wise?.frames.length) return null;
+    const k = i < 0 ? wise.frames.length - 1 : Math.min(i, wise.frames.length - 1);
+    return wise.frames[k];
+  }
+
+  function showWise(frame, s) {
+    if (!frame) return;
+    if (wiseImg.dataset.src !== frame.url) {
+      wiseImg.dataset.src = frame.url;
+      wiseImg.src = frame.url;
+    }
+    wiseImg.alt = `WISE W2 (4.6 µm) image of this patch, ${fmtDate(frame.date_iso)}`;
+    wiseLabel.textContent = `WISE W2 · 4.6 µm · ${fmtDate(frame.date_iso)}`;
+    const size = Math.round((s.ffov * 3600) / 2.75) | 1;
+    drawGaia(wiseOverlay, s, frame.mjd, 2.75, size);
+  }
+
+  function timelineItems() {
+    const seq = player.getSequence();
+    const items = (wise?.frames ?? []).map((f) => ({ kind: 'wise', frame: f, mjd: f.mjd, date_iso: f.date_iso }));
+    seq.forEach((f, i) => items.push({ kind: 'spherex', index: i, mjd: f.meta.mjd, date_iso: f.meta.date_iso }));
+    return items.sort((a, b) => a.mjd - b.mjd);
+  }
+
+  function render() {
+    const s = store.get();
+    if (s.view !== 'field') return;
+    viewEl.classList.toggle('compare-side', s.compare === 'side');
+    side.hidden = !(s.compare === 'side' || s.compare === 'timeline' || s.compare === 'blink');
+    timeline.hidden = s.compare !== 'timeline';
+    document.querySelectorAll('[data-compare]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.compare === s.compare)));
+    document.querySelector('#ctx-gaia').checked = s.layers.includes('gaia');
+
+    const seq = player.getSequence();
+    const shown = player.getShownFrame();
+    const sxSize = shown?.w ?? 0;
+    const sxMjd = shown?.meta?.mjd ?? GAIA_EPOCH_MJD;
+    drawGaia(sxOverlay, s, Number.isFinite(sxMjd) ? sxMjd : GAIA_EPOCH_MJD, SPHEREX_SCALE, sxSize);
+
+    if (s.compare === 'side') {
+      canvasWrap.hidden = false;
+      showWise(wiseFrame(wiseEpoch), s);
+    } else if (s.compare === 'timeline') {
+      const items = timelineItems();
+      scrubEl.max = String(Math.max(0, items.length - 1));
+      tlIndex = Math.min(tlIndex, items.length - 1);
+      scrubEl.value = String(tlIndex);
+      const it = items[tlIndex];
+      if (it?.kind === 'wise') {
+        canvasWrap.hidden = true;
+        side.hidden = false;
+        showWise(it.frame, s);
+      } else if (it) {
+        canvasWrap.hidden = false;
+        side.hidden = true;
+        if (store.get().frameIndex !== it.index) store.set({ frameIndex: it.index, playing: false }, 'context');
+      }
+      const label = it ? `${it.kind === 'wise' ? 'WISE W2 4.6 µm' : 'SPHEREx'} · ${fmtDate(it.date_iso)} (${tlIndex + 1} of ${items.length})` : '';
+      whenEl.textContent = label;
+      scrubEl.setAttribute('aria-valuetext', label);
+    } else if (s.compare === 'blink') {
+      const f = wiseFrame(-1);
+      canvasWrap.hidden = blinkPhase === 1;
+      side.hidden = blinkPhase === 0;
+      if (f) showWise(f, s);
+      wiseLabel.textContent = f ? `Blink: WISE W2 · ${fmtDate(f.date_iso)} ↔ SPHEREx` : wiseLabel.textContent;
+    } else {
+      canvasWrap.hidden = false;
+      side.hidden = true;
+    }
+    syncBlink(s);
+    void seq;
+  }
+
+  function syncBlink(s) {
+    const want = s.view === 'field' && s.compare === 'blink';
+    if (want && !blinkTimer) {
+      blinkTimer = setInterval(() => {
+        blinkPhase ^= 1;
+        render();
+      }, 1000 / BLINK_HZ);
+    } else if (!want && blinkTimer) {
+      clearInterval(blinkTimer);
+      blinkTimer = null;
+      blinkPhase = 0;
+    }
+  }
+
+  // --- controls -> commands --------------------------------------------------------
+  document.querySelectorAll('[data-compare]').forEach((b) =>
+    b.addEventListener('click', () => commands.run('set_compare', { compare: b.dataset.compare }, 'ui')),
+  );
+  document.querySelector('#ctx-gaia').addEventListener('change', () => commands.run('toggle_layer', { layer: 'gaia' }, 'ui'));
+  scrubEl.addEventListener('input', () => {
+    tlIndex = Number(scrubEl.value);
+    render();
+  });
+  wiseImg.addEventListener('error', () => (wiseLabel.textContent = 'This WISE image could not be loaded.'));
+
+  // --- state -> context ------------------------------------------------------------
+  store.subscribe((s, changed) => {
+    if (s.view !== 'field') {
+      syncBlink(s);
+      return;
+    }
+    if (['ra', 'dec', 'ffov', 'view'].some((k) => changed.includes(k))) fieldKey = '';
+    if (changed.includes('compare') || changed.includes('layers')) fieldKey = '';
+    loadContext(s);
+    render();
+  });
+  player.onShow(() => render());
+  if (store.get().view === 'field') {
+    loadContext(store.get());
+    render();
+  }
+}
