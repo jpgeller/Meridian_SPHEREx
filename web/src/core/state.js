@@ -7,6 +7,8 @@ export const VIEWS = ['sky', 'field'];
 export const PROJECTIONS = ['SIN', 'AIT'];
 export const MODES = ['single', 'detector', 'rgb', 'custom'];
 export const COMPARES = ['off', 'side', 'timeline', 'blink'];
+// Operations on SPHEREx frames of different dates (field view)
+export const OPS = ['none', 'blink', 'add', 'subtract'];
 export const LAYERS = ['gaia', 'wise', 'flags', 'simbad'];
 
 export const FOV_MIN = 0.01; // degrees
@@ -31,6 +33,7 @@ export const DEFAULTS = Object.freeze({
   frameIndex: 0,
   playing: false,
   compare: 'off',
+  op: 'none',
   t: [], // selected epochs (frame indexes) for blink/add/subtract
   layers: [],
 });
@@ -52,6 +55,7 @@ export function sanitize(patch, current = DEFAULTS) {
       case 'proj': PROJECTIONS.includes(v) ? (out.proj = v) : warn(k, v); break;
       case 'mode': MODES.includes(v) ? (out.mode = v) : warn(k, v); break;
       case 'compare': COMPARES.includes(v) ? (out.compare = v) : warn(k, v); break;
+      case 'op': OPS.includes(v) ? (out.op = v) : warn(k, v); break;
       case 'ra': isNum(v) ? (out.ra = wrapRa(v)) : warn(k, v); break;
       case 'dec': isNum(v) ? (out.dec = clamp(v, -90, 90)) : warn(k, v); break;
       case 'fov': isNum(v) && v > 0 ? (out.fov = clamp(v, FOV_MIN, FOV_MAX)) : warn(k, v); break;

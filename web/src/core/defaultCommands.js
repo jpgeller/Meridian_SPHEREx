@@ -106,6 +106,20 @@ export function registerDefaultCommands(commands, store) {
     args: { compare: 'off | side | timeline | blink' },
   });
   register('set_epochs', ({ t }) => set({ t }), { label: 'Choose dates to compare', args: { t: 'frame indexes' } });
+  register('toggle_epoch', ({ index }) => {
+    const t = new Set(s().t);
+    t.has(index) ? t.delete(index) : t.add(index);
+    set({ t: [...t].sort((a, b) => a - b) });
+  }, { label: 'Select / unselect a date', args: { index: 'frame index' } });
+  const opCommand = (op) => () => set({ op: s().op === op ? 'none' : op, playing: false });
+  register('set_op', ({ op }) => set({ op, playing: false }), {
+    label: 'Compare dates',
+    args: { op: 'none (time-lapse) | blink | add | subtract' },
+  });
+  register('toggle_blink', opCommand('blink'), { label: 'Blink two dates', keys: ['b'] });
+  register('toggle_add', opCommand('add'), { label: 'Add dates (deeper image)', keys: ['m'] });
+  register('toggle_subtract', opCommand('subtract'), { label: 'Difference of two dates', keys: ['d'] });
+  register('show_timelapse', () => set({ op: 'none' }), { label: 'Back to time-lapse', keys: ['t'] });
 
   // --- layers -------------------------------------------------------------------
   register('toggle_layer', ({ layer }) => {
