@@ -6,18 +6,25 @@ exposure can appear in DR1 and QR3 (reprocessed); DR1 wins.
 """
 from __future__ import annotations
 
+import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+
+import httpx
 
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 
 import cache
+import framemeta
 
 COLLECTIONS = ["spherex_dr1", "spherex_qr3", "spherex_dr1_deep", "spherex_qr3_deep"]
 COLLECTION_RANK = {c: i for i, c in enumerate(COLLECTIONS)}  # lower = preferred
 VISIT_GAP_DAYS = 5.0
 FRAMES_TTL_S = 24 * 3600  # new SPHEREx data arrives weekly; a day is fresh enough
 MJD_EPOCH = datetime(1858, 11, 17, tzinfo=timezone.utc)
+HIPS_PROPERTIES = "https://irsa.ipac.caltech.edu/data/hips/SPHEREx/spherex_allsky_cube/properties"
+META_WORKERS = 16
 
 
 def mjd_to_iso(mjd: float) -> str:
@@ -108,3 +115,54 @@ def frames_at(ra: float, dec: float, refresh: bool = False) -> dict:
     }
     cache.put_json("frames", key, result)
     return {**result, "cached": False}
+
+
+def cube_wavelengths() -> list[float]:
+    """Centre wavelength (um) of each of the 102 cube bands, from the HiPS properties."""
+    hit = cache.get_json("cube", "wavelengths", ttl_s=7 * 24 * 3600)
+    if hit:
+        return hit
+    text = httpx.get(HIPS_PROPERTIES, timeout=20.0, follow_redirects=True).text
+    m = re.search(r"data_cube_crval3_arr\s*=\s*(.+)", text)
+    if not m:
+        raise RuntimeError("cube wavelengths not found in HiPS properties")
+    values = [float(v) for v in m.group(1).split()]
+    cache.put_json("cube", "wavelengths", values)
+    return values
+
+
+def frames_with_meta(ra: float, dec: float, refresh: bool = False) -> dict:
+    """frames_at() plus, for every frame, the wavelength seen at (ra, dec) and the nearest
+    cube band. Two small Range requests per new frame, run in parallel, cached forever."""
+    base = frames_at(ra, dec, refresh)
+    cube = cube_wavelengths()
+    frames = base["frames"]
+    with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+        def one(f):
+            try:
+                return framemeta.frame_meta(client, f, ra, dec)
+            except Exception as err:  # one bad file must not sink the whole field
+                return {"error": str(err)}
+        with ThreadPoolExecutor(max_workers=META_WORKERS) as pool:
+            metas = list(pool.map(one, frames))
+    out = []
+    for f, m in zip(frames, metas):
+        rec = {**f, **{k: v for k, v in m.items() if k not in ("x", "y")}}
+        if "wavelength_um" in m:
+            rec["band"] = framemeta.nearest_band(m["wavelength_um"], cube)
+        out.append(rec)
+    return {**base, "frames": out}
+
+
+def field_frames(ra: float, dec: float, band: int, refresh: bool = False) -> dict:
+    """Frames that saw (ra, dec) in cube band `band`, oldest first, one list per visit."""
+    data = frames_with_meta(ra, dec, refresh)
+    picked = [f for f in data["frames"] if f.get("band") == band and f.get("inside")]
+    return {
+        "ra": ra, "dec": dec, "band": band,
+        "band_wavelength_um": cube_wavelengths()[band],
+        "n_frames": len(picked),
+        "visits": sorted({f["visit"] for f in picked}),
+        "frames": picked,
+        "all_bands_seen": sorted({f["band"] for f in data["frames"] if "band" in f}),
+    }

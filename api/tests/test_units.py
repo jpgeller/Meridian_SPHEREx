@@ -62,3 +62,23 @@ def test_query_dedupes_dr1_over_qr3(monkeypatch):
     out = spherex._query(10.0, 20.0)
     assert [f["id"] for f in out] == ["X_1_D3", "X_1_D6"]
     assert out[0]["access_url"] == "dr1-url"
+
+
+def test_target_grid_is_odd_and_centred():
+    import cutouts
+    w, shape = cutouts.target_wcs(133.7578, -7.2420, 0.1)
+    assert shape == (59, 59)
+    x, y = w.world_to_pixel_values(133.7578, -7.2420)
+    assert (round(float(x), 6), round(float(y), 6)) == (29.0, 29.0)  # 0-based centre of 59
+    assert w.wcs.cdelt[0] < 0 < w.wcs.cdelt[1]  # east left, north up
+
+
+def test_mask_planes_read_from_header():
+    from astropy.io import fits
+    import cutouts
+    h = fits.Header()
+    h["MSKN0000"], h["MSKM0000"] = "TRANSIENT", 1
+    h["MSKN0021"], h["MSKM0021"] = "SOURCE", 2097152
+    planes = cutouts.mask_planes(h)
+    assert planes == {"TRANSIENT": 1, "SOURCE": 2097152}
+    assert "SOURCE" not in cutouts.BAD_PLANES and "OUTLIER" not in cutouts.BAD_PLANES
