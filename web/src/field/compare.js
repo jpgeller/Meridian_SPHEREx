@@ -1,23 +1,27 @@
 // Comparing frames from different dates. Pure functions on aligned frames
 // ({ data: Float32Array, w, h, meta }); NaN = no data, +Infinity = saturated.
 
-/** Mean of aligned frames per pixel (deeper image). Saturated anywhere -> saturated. */
+/**
+ * Mean of aligned frames per pixel (deeper image). A pixel counts as saturated only if
+ * most frames covering it are saturated; a stray flagged pixel in one frame must not
+ * punch a hole in the sum (seen on detector D6, 14 Nov 2026).
+ */
 export function addFrames(frames) {
   const { w, h } = frames[0];
   const out = new Float32Array(w * h);
   for (let i = 0; i < w * h; i++) {
     let sum = 0;
     let n = 0;
-    let sat = false;
+    let nSat = 0;
     for (const f of frames) {
       const v = f.data[i];
-      if (v === Infinity) sat = true;
+      if (v === Infinity) nSat++;
       else if (Number.isFinite(v)) {
         sum += v;
         n++;
       }
     }
-    out[i] = sat ? Infinity : n ? sum / n : NaN;
+    out[i] = nSat > n ? Infinity : n ? sum / n : NaN;
   }
   const mjds = frames.map((f) => f.meta.mjd);
   return {
@@ -130,13 +134,16 @@ export const SYSTEMATIC_FRACTION = 0.15;
 export function differenceSignificance(a, b, { fraction = SYSTEMATIC_FRACTION } = {}) {
   const diff = matchedDifference(a, b);
   const k = diff.meta.scale;
-  const ma = robustStats(a.data).median;
-  const mb = robustStats(b.data).median;
+  const sa = robustStats(a.data);
+  const sb = robustStats(b.data);
   const { median, sigma } = robustStats(diff.data);
+  // Only real sources (>3σ in their own image) add the brightness term; using noisy
+  // pixel values here would shrink one sign of the difference and bias the colours.
+  const real = (v, st) => (v - st.median > 3 * st.sigma ? v - st.median : 0);
   for (let i = 0; i < diff.data.length; i++) {
     const d = diff.data[i];
     if (!Number.isFinite(d)) continue;
-    const bright = Math.max(k * (a.data[i] - ma), b.data[i] - mb, 0);
+    const bright = Math.max(k * real(a.data[i], sa), real(b.data[i], sb));
     diff.data[i] = (d - median) / Math.sqrt(sigma * sigma + (fraction * bright) ** 2);
   }
   diff.meta.units = 'sigma';

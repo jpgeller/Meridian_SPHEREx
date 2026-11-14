@@ -71,9 +71,9 @@ test('coords: decimal and sexagesimal forms', () => {
 
 test('url: round trip keeps state, defaults are omitted', () => {
   const store = createStore();
-  store.set({ ra: 133.7951, dec: -7.2451, fov: 2, band: 72, proj: 'AIT', mode: 'rgb', rgb: [88, 72, 40], layers: ['gaia'] });
+  store.set({ ra: 133.7951, dec: -7.2451, fov: 2, band: 72, proj: 'AIT', mode: 'rgb', rgb: ['D6', 72, 40], layers: ['gaia'] });
   const q = toQuery(store.get());
-  assert.equal(q, 'ra=133.7951&dec=-7.2451&fov=2&band=72&proj=AIT&mode=rgb&rgb=88,72,40&layers=gaia');
+  assert.equal(q, 'ra=133.7951&dec=-7.2451&fov=2&band=72&proj=AIT&mode=rgb&rgb=D6,72,40&layers=gaia');
   const store2 = createStore();
   store2.set(parseQuery(q).patch);
   assert.deepEqual(store2.get(), store.get());

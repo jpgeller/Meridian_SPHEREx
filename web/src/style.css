@@ -325,3 +325,31 @@ body.field-open .handoff {
   border-color: var(--amber);
   color: var(--amber);
 }
+.field .sep {
+  width: 1px;
+  align-self: stretch;
+  background: #2b375f;
+  margin: 0 4px;
+}
+.field button[role='radio'][aria-checked='true'] {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+.field .mode-extra label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.field .mode-extra input {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #2b375f;
+  background: #0d1430;
+  color: var(--text);
+  font: 13px ui-monospace, monospace;
+}
+.field .mode-extra[hidden] {
+  display: none;
+}

@@ -5,7 +5,7 @@
 // Every control is a command, so keyboard, gaze and the guide drive it the same way.
 import { loadFrameList, bandsWithData } from './frames.js';
 import { buildSequence, sequenceKey } from './sequence.js';
-import { drawFrame, sharedStretch } from './render.js';
+import { drawFrame, drawRGB, sharedStretch, rgbStretches } from './render.js';
 import { addFrames, differenceSignificance, pickPair, pickForAdd } from './compare.js';
 
 const SPEEDS = [1, 2, 4, 6, 10]; // frames per second
@@ -61,7 +61,8 @@ export function createPlayer(stage, { store, commands }) {
 
   const local = { speed: 2, perVisit: false, colormap: 'grey' };
   let seq = []; // the images of the current sequence (aligned frames)
-  let stretch = null;
+  let stretch = null; // grey: one stretch; colour: three (one per channel)
+  let kind = 'grey';
   let note = '';
   let loadToken = 0;
   let loadedKey = '';
@@ -134,8 +135,9 @@ export function createPlayer(stage, { store, commands }) {
         return;
       }
       seq = result.items;
+      kind = result.kind ?? 'grey';
       note = result.failed ? ` · ${result.failed} image${result.failed > 1 ? 's' : ''} could not be loaded` : '';
-      stretch = sharedStretch(seq);
+      stretch = kind === 'rgb' ? rgbStretches(seq) : sharedStretch(seq);
       setMessage('');
       const st = store.get();
       const patch = {};
@@ -168,13 +170,22 @@ export function createPlayer(stage, { store, commands }) {
       const idx = pickForAdd(seq, s.t);
       const key = `add:${idx.join(',')}`;
       if (!derived.has(key)) {
-        const sum = addFrames(idx.map((j) => seq[j]));
-        derived.set(key, { frame: sum, stretch: sharedStretch([sum]) });
+        if (kind === 'rgb') {
+          const channels = [0, 1, 2].map((c) => {
+            const fs = idx.map((j) => seq[j].rgb[c]).filter(Boolean);
+            return fs.length ? addFrames(fs) : null;
+          });
+          const sum = { ...seq[idx[0]], id: `add:${key}`, rgb: channels, meta: { ...seq[idx[0]].meta, date_end_iso: seq[idx.at(-1)].meta.date_end_iso } };
+          derived.set(key, { frame: sum, stretch: rgbStretches([sum]) });
+        } else {
+          const sum = addFrames(idx.map((j) => seq[j]));
+          derived.set(key, { frame: sum, stretch: sharedStretch([sum]) });
+        }
       }
       const d = derived.get(key);
       return { ...d, cmap: local.colormap, label: `Added ${idx.length} dates · `, index: null };
     }
-    if (s.op === 'subtract' && n >= 2) {
+    if (s.op === 'subtract' && n >= 2 && kind !== 'rgb') {
       const [a, b] = pickPair(seq, s.t);
       const key = `sub:${a},${b}`;
       if (!derived.has(key)) {
@@ -206,6 +217,16 @@ export function createPlayer(stage, { store, commands }) {
     const when = m.n_combined
       ? `${fmtDate(m.date_iso)} – ${fmtDate(m.date_end_iso)} (${m.n_combined} images)`
       : fmtDate(m.date_iso);
+    const pos0 = view.index != null ? `Frame ${view.index + 1} of ${seq.length} · ` : '';
+    if (m.mode === 'rgb') {
+      const ch = (m.channels ?? []).map((c, k) => `${['red', 'green', 'blue'][k]} = ${c.label}${c.present ? '' : ' (no image this visit)'}`);
+      const subNote = s.op === 'subtract' ? ' · Difference works on single-colour views; showing the colour image.' : '';
+      return `${view.label}${pos0}${when} · Colour mix: ${ch.join(', ')}${subNote}`;
+    }
+    if (m.mode === 'custom') return `${view.label}${pos0}${when} · Formula: ${m.formula}`;
+    if (m.mode === 'detector' && Number.isFinite(m.wl_min)) {
+      return `${view.label}${pos0}${when} · Detector D${m.detector} summed, ${m.wl_min.toFixed(2)}–${m.wl_max.toFixed(2)} µm`;
+    }
     const sat = m.saturated_px ? ` · ${m.saturated_px} saturated px` : '';
     const pos = view.index != null ? `Frame ${view.index + 1} of ${seq.length} · ` : '';
     const det = m.detector ? `detector D${m.detector} · ` : '';
@@ -224,7 +245,8 @@ export function createPlayer(stage, { store, commands }) {
   function show(s) {
     if (!seq.length || !stretch) return;
     const view = current(s);
-    drawFrame(canvas, view.frame, view.stretch, view.cmap);
+    if (view.frame.rgb) drawRGB(canvas, view.frame, view.stretch);
+    else drawFrame(canvas, view.frame, view.stretch, view.cmap);
     const text = describe(s, view);
     caption.textContent = text + note;
     canvas.setAttribute('aria-label', `SPHEREx image. ${text}`);
@@ -261,8 +283,9 @@ export function createPlayer(stage, { store, commands }) {
     scrub.disabled = !many || !timelapse;
     stage.querySelectorAll('[data-op]').forEach((b) => {
       b.setAttribute('aria-pressed', String(b.dataset.op === s.op));
-      b.disabled = b.dataset.op !== 'none' && !many;
+      b.disabled = (b.dataset.op !== 'none' && !many) || (b.dataset.op === 'subtract' && kind === 'rgb');
     });
+    $('#p-visit').disabled = s.mode !== 'single'; // other modes are already one per visit
     $('#op-hint').textContent =
       s.op === 'none' ? '' : s.op === 'add' ? 'Select 2+ dates below, or all are added.' : 'Select two dates below, or the first and last are used.';
     epochsEl.querySelectorAll('[data-epoch]').forEach((b) =>

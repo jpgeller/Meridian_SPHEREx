@@ -34,7 +34,27 @@ export function createFieldView(root, { store, commands, getWavelengths = () => 
           <button type="button" id="field-band-prev" aria-label="Previous band"><kbd>[</kbd> Shorter λ</button>
           <span id="field-band" class="band-readout"></span>
           <button type="button" id="field-band-next" aria-label="Next band">Longer λ <kbd>]</kbd></button>
+          <span class="sep" aria-hidden="true"></span>
+          <div role="radiogroup" aria-label="Band mode" class="row wrap" id="band-modes">
+            <button type="button" role="radio" data-mode="single" title="One of the 102 bands">One band</button>
+            <button type="button" role="radio" data-mode="detector" title="All 17 bands of this detector added: deeper">Whole detector</button>
+            <button type="button" role="radio" data-mode="rgb" title="Three bands or detectors as red, green, blue">Colour mix</button>
+            <button type="button" role="radio" data-mode="custom" title="Your own combination, e.g. D6 - D1">Formula</button>
+          </div>
         </div>
+        <form class="row wrap mode-extra" id="rgb-form" hidden aria-label="Colour mix channels">
+          <label>Red <input id="rgb-r" size="4" /></label>
+          <label>Green <input id="rgb-g" size="4" /></label>
+          <label>Blue <input id="rgb-b" size="4" /></label>
+          <button type="submit">Apply</button>
+          <span class="muted hint">Detectors D1–D6 or bands 1–101 · e.g. D6, D4, D2</span>
+        </form>
+        <form class="row wrap mode-extra" id="formula-form" hidden aria-label="Band formula">
+          <label for="formula-input">Formula</label>
+          <input id="formula-input" size="22" placeholder="D6 - D1" spellcheck="false" autocomplete="off" />
+          <button type="submit">Apply</button>
+          <span class="muted hint">Use b1–b101, D1–D6, numbers, + − × ÷ and brackets</span>
+        </form>
         <p class="muted hint">Wider fields catch faster-moving objects but load more slowly. <kbd>+</kbd>/<kbd>−</kbd> change the size.</p>
       </div>
       <div id="field-stage" class="field-stage"></div>
@@ -43,6 +63,21 @@ export function createFieldView(root, { store, commands, getWavelengths = () => 
   const panel = root.querySelector('#field');
   const title = root.querySelector('#field-title');
   root.querySelector('#field-close').addEventListener('click', () => commands.run('close_field', {}, 'ui'));
+  root.querySelectorAll('[data-mode]').forEach((b) =>
+    b.addEventListener('click', () => commands.run('set_mode', { mode: b.dataset.mode }, 'ui')),
+  );
+  root.querySelector('#rgb-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const val = (id) => {
+      const v = root.querySelector(id).value.trim();
+      return /^[dD][1-6]$/.test(v) ? v.toUpperCase() : Number(v);
+    };
+    commands.run('set_mode', { mode: 'rgb', rgb: ['#rgb-r', '#rgb-g', '#rgb-b'].map(val) }, 'ui');
+  });
+  root.querySelector('#formula-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    commands.run('set_mode', { mode: 'custom', formula: root.querySelector('#formula-input').value.trim() }, 'ui');
+  });
   root.querySelector('#field-band-prev').addEventListener('click', () => commands.run('prev_band', {}, 'ui'));
   root.querySelector('#field-band-next').addEventListener('click', () => commands.run('next_band', {}, 'ui'));
   root.querySelectorAll('[data-ffov]').forEach((b) =>
@@ -59,6 +94,17 @@ export function createFieldView(root, { store, commands, getWavelengths = () => 
     root.querySelectorAll('[data-ffov]').forEach((b) =>
       b.setAttribute('aria-checked', String(Number(b.dataset.ffov) === state.ffov)),
     );
+    root.querySelectorAll('[data-mode]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.mode === state.mode)));
+    const rgbForm = root.querySelector('#rgb-form');
+    const fForm = root.querySelector('#formula-form');
+    rgbForm.hidden = state.mode !== 'rgb';
+    fForm.hidden = state.mode !== 'custom';
+    ['#rgb-r', '#rgb-g', '#rgb-b'].forEach((id, k) => {
+      const el = root.querySelector(id);
+      if (document.activeElement !== el) el.value = String(state.rgb[k]);
+    });
+    const fi = root.querySelector('#formula-input');
+    if (document.activeElement !== fi && state.formula) fi.value = state.formula;
     const { detector, channel } = detectorOf(state.band);
     const w = getWavelengths();
     root.querySelector('#field-band').textContent =

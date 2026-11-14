@@ -20,7 +20,7 @@ export function parseQuery(query) {
   for (const k of STRING_KEYS) {
     if (q.has(k)) patch[k] = q.get(k);
   }
-  if (q.has('rgb')) patch.rgb = q.get('rgb').split(',').map(Number);
+  if (q.has('rgb')) patch.rgb = q.get('rgb').split(',').map((c) => (/^[dD][1-6]$/.test(c) ? c : Number(c)));
   if (q.has('t')) patch.t = q.get('t').split(',').filter(Boolean).map(Number);
   if (q.has('layers')) patch.layers = q.get('layers').split(',').filter(Boolean);
   return { patch, name: q.get('name') || null };

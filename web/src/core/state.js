@@ -28,7 +28,7 @@ export const DEFAULTS = Object.freeze({
   proj: 'SIN',
   band: 40,
   mode: 'single',
-  rgb: [88, 72, 40],
+  rgb: ['D6', 'D4', 'D2'], // colour mix: red, green, blue; each a band (1-101) or a detector 'D1'..'D6'
   formula: '',
   frameIndex: 0,
   playing: false,
@@ -67,8 +67,9 @@ export function sanitize(patch, current = DEFAULTS) {
         break;
       }
       case 'rgb': {
-        const ok = Array.isArray(v) && v.length === 3 && v.every((b) => normalizeBand(b) !== null);
-        ok ? (out.rgb = v.map((b) => normalizeBand(b))) : warn(k, v);
+        const channel = (c) => (/^[dD][1-6]$/.test(String(c)) ? `D${String(c)[1]}` : normalizeBand(c));
+        const ok = Array.isArray(v) && v.length === 3 && v.every((c) => channel(c) !== null);
+        ok ? (out.rgb = v.map(channel)) : warn(k, v);
         break;
       }
       case 'formula': typeof v === 'string' && v.length <= 200 ? (out.formula = v) : warn(k, v); break;

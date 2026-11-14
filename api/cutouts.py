@@ -31,10 +31,12 @@ astropy_log.setLevel("WARNING")  # SPHEREx SIP headers trigger a harmless INFO m
 PIXEL_SCALE_ARCSEC = 6.15
 # Mask planes that mean "this pixel value is not usable". Names come from the FLAGS
 # header (MSKNnnnn / MSKMnnnn), so a renumbering upstream does not break us.
-BAD_PLANES = {"TRANSIENT", "NONFUNC", "MISSING_DATA", "HOT"}
+BAD_PLANES = {"TRANSIENT", "NONFUNC", "MISSING_DATA", "HOT", "SUR_ERROR"}
 # Saturated cores of bright stars. Their values are unreliable but the star is real, so we
 # send +Infinity (drawn at full brightness, excluded from maths) instead of NaN (no data).
-SATURATED_PLANES = {"OVERFLOW", "SUR_ERROR", "NONLINEAR"}
+# SUR_ERROR (ramp-fit error) alone is scattered across long-wavelength detectors (12-16 px per
+# D6 frame, not at stars), so it is "bad", not "saturated"; in star cores it comes with OVERFLOW/BLOOM.
+SATURATED_PLANES = {"OVERFLOW", "NONLINEAR", "BLOOM"}
 # Planes worth reporting to users (percent of pixels in the field).
 REPORT_PLANES = ["SOURCE", "OUTLIER", "PERSIST", "GHOST", "GHOST_FPA", "GHOST_EXT", "STREAK",
                  "BLOOM", "SNOWBALL", "HALO", "DICHROIC", "NONFUNC", "TRANSIENT", "HOT", "COLD"]
@@ -117,7 +119,7 @@ def download_full(frame: dict) -> bytes:
 
 def process(frame: dict, ra: float, dec: float, fov: float) -> dict:
     """Returns {'image','variance': float32 2D arrays (row 0 = south), 'meta': dict}."""
-    key = f"{frame['access_url']}|{ra:.5f},{dec:.5f},{fov:.4f}|v4"
+    key = f"{frame['access_url']}|{ra:.5f},{dec:.5f},{fov:.4f}|v5"
     p = cache.path_for("aligned", key, ".npz")
     if p.exists():
         with np.load(p, allow_pickle=False) as z:

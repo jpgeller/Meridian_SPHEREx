@@ -58,10 +58,10 @@ test('blank cube bands fold into neighbours for frame selection', () => {
 });
 
 
-test('add: mean ignoring NaN; saturated stays saturated', () => {
-  const out = addFrames([frame([1, NaN, 5], { date_iso: 'A' }), frame([3, 4, Infinity], { date_iso: 'B' })]);
-  assert.deepEqual([...out.data], [2, 4, Infinity]);
-  assert.equal(out.meta.n_combined, 2);
+test('add: mean ignoring NaN; saturated only when most frames are', () => {
+  const out = addFrames([frame([1, NaN, 5, Infinity], { date_iso: 'A' }), frame([3, 4, Infinity, Infinity], { date_iso: 'B' }), frame([2, 4, 5, Infinity], { date_iso: 'C' })]);
+  assert.deepEqual([...out.data], [2, 4, 5, Infinity]);
+  assert.equal(out.meta.n_combined, 3);
 });
 
 test('subtract: plain difference, or sigma with variances; non-finite gives NaN', () => {
@@ -118,4 +118,16 @@ test('significance: a star that changes blur stays quiet; a mover stands out', (
   const d = differenceSignificance(a, b).data;
   assert.ok(Math.abs(d[60]) < 5, `static star at ${d[60]}σ`);
   assert.ok(d[61] < -5 && d[62] > 5, `mover at ${d[61]}σ / ${d[62]}σ`);
+});
+
+test('significance is symmetric for pure noise (no colour bias)', () => {
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 2;
+  const n = 4000;
+  const a = frame(Array.from({ length: n }, () => 3 * rnd())); // noisier image (few exposures)
+  const b = frame(Array.from({ length: n }, () => rnd()));
+  const d = differenceSignificance(a, b).data;
+  let pos = 0, neg = 0;
+  for (const v of d) { if (v > 1) pos++; if (v < -1) neg++; }
+  assert.ok(Math.abs(pos - neg) < 0.25 * (pos + neg), `pos ${pos} vs neg ${neg}`);
 });

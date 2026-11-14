@@ -97,3 +97,47 @@ export function drawFrame(canvas, frame, stretch, colormap = 'grey') {
   }
   ctx.putImageData(img, 0, 0);
 }
+
+/** Per-channel stretches for colour items (each channel normalised on its own). */
+export function rgbStretches(items) {
+  return [0, 1, 2].map((c) => {
+    const frames = items.map((it) => it.rgb[c]).filter(Boolean);
+    return frames.length ? sharedStretch(frames) : null;
+  });
+}
+
+/** Draw a colour item: channel c -> red/green/blue, missing channel -> 0, north up. */
+export function drawRGB(canvas, item, stretches) {
+  const { w, h } = item;
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+  }
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(w, h);
+  for (let y = 0; y < h; y++) {
+    const src = (h - 1 - y) * w;
+    for (let x = 0; x < w; x++) {
+      const o = (y * w + x) * 4;
+      let any = false;
+      for (let c = 0; c < 3; c++) {
+        const ch = item.rgb[c];
+        const v = ch ? ch.data[src + x] : NaN;
+        if (v === Infinity) {
+          img.data[o + c] = 255;
+          any = true;
+        } else if (Number.isFinite(v) && stretches[c]) {
+          img.data[o + c] = Math.round(normalise(v, stretches[c]) * 255);
+          any = true;
+        }
+      }
+      if (!any) {
+        img.data[o] = NO_DATA_RGB[0];
+        img.data[o + 1] = NO_DATA_RGB[1];
+        img.data[o + 2] = NO_DATA_RGB[2];
+      }
+      img.data[o + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}

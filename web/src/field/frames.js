@@ -66,7 +66,7 @@ export function loadCutout(frame, ra, dec, fov, ext = 'image') {
   const key = `${frame.id}|${ra.toFixed(5)}|${dec.toFixed(5)}|${fov}|${ext}`;
   if (!cutoutCache.has(key)) {
     // `v` busts browser caches from before the API sent Cache-Control: no-cache.
-    const url = `/api/cutout?id=${encodeURIComponent(frame.id)}&ra=${ra.toFixed(5)}&dec=${dec.toFixed(5)}&fov=${fov}&ext=${ext}&v=2`;
+    const url = `/api/cutout?id=${encodeURIComponent(frame.id)}&ra=${ra.toFixed(5)}&dec=${dec.toFixed(5)}&fov=${fov}&ext=${ext}&v=5`;
     const p = limited(async () => {
       const r = await fetch(url);
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail ?? `cutout failed (${r.status})`);
