@@ -3,9 +3,11 @@
 // with a richer implementation (e.g. fly_to with name lookup).
 import { stepBand } from './bands.js';
 import { parseCoordinates } from './coords.js';
+import { snapFieldFov, FIELD_FOVS } from './state.js';
 
 const PAN_FRACTION = 1 / 8; // pan by 1/8 of the field of view
 const ZOOM_FACTOR = 1.5;
+export const FIELD_OPEN_MAX_FOV = 3; // degrees: below this the sky offers the time-lapse
 
 export function registerDefaultCommands(commands, store) {
   const { register } = commands;
@@ -25,8 +27,19 @@ export function registerDefaultCommands(commands, store) {
   register('pan_right', () => pan(-1, 0), { label: 'Pan right', keys: ['ArrowRight'] });
   register('pan_up', () => pan(0, +1), { label: 'Pan up', keys: ['ArrowUp'] });
   register('pan_down', () => pan(0, -1), { label: 'Pan down', keys: ['ArrowDown'] });
-  register('zoom_in', () => set({ fov: s().fov / ZOOM_FACTOR }), { label: 'Zoom in', keys: ['+', '='] });
-  register('zoom_out', () => set({ fov: s().fov * ZOOM_FACTOR }), { label: 'Zoom out', keys: ['-', '_'] });
+  // In the field view, zoom steps through the field sizes instead of zooming the sky.
+  const stepFieldFov = (dir) => {
+    const i = FIELD_FOVS.indexOf(s().ffov);
+    set({ ffov: FIELD_FOVS[Math.min(FIELD_FOVS.length - 1, Math.max(0, i + dir))] });
+  };
+  register('zoom_in', () => (s().view === 'field' ? stepFieldFov(-1) : set({ fov: s().fov / ZOOM_FACTOR })), {
+    label: 'Zoom in',
+    keys: ['+', '='],
+  });
+  register('zoom_out', () => (s().view === 'field' ? stepFieldFov(+1) : set({ fov: s().fov * ZOOM_FACTOR })), {
+    label: 'Zoom out',
+    keys: ['-', '_'],
+  });
 
   register(
     'fly_to',
@@ -62,7 +75,23 @@ export function registerDefaultCommands(commands, store) {
   });
 
   // --- field view -------------------------------------------------------------
-  register('open_field', () => set({ view: 'field' }), { label: 'Open time-lapse here', keys: ['Enter'] });
+  register(
+    'open_field',
+    ({ fov } = {}) => {
+      if (s().view === 'field') return;
+      if (fov === undefined && s().fov >= FIELD_OPEN_MAX_FOV) {
+        throw new Error(`Zoom in below ${FIELD_OPEN_MAX_FOV}° (or pick a place) to open the time-lapse`);
+      }
+      // Field size follows how far the user zoomed in, within 0.05°–1° (cutout cost grows fast).
+      const size = fov ?? Math.min(1, Math.max(0.05, s().fov));
+      set({ view: 'field', ffov: snapFieldFov(size), frameIndex: 0, playing: false });
+    },
+    { label: 'Open time-lapse here', keys: ['Enter'], args: { fov: 'optional field size, degrees' } },
+  );
+  register('set_field_fov', ({ fov }) => set({ ffov: fov }), {
+    label: 'Time-lapse field size',
+    args: { fov: '0.05 | 0.1 | 0.25 | 0.5 | 1 (degrees)' },
+  });
   register('close_field', () => set({ view: 'sky', playing: false }), { label: 'Back to sky', keys: ['Escape'] });
   register('play', () => set({ playing: true }), { label: 'Play' });
   register('pause', () => set({ playing: false }), { label: 'Pause' });

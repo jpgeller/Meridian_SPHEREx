@@ -1,11 +1,11 @@
 // State <-> URL. parseQuery/toQuery are pure (unit-tested); startUrlSync wires them to
 // the browser. URL format (all optional):
 //   ?ra=133.7951&dec=-7.2451&fov=2&band=72&proj=AIT&view=field&mode=rgb&rgb=88,72,40
-//    &formula=b88-b40&compare=side&t=0,3&layers=gaia,wise&name=WISE%200855
+//    &formula=b88-b40&compare=side&t=0,3&layers=gaia,wise&ffov=0.25&name=WISE%200855
 // `name` is not state: it is returned separately so the app can fly_to it after start-up.
 import { DEFAULTS } from './state.js';
 
-const NUMBER_KEYS = ['ra', 'dec', 'fov', 'band'];
+const NUMBER_KEYS = ['ra', 'dec', 'fov', 'band', 'ffov'];
 const STRING_KEYS = ['view', 'proj', 'mode', 'compare', 'formula'];
 
 const round = (v, d) => Number(v.toFixed(d));
@@ -36,6 +36,7 @@ export function toQuery(state) {
   for (const k of STRING_KEYS) {
     if (state[k] !== DEFAULTS[k]) q.set(k, state[k]);
   }
+  if (state.view === 'field' || state.ffov !== DEFAULTS.ffov) q.set('ffov', String(state.ffov));
   if (state.mode === 'rgb') q.set('rgb', state.rgb.join(','));
   if (state.t.length) q.set('t', state.t.join(','));
   if (state.layers.length) q.set('layers', state.layers.join(','));

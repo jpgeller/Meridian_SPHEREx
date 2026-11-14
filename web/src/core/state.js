@@ -12,11 +12,17 @@ export const LAYERS = ['gaia', 'wise', 'flags', 'simbad'];
 export const FOV_MIN = 0.01; // degrees
 export const FOV_MAX = 360;
 
+// Field-view (time-lapse) sizes, degrees. Wider = catches faster movers, loads slower.
+export const FIELD_FOVS = [0.05, 0.1, 0.25, 0.5, 1];
+export const snapFieldFov = (v) =>
+  FIELD_FOVS.reduce((best, f) => (Math.abs(f - v) < Math.abs(best - v) ? f : best), FIELD_FOVS[0]);
+
 export const DEFAULTS = Object.freeze({
   view: 'sky',
   ra: 266.4168, // Milky Way centre
   dec: -29.0078,
   fov: 60,
+  ffov: 0.1, // field-view size, one of FIELD_FOVS
   proj: 'SIN',
   band: 40,
   mode: 'single',
@@ -49,6 +55,7 @@ export function sanitize(patch, current = DEFAULTS) {
       case 'ra': isNum(v) ? (out.ra = wrapRa(v)) : warn(k, v); break;
       case 'dec': isNum(v) ? (out.dec = clamp(v, -90, 90)) : warn(k, v); break;
       case 'fov': isNum(v) && v > 0 ? (out.fov = clamp(v, FOV_MIN, FOV_MAX)) : warn(k, v); break;
+      case 'ffov': isNum(v) && v > 0 ? (out.ffov = snapFieldFov(v)) : warn(k, v); break;
       case 'band': {
         const dir = isNum(v) && v < current.band ? -1 : 1;
         const b = normalizeBand(v, dir);

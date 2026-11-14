@@ -8,7 +8,7 @@
 import A from 'aladin-lite';
 import { parseCoordinates } from '../core/coords.js';
 import { SPHEREX_HIPS, loadWavelengths, waitForLayer, showBand } from './spherexCube.js';
-import { PRESETS, presetById } from './presets.js';
+import { PRESETS, presetById, presetForText } from './presets.js';
 
 const DEFAULT_FIELD_FOV = 0.5; // degrees, after flying to a named object
 const SPHERE_FOV_AFTER_ALLSKY = 60;
@@ -97,6 +97,11 @@ export async function createSky(container, { store, commands, onStatus = () => {
     async ({ target, fov }) => {
       if (typeof target !== 'string' || !target.trim()) throw new Error('nothing to fly to');
       const coords = parseCoordinates(target);
+      const preset = coords ? null : presetForText(target);
+      if (preset && preset.target !== target) {
+        // Typed a known place: use its canonical target (e.g. a proper-motion-aware name).
+        return commands.run('fly_to', { target: preset.target, fov: fov ?? preset.fov }, 'preset').value;
+      }
       const where = coords ?? (await resolveName(target.trim()));
       if (store.get().proj === 'AIT') store.set({ proj: 'SIN' }, 'command');
       store.set({ ra: where.ra, dec: where.dec, fov: fov ?? DEFAULT_FIELD_FOV }, 'command');

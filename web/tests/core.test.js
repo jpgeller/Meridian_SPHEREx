@@ -147,7 +147,24 @@ test('commands: toggle_layer and field commands', () => {
   assert.deepEqual(store.get().layers, ['gaia']);
   commands.run('toggle_layer', { layer: 'gaia' });
   assert.deepEqual(store.get().layers, []);
+  // Too wide: refused with a helpful message
+  const err = console.error;
+  console.error = () => {};
+  const wide = commands.run('open_field');
+  console.error = err;
+  assert.equal(wide.ok, false);
+  assert.match(wide.error, /Zoom in/);
+  // Zoomed in to 0.3°: opens with the nearest field size
+  store.set({ fov: 0.3 });
   commands.run('open_field');
+  assert.equal(store.get().ffov, 0.25);
+  // In the field view, zoom steps through field sizes; the sky fov is untouched
+  commands.run('zoom_out');
+  assert.equal(store.get().ffov, 0.5);
+  commands.run('zoom_in');
+  commands.run('zoom_in');
+  assert.equal(store.get().ffov, 0.1);
+  assert.equal(store.get().fov, 0.3);
   commands.run('toggle_play');
   assert.equal(store.get().view, 'field');
   assert.equal(store.get().playing, true);

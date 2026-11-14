@@ -74,16 +74,16 @@ def parse_sesame(xml_text: str) -> dict:
 def _lookup(name: str) -> dict:
     url = SESAME_URL + quote(name)
     last_err: Exception | None = None
-    for attempt in range(3):
+    for attempt in range(2):
         try:
-            r = httpx.get(url, follow_redirects=True, timeout=20.0)
+            r = httpx.get(url, follow_redirects=True, timeout=10.0)
             r.raise_for_status()
             return parse_sesame(r.text)
         except NotFound:
             raise
         except (httpx.HTTPError, ET.ParseError) as err:
             last_err = err
-            time.sleep(1.5 * (attempt + 1))
+            time.sleep(1.0)
     raise RuntimeError(f"Sesame unavailable: {last_err}")
 
 
