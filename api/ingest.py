@@ -29,7 +29,9 @@ import spectra
 import spherex
 
 FOV = 0.1
-WORKERS = 4  # IRSA throttles heavier parallel cutout traffic
+WORKERS = 2  # IRSA throttles parallel cutout traffic; bulk jobs stay gentle
+BUSY_PAUSE_S = 120  # after a run of 503s, pause before trying again
+BUSY_STREAK = 6
 
 # Same targets as the web presets (web/src/sky/presets.js). Names go through /api/resolve's
 # logic, so positions match what the browser asks for.
@@ -85,21 +87,42 @@ def warm_target(label: str, name: str) -> dict:
     todo = [f for f in wanted.values() if not cutouts.is_processed(f, ra, dec, FOV)]
     print(f"   {meta['n_frames']} frames, {meta['n_visits']} visits; {len(wanted)} cutouts wanted, {len(todo)} to fetch", flush=True)
     done = failed = 0
+    streak = 0  # consecutive "service busy" answers
+    import threading
+    lock = threading.Lock()
 
     def one(f):
-        try:
-            cutouts.process(f, ra, dec, FOV)
-            return True
-        except Exception as err:
-            print(f"   ! {f['id']}: {err}", flush=True)
-            return False
+        nonlocal streak
+        for attempt in range(3):
+            try:
+                cutouts.process(f, ra, dec, FOV)
+                with lock:
+                    streak = 0
+                return True
+            except cutouts.CutoutBusy:
+                with lock:
+                    streak += 1
+                    pause = streak >= BUSY_STREAK
+                if pause:
+                    print(f"   IRSA cutout service busy; pausing {BUSY_PAUSE_S}s", flush=True)
+                    time.sleep(BUSY_PAUSE_S)
+                    with lock:
+                        streak = 0
+            except Exception as err:
+                print(f"   ! {f['id']}: {err}", flush=True)
+                return False
+        print(f"   ! {f['id']}: still busy, skipped (rerun ingest later)", flush=True)
+        return False
 
+    t_start = time.time()
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         for ok in pool.map(one, todo):
             done += 1
             failed += not ok
             if done % 20 == 0 or done == len(todo):
-                print(f"   cutouts {done}/{len(todo)}", flush=True)
+                rate = done / max(time.time() - t_start, 1)
+                eta = (len(todo) - done) / rate / 60 if rate else 0
+                print(f"   cutouts {done}/{len(todo)} (~{eta:.0f} min left)", flush=True)
     try:
         w = context.wise_frames(ra, dec, FOV, 2)
         for f in w["frames"]:
@@ -135,6 +158,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--refresh", action="store_true", help="forget frame lists older than 7 days")
     ap.add_argument("--clean-full", action="store_true", help="delete full-file fallbacks from the cache")
     args = ap.parse_args(argv)
+    cutouts.ALLOW_FULL_FALLBACK = False  # bulk job: wait for the cutout service, never pull full files
     if not (args.targets or args.refresh or args.clean_full):
         ap.print_help()
         return 1

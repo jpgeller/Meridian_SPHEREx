@@ -1,0 +1,110 @@
+// Smoke tests: the app loads every preset, every command runs, controls are reachable by
+// keyboard, and a cached field opens its time-lapse.
+import { test, expect } from '@playwright/test';
+
+// Aladin's usage logger calls a CDS URL that may not resolve; that error is harmless.
+const IGNORED = [/AladinLiteLogger|alasky\.unistra\.fr/, /tg\.log/, /net::ERR_NAME_NOT_RESOLVED/, /Failed to fetch/];
+
+function collectErrors(page) {
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('console', (m) => {
+    // "Failed to load resource" console lines carry no URL; the response listener below does
+    if (m.type() === 'error' && !/^Failed to load resource/.test(m.text())) errors.push(m.text());
+  });
+  page.on('response', (r) => {
+    if (r.status() >= 400) errors.push(`HTTP ${r.status()} ${r.url()}`);
+  });
+  return () => errors.filter((e) => !IGNORED.some((re) => re.test(e)));
+}
+
+async function ready(page) {
+  await page.waitForFunction(() => window.meridian && document.querySelector('#controls'));
+}
+
+const PRESETS = ['milky_way', 'solar_system', 'barnard', 'eps_ind_b', 'wise_0855', 'rw_aur', 'r_dra'];
+
+test('every preset flies somewhere without errors', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/');
+  await ready(page);
+  for (const id of PRESETS) {
+    const before = await page.evaluate(() => [meridian.store.get().ra, meridian.store.get().dec]);
+    await page.evaluate((pid) => meridian.run('go_preset', { id: pid }).value, id);
+    const after = await page.evaluate(() => [meridian.store.get().ra, meridian.store.get().dec]);
+    expect(after, `preset ${id}`).not.toEqual(id === 'milky_way' ? [NaN, NaN] : before);
+  }
+  expect(errors()).toEqual([]);
+});
+
+test('every registered command runs once', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?ra=133.7578&dec=-7.242&fov=0.5');
+  await ready(page);
+  const results = await page.evaluate(async () => {
+    const args = {
+      fly_to: { target: '133.7578 -7.242' },
+      go_preset: { id: 'wise_0855' },
+      set_projection: { proj: 'SIN' },
+      set_band: { band: 72 },
+      set_mode: { mode: 'single' },
+      set_compare: { compare: 'off' },
+      set_epochs: { t: [] },
+      toggle_epoch: { index: 0 },
+      toggle_layer: { layer: 'gaia' },
+      set_field_fov: { fov: 0.1 },
+      set_op: { op: 'none' },
+    };
+    // Field-only commands need the field view.
+    const fieldOnly = new Set(['select_point']);
+    const out = {};
+    for (const c of meridian.commands.list()) {
+      if (fieldOnly.has(c.name)) continue;
+      const r = meridian.run(c.name, args[c.name] ?? {}, 'test');
+      try {
+        if (r.pending) await r.value;
+        out[c.name] = r.ok ? 'ok' : r.error;
+      } catch (e) {
+        out[c.name] = String(e.message ?? e);
+      }
+    }
+    meridian.run('close_field', {}, 'test');
+    return out;
+  });
+  for (const [name, res] of Object.entries(results)) {
+    // open_field is allowed to refuse when the view is too wide; nothing else may fail
+    if (name === 'open_field' && /Zoom in/.test(res)) continue;
+    expect(res, name).toBe('ok');
+  }
+  expect(errors()).toEqual([]);
+});
+
+test('main controls are reachable with the keyboard', async ({ page }) => {
+  await page.goto('/');
+  await ready(page);
+  const seen = new Set();
+  for (let i = 0; i < 40; i++) {
+    await page.keyboard.press('Tab');
+    const id = await page.evaluate(() => {
+      const el = document.activeElement;
+      return el.id || el.dataset.preset || el.dataset.proj || el.textContent.trim().slice(0, 20);
+    });
+    seen.add(id);
+  }
+  for (const want of ['search-input', 'band', 'wise_0855', 'barnard', 'SIN', 'AIT']) {
+    expect([...seen], `reach ${want} by Tab`).toContain(want);
+  }
+});
+
+test('a cached field opens its time-lapse', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?ra=133.7578&dec=-7.242&fov=0.5&band=92&view=field&ffov=0.1&mode=detector');
+  await ready(page);
+  await expect(page.locator('#player-caption')).toContainText('Detector D6', { timeout: 60_000 });
+  await expect(page.locator('.epoch')).toHaveCount(4);
+  // keyboard: Escape back to the sky
+  await page.locator('#field-title').focus();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#field')).toBeHidden();
+  expect(errors()).toEqual([]);
+});

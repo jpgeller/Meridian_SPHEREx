@@ -15,3 +15,7 @@ api/cache/
 .DS_Store
 .vscode/
 .idea/
+
+# Playwright output
+web/test-results/
+web/playwright-report/

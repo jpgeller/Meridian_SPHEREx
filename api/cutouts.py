@@ -29,6 +29,13 @@ import cache
 astropy_log.setLevel("WARNING")  # SPHEREx SIP headers trigger a harmless INFO message
 
 PIXEL_SCALE_ARCSEC = 6.15
+# Interactive use may fall back to the 65 MB full file when the cutout service is busy;
+# bulk jobs (ingest) turn this off and wait instead, so they never pull gigabytes.
+ALLOW_FULL_FALLBACK = True
+
+
+class CutoutBusy(RuntimeError):
+    """IRSA's cutout service kept answering 503 and the full-file fallback is off."""
 # Mask planes that mean "this pixel value is not usable". Names come from the FLAGS
 # header (MSKNnnnn / MSKMnnnn), so a renumbering upstream does not break us.
 BAD_PLANES = {"TRANSIENT", "NONFUNC", "MISSING_DATA", "HOT", "SUR_ERROR"}
@@ -95,7 +102,9 @@ def download_cutout(frame: dict, ra: float, dec: float, fov: float) -> bytes:
             return r.content
         except httpx.HTTPError:
             continue
-    # Cutout service failed (503 or repeated errors): fall back to the whole file.
+    # Cutout service failed (503 or repeated errors).
+    if not ALLOW_FULL_FALLBACK:
+        raise CutoutBusy("IRSA cutout service busy")
     return download_full(frame)
 
 
