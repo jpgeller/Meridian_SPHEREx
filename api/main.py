@@ -7,6 +7,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
 import resolve as resolver
+import spherex
 
 app = FastAPI(title="Meridian API", version="0.0.1")
 
@@ -37,3 +38,18 @@ async def resolve_name(
         raise HTTPException(status_code=404, detail=f"No object found for '{name}'")
     except RuntimeError as err:
         raise HTTPException(status_code=503, detail=str(err))
+
+
+@app.get("/api/frames")
+async def frames(
+    ra: float = Query(..., ge=0, lt=360),
+    dec: float = Query(..., ge=-90, le=90),
+    fov: float = Query(0.1, gt=0, le=2, description="field size (deg); frames are those covering the centre"),
+    refresh: bool = Query(False, description="ignore the 24 h cache"),
+) -> dict:
+    """Every SPHEREx Level 2 image covering (ra, dec), sorted by date, grouped into visits."""
+    try:
+        result = await run_in_threadpool(spherex.frames_at, ra, dec, refresh)
+    except Exception as err:  # IRSA hiccups: tell the client, don't crash
+        raise HTTPException(status_code=503, detail=f"IRSA search failed: {err}")
+    return {**result, "fov": fov}
