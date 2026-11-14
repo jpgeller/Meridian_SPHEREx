@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import resolve as resolver
 import context
 import cutouts
+import skypatch
 import spectra
 import spherex
 
@@ -194,3 +195,30 @@ async def spectrum(
         raise HTTPException(status_code=400, detail=str(err))
     except Exception as err:
         raise HTTPException(status_code=503, detail=f"spectrum failed: {err}")
+
+
+@app.get("/api/skypatch")
+async def sky_patch(
+    ra: float = Query(..., ge=0, lt=360),
+    dec: float = Query(..., ge=-90, le=90),
+    fov: float = Query(0.25, ge=0.02, le=2.0),
+    band: int = Query(40, ge=0, le=101),
+    smooth: bool = Query(True, description="upsample smoothly (display only, no new detail)"),
+) -> dict:
+    """A full-resolution (6.15"/px) SPHEREx patch for the 3D sky, with its WCS. The PNG is at `url`."""
+    try:
+        meta = await run_in_threadpool(skypatch.sky_patch, ra, dec, fov, band, smooth)
+    except LookupError as err:
+        raise HTTPException(status_code=404, detail=str(err))
+    except Exception as err:
+        raise HTTPException(status_code=503, detail=f"patch failed: {err}")
+    from urllib.parse import quote
+    return {**meta, "url": f"/api/skypatch/png?key={quote(meta['key'])}"}
+
+
+@app.get("/api/skypatch/png")
+async def sky_patch_png(key: str = Query(..., max_length=200)):
+    try:
+        return Response(skypatch.patch_png(key), media_type="image/png", headers={"Cache-Control": "public, max-age=3600"})
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="unknown patch")

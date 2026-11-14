@@ -44,7 +44,16 @@ def _query(ra: float, dec: float) -> list[dict]:
     from astroquery.ipac.irsa import Irsa  # slow import; keep it off the startup path
 
     coord = SkyCoord(ra, dec, unit="deg")
-    table = Irsa.query_sia(pos=(coord, 1 * u.arcsec), collection=COLLECTIONS)
+    # IRSA's SIA sometimes answers a transient 502 "proxy error": retry before failing.
+    import time
+    for attempt in range(3):
+        try:
+            table = Irsa.query_sia(pos=(coord, 1 * u.arcsec), collection=COLLECTIONS)
+            break
+        except Exception:
+            if attempt == 2:
+                raise
+            time.sleep(3 * (attempt + 1))
     best: dict[str, dict] = {}
     for row in table:
         det = _detector(row["energy_bandpassname"])

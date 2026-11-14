@@ -9,6 +9,7 @@ import A from 'aladin-lite';
 import { parseCoordinates } from '../core/coords.js';
 import { SPHEREX_HIPS, loadWavelengths, waitForLayer, showBand } from './spherexCube.js';
 import { PRESETS, presetById, presetForText } from './presets.js';
+import { createNativeLayer } from './nativeLayer.js';
 
 const DEFAULT_FIELD_FOV = 0.5; // degrees, after flying to a named object
 const SPHERE_FOV_AFTER_ALLSKY = 60;
@@ -131,6 +132,9 @@ export async function createSky(container, { store, commands, onStatus = () => {
     },
     { label: 'Set view type', args: { proj: "'SIN' (3D sphere) or 'AIT' (whole sky, Gaia style)" } },
   );
+
+  // Sharper than the all-sky tiles when zoomed in (see nativeLayer.js)
+  sky.native = createNativeLayer(aladin, { store, commands, onStatus });
 
   return sky;
 }

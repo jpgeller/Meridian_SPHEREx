@@ -331,6 +331,26 @@ the WISE 0855 timeline scrolls 2010 to 2026.
 
 ---
 
+## Step 13 — Sharper deep zoom on the 3D sky  `[x]`
+**Files:** `api/skypatch.py`, `GET /api/skypatch` + `/api/skypatch/png`, `web/src/sky/nativeLayer.js`
+
+Why: IRSA's all-sky cube is a multi-resolution HEALPix pyramid (the "mesh") that stops at **order 5 = 12.9″/px**.
+Past ~3° of zoom Aladin only magnifies those tiles, and its WebGL core draws them with **NEAREST** filtering (hard-coded in
+`src/core/.../texture.rs`, so it can't be changed without rebuilding Aladin), which gives the blocky diamonds.
+SPHEREx's own pixels are 6.15″, twice as fine.
+
+- Below 1.5° (3D sphere view) the app lays a **full-resolution patch** over the sphere: the median of the 4 most recent frames
+  that saw the centre in the current band, on the 6.15″ grid, stretched to an 8-bit PNG (transparent where there's no data),
+  placed with `A.image(url, {imgFormat:'png', wcs})` (CD1_1 < 0, CD2_2 > 0 for north-up PNG rows; verified against the tiles).
+- **Smoothing** (default on, key `i`): 4× Lanczos upsampling on the server, display only, no new detail. Key `n` turns the layer off.
+- The patch centre snaps to a quarter-patch grid so small pans reuse it. Patches are ≤0.5° because the wavelength drifts by
+  about 5 bands per degree across a SPHEREx image (at 0.5° the edges are about ±1 band off).
+- Limit, said honestly: nothing can show detail finer than 6.15″; that's the telescope.
+- Before/after: `docs/img/zoom_before_allsky_tiles.png`, `docs/img/zoom_after_full_resolution.png` (Barnard's Star, 0.3°).
+- IRSA's search sometimes returns a transient 502 "proxy error": `spherex._query` now retries 3 times.
+
+---
+
 ## Merge later (not in this plan)
 - **Eye tracking: handed to Yassin's team (15 Nov 2026).** A first app-side version was built, then removed so this team
   focuses on mapping; it is in git history (commit 89f89ae). What it was: `web/src/input/gazeCore.js` (pure logic: dwell 0.8 s adjustable 0.4–1.5 s,

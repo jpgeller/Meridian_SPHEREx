@@ -49,6 +49,9 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   use `layer.setFrequency({value: F_MIN + (k+0.5)/102*(F_MAX-F_MIN), unit:'Hz'})` with F = c/λ, λ from 5.009 µm (F_MIN)
   to 0.743 µm (F_MAX). Wait until `layer.added` is true before setting it. The cube has no time information.
 - Gaia-style view: `aladin.setProjection('AIT'); aladin.setFrame('galactic'); setFoV(360)`. 3D sphere: `'SIN'`.
+- The HiPS cube stops at order 5 (12.9″/px) and Aladin draws tiles with NEAREST filtering (hard-coded), so deep zoom looks
+  blocky. `web/src/sky/nativeLayer.js` + `/api/skypatch` overlay full-resolution (6.15″) patches below 1.5°. PNG overlays via
+  `A.image(url, {imgFormat:'png', wcs})` need CD1_1 < 0 and CD2_2 > 0 (rows top = north).
 - Time series: `Irsa.query_sia(pos=(coord, r), collection=['spherex_dr1','spherex_qr3'])` (+ `_deep`). Each row is
   one exposure of one detector (D1–D6). Columns: `access_url`, `t_min` (MJD), `energy_bandpassname` (`SPHEREx-D1`…).
 - The wavelength varies ACROSS each image (linear variable filter). Get the target's wavelength from the cutout with

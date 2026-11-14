@@ -95,3 +95,21 @@ def test_spectrum_from_cache_has_d6_flux_like_wise():
     # WISE 0855: W2 = 13.9 mag ~ 0.47 mJy at 4.6 um; SPHEREx D6 median should be close
     assert 0.3 < float(np.median(d6)) < 0.7
     assert any(b["g_mag"] < 17 for b in d["blends"])  # the G=16.3 neighbour is reported
+
+
+def test_skypatch_is_twice_as_sharp_and_north_up():
+    import cutouts as cu
+    import skypatch
+    frames = cache.get_json("frames", "269.446,4.768")
+    if not frames:
+        pytest.skip("Barnard's Star frames not cached")
+    r = client.get("/api/skypatch", params={"ra": 269.44627, "dec": 4.7682, "fov": 0.25, "band": 37, "smooth": False})
+    if r.status_code != 200:
+        pytest.skip(f"patch not available offline ({r.status_code})")
+    m = r.json()
+    w = m["wcs"]
+    assert w["CD1_1"] < 0 < w["CD2_2"]  # east left, north up (as Aladin expects for PNG rows)
+    assert abs(w["CD2_2"] * 3600 - cu.PIXEL_SCALE_ARCSEC) < 1e-6  # 6.15"/px, vs 12.9" for the HiPS tiles
+    png = client.get(m["url"])
+    assert png.status_code == 200 and png.headers["content-type"] == "image/png"
+    assert skypatch.MAX_FOV == 0.5
