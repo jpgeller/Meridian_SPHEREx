@@ -1,10 +1,11 @@
 # Meridian_SPHEREx
 
-A sky explorer for NASA's SPHEREx mission (NASA Space Apps 2026). Fly through the whole infrared sky in 3D, zoom in to any patch, and watch the real SPHEREx images of it as a time-lapse. You can compare dates, mix the 102 infrared bands, put WISE (2010–2024) and Gaia beside it for context, and measure a spectrum. Everything is usable without a mouse, and eye-tracking control comes next.
+A sky explorer for NASA's SPHEREx mission (NASA Space Apps 2026). Fly through the whole infrared sky in 3D, zoom in to any patch, and watch the real SPHEREx images of it as a time-lapse. You can compare dates, mix the 102 infrared bands, put WISE (2010–2024) and Gaia beside it for context, and measure a spectrum. Everything is usable without a mouse: by keyboard, or by eye tracking (look at a button to press it; try `?gaze=mouse` to simulate).
 
 - **Project spec:** [docs/Meridian_SPHEREx_Project_Spec.pdf](docs/Meridian_SPHEREx_Project_Spec.pdf)
 - **Build plan, with notes on what was learned at each step:** [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md)
 - **Working notes and verified data facts:** [CLAUDE.md](CLAUDE.md)
+- **Connecting the eye tracker:** [docs/EYE_TRACKING.md](docs/EYE_TRACKING.md)
 
 ## Quick start
 

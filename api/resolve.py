@@ -16,6 +16,8 @@ from urllib.parse import quote
 
 import httpx
 
+import cache
+
 SESAME_URL = "https://cds.unistra.fr/cgi-bin/nph-sesame/-oxp/SNV?"
 J2000 = 2000.0
 
@@ -72,13 +74,20 @@ def parse_sesame(xml_text: str) -> dict:
 
 @lru_cache(maxsize=512)
 def _lookup(name: str) -> dict:
+    # Catalogue positions don't change: keep every successful lookup on disk, so a slow or
+    # unreachable CDS (it timed out during a cache-warming run, 15 Nov 2026) costs nothing later.
+    hit = cache.get_json("sesame", name.lower())
+    if hit:
+        return hit
     url = SESAME_URL + quote(name)
     last_err: Exception | None = None
     for attempt in range(2):
         try:
             r = httpx.get(url, follow_redirects=True, timeout=10.0)
             r.raise_for_status()
-            return parse_sesame(r.text)
+            found = parse_sesame(r.text)
+            cache.put_json("sesame", name.lower(), found)
+            return found
         except NotFound:
             raise
         except (httpx.HTTPError, ET.ParseError) as err:

@@ -173,7 +173,11 @@ def main(argv: list[str] | None = None) -> int:
         keys = list(SHOWCASE) if args.targets == ["showcase"] else args.targets
         results = []
         for k in keys:
-            results.append(warm_target(k, SHOWCASE.get(k, k)))
+            try:
+                results.append(warm_target(k, SHOWCASE.get(k, k)))
+            except Exception as err:  # one target failing (e.g. a name-lookup timeout) must not stop the rest
+                print(f"   ! {k}: {err}  (rerun ingest to retry)", flush=True)
+                results.append({"target": k, "ra": float("nan"), "dec": float("nan"), "cutouts": 0, "failed": -1, "wise": 0, "gaia": 0})
         print("\nsummary:")
         for r in results:
             print(f"  {r['target']:<10} {r['ra']:.5f} {r['dec']:+.5f}  cutouts {r['cutouts']:>4} (failed {r['failed']})  WISE {r['wise']:>2}  Gaia {r['gaia']}")

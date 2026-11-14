@@ -332,6 +332,11 @@ the WISE 0855 timeline scrolls 2010 to 2026.
 ---
 
 ## Merge later (not in this plan)
-- **Eye tracking:** it sends `postMessage({type:'gaze'|'command', ...})`. Step 1 already accepts commands. Add a gaze → dwell adapter in `web/src/input/gaze.js`.
+- **Eye tracking: app side done (15 Nov 2026).** `web/src/input/gazeCore.js` (pure logic: dwell 0.8 s adjustable 0.4–1.5 s,
+  24 px snapping, 120 ms smoothing, no double presses, sky-only edge panning, top-right rest zone, low-confidence/lost tracking)
+  and `web/src/input/gaze.js` (finds buttons, progress bar, presses them, replies `{type:'targets'}` to the tracker, and a mouse
+  simulator via `?gaze=mouse` or `g`). Guide for the tracker author: **docs/EYE_TRACKING.md**. Tests: 9 unit + 5 Playwright
+  (real postMessage samples). Fixes found on the way: async command replies tried to post a Promise; the first targets list
+  was throttled away on fast page loads. Left: plug in the real tracker and tune the timings with real users.
 - **Final UI design:** restyle `web/src/ui/*`. Logic lives in `core/`, `sky/` and `field/`, so the UI layer can be swapped.
 - **AI guide:** an LLM with tools that map one-to-one onto `commands.list()`.
