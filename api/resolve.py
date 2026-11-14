@@ -87,12 +87,17 @@ def _lookup(name: str) -> dict:
     raise RuntimeError(f"Sesame unavailable: {last_err}")
 
 
+# Positions are resolved for a fixed date inside the SPHEREx data span, not "now": for fast
+# movers "now" changes the position (and every cache key) a little each day.
+DEFAULT_EPOCH = 2026.0
+
+
 def resolve(name: str, epoch: float | None = None) -> dict:
     name = name.strip()
     if not name or len(name) > 100:
         raise NotFound("empty or too long name")
     base = _lookup(name)
-    epoch = current_epoch() if epoch is None else epoch
+    epoch = DEFAULT_EPOCH if epoch is None else epoch
     ra, dec = propagate(base["ra_j2000"], base["dec_j2000"], base["pmra"], base["pmdec"], epoch - J2000)
     # SIMBAD's positions come from Gaia (E)DR3; moved linearly they match Gaia DR3 to <0.01"
     # (checked on Barnard's Star against the ESA archive, 14 Nov 2026).

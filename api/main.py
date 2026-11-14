@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import resolve as resolver
 import context
 import cutouts
+import spectra
 import spherex
 
 app = FastAPI(title="Meridian API", version="0.0.1")
@@ -174,3 +175,22 @@ async def gaia_context(
         return await run_in_threadpool(context.gaia_sources, ra, dec, fov, mjd)
     except Exception as err:
         raise HTTPException(status_code=503, detail=f"Gaia unavailable: {err}")
+
+
+@app.get("/api/spectrum")
+async def spectrum(
+    ra: float = Query(..., ge=0, lt=360, description="point to measure"),
+    dec: float = Query(..., ge=-90, le=90),
+    ra0: float = Query(..., ge=0, lt=360, description="field centre (the time-lapse field)"),
+    dec0: float = Query(..., ge=-90, le=90),
+    fov: float = Query(0.1, ge=0.02, le=1.0),
+    max_new: int = Query(40, ge=0, le=300, description="new frames to download this round"),
+) -> dict:
+    """Spectrum at (ra, dec) from every SPHEREx frame of the field. Call again while
+    `complete` is false to fill in frames that were not downloaded yet."""
+    try:
+        return await run_in_threadpool(spectra.spectrum, ra0, dec0, fov, ra, dec, max_new)
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+    except Exception as err:
+        raise HTTPException(status_code=503, detail=f"spectrum failed: {err}")

@@ -45,6 +45,9 @@ test('state: invalid values are ignored, valid ones normalised', () => {
   assert.equal(store.get().ra, 10);
   assert.equal(store.get().dec, 90);
   assert.equal(store.get().fov, 360);
+  store.set({ ra: 133.7577862, dec: -7.2420234 });
+  assert.equal(store.get().ra, 133.75779); // 5 decimals, same as the API cache keys
+  assert.equal(store.get().dec, -7.24202);
 });
 
 test('state: subscribers get changed keys and source; no-op sets are silent', () => {

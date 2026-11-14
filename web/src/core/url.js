@@ -29,8 +29,8 @@ export function parseQuery(query) {
 /** state -> query string. Position is always written; everything else only when not default. */
 export function toQuery(state) {
   const q = new URLSearchParams();
-  q.set('ra', String(round(state.ra, 4)));
-  q.set('dec', String(round(state.dec, 4)));
+  q.set('ra', String(round(state.ra, 5)));
+  q.set('dec', String(round(state.dec, 5)));
   q.set('fov', String(round(state.fov, state.fov < 1 ? 4 : 2)));
   q.set('band', String(state.band));
   for (const k of STRING_KEYS) {

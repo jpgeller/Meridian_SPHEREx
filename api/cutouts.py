@@ -128,10 +128,21 @@ def _download_full_locked(frame: dict, p) -> bytes:
     raise RuntimeError(f"image download failed ({type(last).__name__})")
 
 
+PROCESS_VERSION = "v5"  # bump when processing changes; old cache entries are then ignored
+
+
+def _aligned_path(frame: dict, ra: float, dec: float, fov: float):
+    key = f"{frame['access_url']}|{ra:.5f},{dec:.5f},{fov:.4f}|{PROCESS_VERSION}"
+    return cache.path_for("aligned", key, ".npz")
+
+
+def is_processed(frame: dict, ra: float, dec: float, fov: float) -> bool:
+    return _aligned_path(frame, ra, dec, fov).exists()
+
+
 def process(frame: dict, ra: float, dec: float, fov: float) -> dict:
     """Returns {'image','variance': float32 2D arrays (row 0 = south), 'meta': dict}."""
-    key = f"{frame['access_url']}|{ra:.5f},{dec:.5f},{fov:.4f}|v5"
-    p = cache.path_for("aligned", key, ".npz")
+    p = _aligned_path(frame, ra, dec, fov)
     if p.exists():
         with np.load(p, allow_pickle=False) as z:
             return {"image": z["image"], "variance": z["variance"], "meta": _json_meta(z["meta"])}

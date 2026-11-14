@@ -400,3 +400,59 @@ body.field-open .handoff {
 .ctx-timeline[hidden] {
   display: none;
 }
+
+/* --- spectrum panel --- */
+.spectrum {
+  border-top: 1px solid #2b375f;
+  padding-top: 6px;
+}
+.spectrum[hidden] {
+  display: none;
+}
+.spectrum header {
+  align-items: baseline;
+  gap: 12px;
+}
+.spectrum h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.spec-close {
+  margin-left: auto;
+}
+#spec-svg {
+  width: 100%;
+  max-height: 240px;
+}
+#spec-svg .grid {
+  stroke: #1d2747;
+  stroke-width: 1;
+}
+#spec-svg .axis {
+  fill: var(--muted);
+  font-size: 11px;
+}
+.spec-note {
+  margin: 2px 0;
+  font-size: 12px;
+}
+.spectrum table {
+  font-size: 12px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.spectrum td,
+.spectrum th {
+  padding: 2px 8px;
+  text-align: right;
+}
+.player {
+  overflow: auto;
+}
+/* keep the image visible when the spectrum panel is open */
+.player-view {
+  min-height: 220px;
+}
+#spec-svg {
+  max-height: 200px;
+}

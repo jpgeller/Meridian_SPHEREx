@@ -66,10 +66,42 @@ function combineVisit(frames) {
   return sum;
 }
 
+/**
+ * Deep fields (e.g. R Dra, 2493 frames, 19 visits) have hundreds of frames per detector per
+ * visit. Keep one frame per band per visit, then at most MAX_PER_VISIT_DETECTOR per detector
+ * per visit, spread across its bands: sums stay deep, downloads stay small.
+ */
+export const MAX_PER_VISIT_DETECTOR = 4;
+export function capPerVisitBand(frames, maxPerGroup = MAX_PER_VISIT_DETECTOR) {
+  // 1) one frame per band per visit (the most recent)
+  const seen = new Set();
+  const perBand = [];
+  for (const f of [...frames].sort((a, b) => b.mjd - a.mjd)) {
+    const key = `${f.visit}|${displayBand(f.band)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    perBand.push(f);
+  }
+  // 2) at most `maxPerGroup` per (visit, detector), spread evenly across its bands
+  const groups = new Map();
+  for (const f of perBand) {
+    const key = `${f.visit}|${f.detector}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(f);
+  }
+  const out = [];
+  for (const g of groups.values()) {
+    g.sort((a, b) => displayBand(a.band) - displayBand(b.band));
+    if (g.length <= maxPerGroup) out.push(...g);
+    else for (let i = 0; i < maxPerGroup; i++) out.push(g[Math.round((i * (g.length - 1)) / (maxPerGroup - 1))]);
+  }
+  return out.sort((a, b) => a.mjd - b.mjd);
+}
+
 function unionFrames(list, selectors) {
   const seen = new Map();
   for (const f of list.frames) if (selectors.some((sel) => sel.match(f))) seen.set(f.id, f);
-  return [...seen.values()];
+  return capPerVisitBand([...seen.values()]);
 }
 
 /**
@@ -80,7 +112,7 @@ export async function buildSequence(list, s, local, hooks) {
   if (s.mode === 'detector') {
     const d = detectorOf(s.band).detector;
     const sel = selectorFor(`D${d}`);
-    const frames = list.frames.filter(sel.match);
+    const frames = capPerVisitBand(list.frames.filter(sel.match));
     if (!frames.length) return { items: [], failed: 0, emptyMessage: `No detector D${d} images of this spot. Nearby bands with images:` };
     const { ok, failed } = await loadAll(frames, s, hooks);
     const items = groupByVisit(ok, combineVisit).map((f) => ({ ...f, meta: { ...f.meta, detector: d, mode: 'detector' } }));

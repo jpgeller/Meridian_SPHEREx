@@ -131,3 +131,16 @@ test('significance is symmetric for pure noise (no colour bias)', () => {
   for (const v of d) { if (v > 1) pos++; if (v < -1) neg++; }
   assert.ok(Math.abs(pos - neg) < 0.25 * (pos + neg), `pos ${pos} vs neg ${neg}`);
 });
+
+import { capPerVisitBand } from '../src/field/sequence.js';
+test('deep fields keep one frame per band per visit (the most recent)', () => {
+  const frames = [
+    { id: 'a', visit: 0, band: 40, mjd: 1, detector: 3 }, { id: 'b', visit: 0, band: 40, mjd: 2, detector: 3 },
+    { id: 'c', visit: 0, band: 41, mjd: 3, detector: 3 }, { id: 'd', visit: 1, band: 40, mjd: 9, detector: 3 },
+    { id: 'e', visit: 0, band: 50, mjd: 4, detector: 3 }, { id: 'f', visit: 0, band: 49, mjd: 5, detector: 3 }, // 50 folds into 49
+  ];
+  assert.deepEqual(capPerVisitBand(frames).map((f) => f.id), ['b', 'c', 'f', 'd']);
+  // a visit with 10 bands on one detector keeps 4, spread from the first band to the last
+  const many = Array.from({ length: 10 }, (_, i) => ({ id: `m${i}`, visit: 5, detector: 3, band: 40 + i, mjd: 100 + i }));
+  assert.deepEqual(capPerVisitBand(many).map((f) => f.band), [40, 43, 46, 49]);
+});

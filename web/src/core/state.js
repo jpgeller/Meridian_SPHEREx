@@ -38,7 +38,10 @@ export const DEFAULTS = Object.freeze({
   layers: [],
 });
 
-const wrapRa = (ra) => ((ra % 360) + 360) % 360;
+// Positions are kept to 5 decimals (0.04″): the API caches by 5-decimal keys, so a shared URL
+// and a live session hit the same cache.
+const round5 = (v) => Math.round(v * 1e5) / 1e5;
+const wrapRa = (ra) => round5(((ra % 360) + 360) % 360);
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 
@@ -57,7 +60,7 @@ export function sanitize(patch, current = DEFAULTS) {
       case 'compare': COMPARES.includes(v) ? (out.compare = v) : warn(k, v); break;
       case 'op': OPS.includes(v) ? (out.op = v) : warn(k, v); break;
       case 'ra': isNum(v) ? (out.ra = wrapRa(v)) : warn(k, v); break;
-      case 'dec': isNum(v) ? (out.dec = clamp(v, -90, 90)) : warn(k, v); break;
+      case 'dec': isNum(v) ? (out.dec = round5(clamp(v, -90, 90))) : warn(k, v); break;
       case 'fov': isNum(v) && v > 0 ? (out.fov = clamp(v, FOV_MIN, FOV_MAX)) : warn(k, v); break;
       case 'ffov': isNum(v) && v > 0 ? (out.ffov = snapFieldFov(v)) : warn(k, v); break;
       case 'band': {
