@@ -2,7 +2,8 @@
 // (eye tracking) and the AI guide all call run(); none of them touch modules directly.
 //
 // Each run() also dispatches `meridian:command` on `target` (window in the browser) with
-// { name, args, source, ok }, so the eye tracker and the guide can listen and react.
+// { name, args, source, ok, error? }, so the eye tracker and the guide can listen and react.
+// Async commands return { ok: true, pending: true, value: Promise } and emit when settled.
 
 /**
  * @typedef {Object} CommandMeta
@@ -27,17 +28,37 @@ export function createCommands({ target = globalThis.window } = {}) {
       console.warn(`[commands] unknown command: ${name}`);
       return { ok: false, error: 'unknown command' };
     }
-    let result;
+    const emit = (ok, error) =>
+      target?.dispatchEvent?.(
+        new CustomEvent('meridian:command', {
+          detail: { name, args, source, ok, ...(error ? { error } : {}) },
+        }),
+      );
+    let value;
     try {
-      result = { ok: true, value: entry.fn(args ?? {}, { source }) };
+      value = entry.fn(args ?? {}, { source });
     } catch (err) {
       console.error(`[commands] ${name} failed`, err);
-      result = { ok: false, error: String(err?.message ?? err) };
+      const error = String(err?.message ?? err);
+      emit(false, error);
+      return { ok: false, error };
     }
-    target?.dispatchEvent?.(
-      new CustomEvent('meridian:command', { detail: { name, args, source, ok: result.ok } }),
-    );
-    return result;
+    if (value && typeof value.then === 'function') {
+      // Async command (e.g. fly_to with a name lookup): report when it settles.
+      // `value` still rejects for callers that await it; the bus never leaves it unhandled.
+      const settled = value.then(
+        (v) => (emit(true), v),
+        (err) => {
+          console.error(`[commands] ${name} failed`, err);
+          emit(false, String(err?.message ?? err));
+          throw err;
+        },
+      );
+      settled.catch(() => {});
+      return { ok: true, pending: true, value: settled };
+    }
+    emit(true);
+    return { ok: true, value };
   }
 
   /** Public description of every command (for help, the AI guide's tool list, the eye tracker). */

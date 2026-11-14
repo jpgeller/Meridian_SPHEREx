@@ -113,6 +113,22 @@ test('commands: fly_to with coordinates; names fail cleanly until Step 2', () =>
   assert.equal(r.ok, false);
 });
 
+test('commands: async commands emit when they settle, and failures are reported', async () => {
+  const { commands, events } = setup();
+  commands.register('slow_ok', async () => 42);
+  commands.register('slow_fail', async () => { throw new Error('nope'); });
+  const a = commands.run('slow_ok');
+  assert.equal(a.pending, true);
+  assert.equal(await a.value, 42);
+  const err = console.error;
+  console.error = () => {};
+  const b = commands.run('slow_fail');
+  await assert.rejects(b.value, /nope/);
+  console.error = err;
+  assert.deepEqual(events.slice(-2).map((e) => [e.name, e.ok]), [['slow_ok', true], ['slow_fail', false]]);
+  assert.equal(events.at(-1).error, 'nope');
+});
+
 test('commands: unknown commands are rejected; list() describes every command', () => {
   const { commands } = setup();
   assert.equal(quiet(() => commands.run('launch_rocket')).ok, false);
