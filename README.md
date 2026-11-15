@@ -42,7 +42,16 @@ cd api && ./.venv/bin/python -m pytest -q   # API tests
 | SPHEREx images | NASA/IPAC IRSA: DR1/QR3 Level 2 images and the DR1 all-sky HiPS cube |
 | WISE/NEOWISE images | WiseView (Backyard Worlds) |
 | Gaia DR3 | ESA Gaia archive |
+| CatWISE2020 (moving objects) | NASA/IPAC IRSA |
 | Name lookup | CDS Sesame/SIMBAD |
 | Sky viewer | Aladin Lite (CDS) |
 
 > This publication makes use of data products from the Spectro-Photometer for the History of the Universe, Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion Laboratory and the California Institute of Technology, and is funded by the National Aeronautics and Space Administration.
+
+## Credits
+
+**Sky viewer: [Aladin Lite](https://aladin.cds.unistra.fr/AladinLite/)**, developed at CDS, Strasbourg Astronomical
+Observatory, France (Boch & Fernique 2014, ASP Conf. Ser. 485, 277; Baumann et al. 2022, ASP Conf. Ser. 532, 7). Aladin Lite
+is distributed under the GPL v3 licence. Meridian hides Aladin's own on-screen logo and widgets: every on-screen control is
+ours and sits away from the screen edges for eye tracking. This credit replaces the logo.
+

@@ -283,7 +283,7 @@ test('change video: WISE 0855 found and tracked; real dates and model frames are
   await expect.poll(() => badge.textContent(), { timeout: 5000 }).not.toBe(first);
   await page.locator('#p-play').click(); // pause
   expect(await page.evaluate(() => meridian.store.get().playing)).toBe(false);
-  await page.getByRole('checkbox', { name: 'Steady background' }).uncheck(); // each real image as it is
+  await page.getByRole('switch', { name: 'Steady background' }).click(); // off: each real image as it is
   await page.keyboard.press('.'); // next real image
   await expect(caption).toContainText('Real image');
   await expect(page.locator('#video-badge')).toHaveText(/^REAL/);
@@ -564,7 +564,7 @@ test('guide pop-up: Yes opens a step, answers resolve say(), a step over its tar
   const moved = await card.boundingBox();
   const under = await page.locator('[data-guide="test-under-card"]').boundingBox();
   expect(moved.x + moved.width).toBeLessThan(under.x);
-  expect(moved.height).toBe(full);
+  expect(moved.height).toBeCloseTo(full, 1); // same height: nothing cut (sub-pixel rounding allowed)
   const search = await page.locator('#search').boundingBox();
   expect(moved.y).toBeGreaterThan(search.y + search.height);
   await page.evaluate(() => guide.dismiss());
@@ -917,3 +917,40 @@ test('2D view: one list of what to show; choices exclude each other; old links s
   await ready(page);
   await expect(page.locator('.ctx-timeline')).toBeVisible({ timeout: 60_000 });
 });
+
+// Eye tracking: every clickable at least 64 x 64 px, and not covered by anything else.
+async function smallOrCovered(page) {
+  return page.evaluate(() =>
+    [...document.querySelectorAll('button, input, select, textarea, a[href], summary, [role="button"], [role="radio"], [role="checkbox"], [role="switch"], [role="slider"]')]
+      .filter((e) => e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }))
+      .map((e) => ({ e, r: e.getBoundingClientRect() }))
+      .filter(({ r }) => r.width > 0 && r.height > 0)
+      .flatMap(({ e, r }) => {
+        const name = (e.getAttribute('aria-label') || e.textContent || e.id || e.tagName).trim().replace(/\s+/g, ' ').slice(0, 30);
+        const out = [];
+        if (r.width < 63.5 || r.height < 63.5) out.push(`${name}: ${Math.round(r.width)}x${Math.round(r.height)}`);
+        const t = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        if (t && !e.contains(t) && !t.contains(e)) out.push(`${name}: covered`);
+        return out;
+      }),
+  );
+}
+
+for (const [w, h] of [[1280, 800], [1920, 1080]]) {
+  test(`eye tracking: every control is at least 64 x 64 px and reachable (${w}x${h})`, async ({ page }) => {
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto('/');
+    await ready(page);
+    expect(await smallOrCovered(page), 'sky view').toEqual([]);
+    await page.goto('/?ra=269.44627&dec=4.7682&fov=2.6&band=92&view=field&ffov=0.1&mode=detector');
+    await ready(page);
+    await expect(page.locator('.epoch').first()).toBeVisible({ timeout: 60_000 });
+    for (const show of ['timelapse', 'video', 'blink', 'wise', 'gaia']) {
+      await page.evaluate((s) => meridian.run('set_show', { show: s }), show);
+      await page.waitForTimeout(400);
+      expect(await smallOrCovered(page), `2D view, ${show}`).toEqual([]);
+      // the controls column fits without scrolling (gaze cannot scroll easily)
+      expect(await page.evaluate(() => { const r = document.querySelector('.player-right'); return r.scrollHeight - r.clientHeight; }), `2D ${show} scroll`).toBeLessThanOrEqual(1);
+    }
+  });
+}

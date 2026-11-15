@@ -197,7 +197,11 @@ body {
   grid-template-columns: repeat(4, 1fr);
 }
 .shell-left .card-title {
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+/* 64 px targets: slimmer card padding keeps the whole panel on screen without scrolling (gaze cannot scroll) */
+.shell-left .card {
+  padding: var(--space-2) var(--space-3);
 }
 .shell-dock {
   bottom: var(--edge-y);
@@ -1222,4 +1226,126 @@ body.field-open .guide-popup {
 /* lets two button groups share one grid row (the View card: view type + zoom) */
 .contents {
   display: contents;
+}
+
+/* --- Eye tracking: every clickable is at least 64 x 64 px (team rule, 16 Nov 2026) ----------------
+   !important so no component style can shrink a target below it. Text fields and sliders count too. */
+:root {
+  --hit: 64px;
+}
+button,
+select,
+textarea,
+summary,
+a[href],
+input:not([type='hidden']),
+[role='button'],
+[role='radio'],
+[role='switch'],
+[role='slider'] {
+  min-width: var(--hit) !important;
+  min-height: var(--hit) !important;
+  box-sizing: border-box;
+}
+input[type='range'] {
+  height: var(--hit);
+}
+/* on/off switches (were checkboxes): a check mark shows the state, not colour alone */
+button[role='switch'] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+button[role='switch']::before {
+  content: '';
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--muted-strong, #9aa6c6);
+  border-radius: 5px;
+  box-sizing: border-box;
+}
+button[role='switch'][aria-checked='true']::before {
+  content: '✓';
+  display: grid;
+  place-items: center;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #111;
+  font-weight: 800;
+  font-size: 15px;
+}
+
+/* --- 2D view in two columns (64 px targets do not fit under the image) --- */
+.field-stage {
+  align-items: stretch;
+}
+.field .player {
+  display: grid;
+  /* the image is limited by height: give the spare width to the controls, so they fit without scrolling */
+  grid-template-columns: minmax(0, 1.25fr) minmax(400px, 1fr);
+  gap: var(--space-3);
+  overflow: hidden;
+}
+.player-left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+  min-width: 0;
+}
+.player-left .player-view {
+  flex: 1;
+  min-height: 0;
+}
+.player-right {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-1);
+}
+.player-right .field-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.player-right .player-bar,
+.player-right .row,
+.player-right .epochs {
+  gap: 6px;
+}
+.player-right .player-bar:has(> #op-hint:empty):not(:has(> :not(#op-hint):not([hidden]))) {
+  display: none; /* nothing to show in this row */
+}
+.field-size-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+.player-right .field-dets {
+  grid-template-columns: repeat(3, 1fr);
+}
+.player-right #p-scrub {
+  flex: 1;
+  min-width: 80px;
+}
+.player-right .player-caption {
+  font-size: 13px;
+}
+/* the video's four switches flow together (two rows, not three) */
+.player-right #video-marks-wrap,
+.player-right #trail-wise-wrap {
+  display: contents;
+}
+/* side by side (WISE or Gaia): two square pictures share the image column, never spill onto the controls */
+.player-left {
+  overflow: hidden;
+}
+.player-view.compare-side > .canvas-wrap {
+  height: auto;
+  width: calc(50% - 6px);
+  max-height: 100%;
 }

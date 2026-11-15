@@ -49,6 +49,8 @@ export const field = createFieldView(document.querySelector('#field-root'), {
   getWavelengths: () => sky.wavelengths,
 });
 const player = createPlayer(field.stage, { store, commands });
+// 2D view in two columns: the size and band buttons join the controls column (field/player.js)
+player.elements.right.prepend(document.querySelector('.field-controls'));
 window.meridian.player = player; // debugging and tests
 createContext(player, { store, commands });
 const spectrum = createSpectrum(player, { store, commands });

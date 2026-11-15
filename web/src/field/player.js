@@ -33,6 +33,9 @@ const shortDate = (iso) =>
 export function createPlayer(stage, { store, commands }) {
   stage.innerHTML = `
     <div class="player" data-guide="time-player">
+      <!-- two columns (64 px targets do not fit under the image): the image, its time line and caption
+           on the left; every control on the right (main.js also moves the size and band buttons there) -->
+      <div class="player-left">
       <div class="player-view">
         <div class="canvas-wrap">
           <canvas id="frame-canvas" role="img" aria-label="No frame loaded"></canvas>
@@ -45,6 +48,9 @@ export function createPlayer(stage, { store, commands }) {
       <div class="video-line" id="video-line" data-guide="video-line" hidden aria-hidden="true">
         <span id="video-from"></span><div class="video-track" id="video-track"><div class="video-head" id="video-head"></div></div><span id="video-to"></span>
       </div>
+      <p id="player-caption" class="player-caption"></p>
+      </div>
+      <div class="player-right">
       <div class="player-bar" role="radiogroup" aria-label="What to show" data-guide="show-modes">
         <button type="button" role="radio" data-show="timelapse">Time-lapse <kbd>t</kbd></button>
         <button type="button" role="radio" data-show="video">Change video <kbd>v</kbd></button>
@@ -54,11 +60,11 @@ export function createPlayer(stage, { store, commands }) {
       </div>
       <div class="player-bar video-options" role="group" aria-label="Change video options">
         <span class="row wrap" id="video-marks-wrap" hidden>
-          <label class="inline"><input type="checkbox" id="video-marks-on" checked /> Mark moving objects</label>
-          <label class="inline"><input type="checkbox" id="video-steady" checked /> Steady background</label>
-          <label class="inline"><input type="checkbox" id="video-hold" /> Pause on real images</label>
+          <button type="button" role="switch" aria-checked="true" id="video-marks-on">Mark moving objects</button>
+          <button type="button" role="switch" aria-checked="true" id="video-steady">Steady background</button>
+          <button type="button" role="switch" aria-checked="false" id="video-hold">Pause on real images</button>
         </span>
-        <label class="inline" id="trail-wise-wrap" hidden><input type="checkbox" id="trail-wise" checked /> Include WISE 2010–2024</label>
+        <span id="trail-wise-wrap" hidden><button type="button" role="switch" aria-checked="true" id="trail-wise">Include WISE 2010–2024</button></span>
         <span class="muted hint" id="op-hint"></span>
       </div>
       <div class="epochs" id="epochs" role="group" aria-label="Dates (select two to compare)"></div>
@@ -66,17 +72,16 @@ export function createPlayer(stage, { store, commands }) {
         <button type="button" id="p-prev" aria-label="Previous frame">◀︎ <kbd>,</kbd></button>
         <button type="button" id="p-play" aria-keyshortcuts="Space">Play <kbd>Space</kbd></button>
         <button type="button" id="p-next" aria-label="Next frame"><kbd>.</kbd> ▶︎</button>
+        <button type="button" id="p-more" aria-expanded="false" aria-controls="p-more-row">Display options</button>
         <input type="range" id="p-scrub" min="0" max="0" value="0" aria-label="Frame" />
-        <label class="inline">Speed
-          <select id="p-speed">${SPEEDS.map((s) => `<option value="${s}" ${s === 2 ? 'selected' : ''}>${s} fps</option>`).join('')}</select>
-        </label>
-        <label class="inline"><input type="checkbox" id="p-visit" /> One per visit</label>
-        <label class="inline">Colours
-          <select id="p-cmap"><option value="grey">Grey</option><option value="inferno">Inferno</option></select>
-        </label>
-        <label class="inline"><input type="checkbox" id="p-ring" checked /> Mark target</label>
       </div>
-      <p id="player-caption" class="player-caption"></p>
+      <div class="player-bar" id="p-more-row" hidden role="group" aria-label="Display options">
+        <button type="button" id="p-speed" title="Press to change">Speed: 2 fps</button>
+        <button type="button" role="switch" aria-checked="false" id="p-visit">One per visit</button>
+        <button type="button" id="p-cmap" title="Press to change">Colours: grey</button>
+        <button type="button" role="switch" aria-checked="true" id="p-ring">Mark target</button>
+      </div>
+      </div>
     </div>`;
 
   const $ = (s) => stage.querySelector(s);
@@ -138,35 +143,58 @@ export function createPlayer(stage, { store, commands }) {
     vid.hold = 0;
     show(st);
   });
-  $('#video-steady').addEventListener('change', (e) => {
-    local.videoSteady = e.target.checked;
+  // On/off options are switch buttons and choices are buttons that step through them: eye control
+  // presses buttons, and checkboxes and drop-down lists cannot be made 64 px targets.
+  const onSwitch = (id, fn) =>
+    $(id).addEventListener('click', (e) => {
+      const on = e.currentTarget.getAttribute('aria-checked') !== 'true';
+      e.currentTarget.setAttribute('aria-checked', String(on));
+      fn(on);
+    });
+  const onCycle = (id, values, label, fn) =>
+    $(id).addEventListener('click', (e) => {
+      const next = values[(values.indexOf(fn.current()) + 1) % values.length];
+      e.currentTarget.textContent = label(next);
+      fn(next);
+    });
+  onSwitch('#video-steady', (on) => {
+    local.videoSteady = on;
     show(store.get());
   });
-  $('#video-hold').addEventListener('change', (e) => {
-    local.videoHold = e.target.checked;
+  onSwitch('#video-hold', (on) => {
+    local.videoHold = on;
     vid.hold = 0;
   });
-  $('#video-marks-on').addEventListener('change', (e) => {
-    local.videoMarks = e.target.checked;
+  onSwitch('#video-marks-on', (on) => {
+    local.videoMarks = on;
     show(store.get());
   });
-  $('#trail-wise').addEventListener('change', (e) => {
-    local.trailWise = e.target.checked;
+  onSwitch('#trail-wise', (on) => {
+    local.trailWise = on;
     show(store.get());
   });
-  $('#p-speed').addEventListener('change', (e) => {
-    local.speed = Number(e.target.value);
+  const setSpeed = (v) => {
+    local.speed = v;
     syncTimers(store.get());
-  });
-  $('#p-visit').addEventListener('change', (e) => {
-    local.perVisit = e.target.checked;
+  };
+  setSpeed.current = () => local.speed;
+  onCycle('#p-speed', SPEEDS, (v) => `Speed: ${v} fps`, setSpeed);
+  onSwitch('#p-visit', (on) => {
+    local.perVisit = on;
     reload(store.get(), { force: true });
   });
-  $('#p-cmap').addEventListener('change', (e) => {
-    local.colormap = e.target.value;
+  const setCmap = (v) => {
+    local.colormap = v;
     show(store.get());
+  };
+  setCmap.current = () => local.colormap;
+  onCycle('#p-cmap', ['grey', 'inferno'], (v) => `Colours: ${v}`, setCmap);
+  onSwitch('#p-ring', (on) => (ring.style.display = on ? '' : 'none'));
+  $('#p-more').addEventListener('click', (e) => {
+    const row = $('#p-more-row');
+    row.hidden = !row.hidden;
+    e.currentTarget.setAttribute('aria-expanded', String(!row.hidden));
   });
-  $('#p-ring').addEventListener('change', (e) => (ring.style.display = e.target.checked ? '' : 'none'));
 
   function setMessage(text, actions = []) {
     msg.textContent = text;
@@ -562,7 +590,7 @@ export function createPlayer(stage, { store, commands }) {
     $('#video-marks-wrap').hidden = s.op !== 'video';
     $('#p-visit').disabled = s.mode !== 'single'; // other modes are already one per visit
     $('#op-hint').textContent =
-      s.op === 'none' ? '' : s.op === 'video' ? 'Uses every date.' : 'Select two dates below, or the first and last are used.';
+      s.op === 'blink' ? 'Pick two dates (or it uses the first and last).' : '';
     epochsEl.querySelectorAll('[data-epoch]').forEach((b) =>
       b.setAttribute('aria-pressed', String(s.t.includes(Number(b.dataset.epoch)))),
     );
@@ -641,6 +669,7 @@ export function createPlayer(stage, { store, commands }) {
       canvasWrap: stage.querySelector('.canvas-wrap'),
       canvas,
       bar: stage.querySelectorAll('.player-bar')[1],
+      right: stage.querySelector('.player-right'), // the controls column
     },
   };
 }

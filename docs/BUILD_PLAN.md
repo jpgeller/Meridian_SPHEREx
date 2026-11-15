@@ -502,6 +502,20 @@ Decided with the team on 16 Nov 2026.
 - Gaia is not on the "Timeline 2010→2026": the timeline steps through real images (WISE, SPHEREx); Gaia has none. The drawn
   Gaia picture is in "Side by side with Gaia".
 
+## Step 20 — Friend's single side panel merged; 64 px targets everywhere  `[x]`
+- Merged `ui-guide` (single foldable left panel, bottom-right readout, no Aladin widgets or logo) with main's work since; the
+  6% margins applied to the new panel, toggle, dock and readout; zoom buttons kept in the View row. Aladin Lite is credited in
+  the README (its logo is hidden).
+- **Every clickable ≥ 64 × 64 px** (team rule): a global `min-width/min-height: var(--hit)` (!important) on buttons, inputs,
+  sliders and ARIA controls. Checkboxes became `role="switch"` buttons with a check mark; Speed and Colours became stepping
+  buttons. Audit: 494 control instances in the sky view and all 2D modes at two sizes, 0 below 64 px.
+- The 2D view became two columns (image + time line + caption | controls); D1–D6 in two rows of three; "More bands" by the
+  sizes; Speed / One per visit / Colours / Mark target under "Display options". It fits without scrolling at ≥1280×800 in
+  every mode (at 1280×720 the controls column scrolls ~40–70 px). The side panel fits at 1280×800, 1440×900, 1920×1080
+  (30 px over at 1366×768); with "Your mix" open it scrolls (its number boxes need a keyboard anyway).
+- Bugs found by the audit: side-by-side pictures spilled over the controls column (now half width each); the guide card's
+  top-left and 2D spots now sit below the measured search bar / 2D header (taller with 64 px targets).
+
 ## Optional (final version): repair the black blotches in the all-sky map  `[ ]`
 IRSA's all-sky tiles mask pixels in the bright, crowded Galactic centre (black blotches); SPHEREx has hundreds of images there
 and the full-resolution layer below 1.5° shows them. A fix: proxy the tiles of that region through the API and fill masked

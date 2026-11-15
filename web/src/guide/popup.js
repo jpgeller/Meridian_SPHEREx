@@ -104,7 +104,9 @@ export function spotRects({ viewport, size, field = false, layout = {} }) {
   const at = (id, x, y) => ({ id, rect: { x: clampX(x), y: clampY(y), w, h } });
   if (field) {
     const mid = (vh - h) / 2;
-    return [at('top-right', vw - ex - 16 - w, ey + 60), at('right', vw - ex - 16 - w, mid), at('left', ex + 16, mid)];
+    // below the 2D view's header ("Back to sky"), measured when known: 64 px targets make it taller
+    const top = L.fieldHeadBottom != null ? L.fieldHeadBottom + 8 : ey + 60;
+    return [at('top-right', vw - ex - 16 - w, top), at('right', vw - ex - 16 - w, mid), at('left', ex + 16, mid)];
   }
   const aboveDock = dockTop - e - h;
   return [
@@ -286,8 +288,11 @@ export function createPopup({ doc = document, resolve = () => null, getCentre = 
     const edgeX = 0.06 * vw + 4;
     const edgeY = 0.06 * vh + 4;
     // top-left spot: below the side panel's "Controls" button (and clear of the search bar)
-    const leftTop = Math.max(v('--left-top', 12), edgeY) + v('--toggle-h', 64) + v('--space-2', 8);
-    const out = { edge, edgeX, edgeY, leftTop, leftW: v('--left-w', 264), toolsW: v('--tools-w', 284) };
+    // (measured: with 64 px targets the search bar can end lower than the button)
+    const searchBottom = doc.querySelector('.shell-top')?.getBoundingClientRect().bottom ?? 0;
+    const leftTop = Math.max(Math.max(v('--left-top', 12), edgeY) + v('--toggle-h', 64), searchBottom) + v('--space-2', 8);
+    const head = doc.querySelector('.field-head')?.getBoundingClientRect();
+    const out = { edge, edgeX, edgeY, leftTop, leftW: v('--left-w', 264), toolsW: v('--tools-w', 284), fieldHeadBottom: head?.height ? head.bottom : null };
     const dock = doc.querySelector('[data-region="dock"]')?.getBoundingClientRect();
     if (dock?.width > 0) Object.assign(out, { dockTop: dock.top, dockLeft: dock.left, dockRight: dock.right });
     else Object.assign(out, { dockTop: vh - out.edgeY - v('--dock-h', 132), dockRight: vw - v('--logo-clear', 112) });

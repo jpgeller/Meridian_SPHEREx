@@ -47,6 +47,10 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
 - **Nothing clickable within 6% of the screen edges** (eye tracking is least accurate there): use `--edge-x` / `--edge-y`
   in `web/src/style.css`. Aladin's corner toolbar is off for this (zoom and view type are our buttons). The browser test
   "eye tracking: no control within 6% of the screen edges" checks the sky view and every 2D mode.
+- **Every clickable is at least 64 × 64 px** (eye tracking; global rule at the end of `web/src/style.css`, `--hit`). On/off
+  options are `role="switch"` buttons and choices are stepping buttons (no checkboxes or drop-downs: they can't be 64 px and
+  gaze presses buttons). The 2D view is two columns (image | controls) so it fits without scrolling at ≥1280×800. The test
+  "every control is at least 64 x 64 px and reachable" checks the sky view and every 2D mode.
 - UI and guide live in `web/src/ui/` and `web/src/guide/` (plan: docs/UI_AND_GUIDE_PLAN.md). They only call `run(...)`
   and read `store`. `ANTHROPIC_API_KEY` stays in `api/.env` (git-ignored; see `api/.env.example`), never in the browser.
 

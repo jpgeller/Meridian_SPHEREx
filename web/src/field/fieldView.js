@@ -17,10 +17,12 @@ export function createFieldView(root, { store, commands, getWavelengths = () => 
         <button type="button" id="field-close" class="field-close">Back to sky <kbd>Esc</kbd></button>
       </header>
       <div class="field-controls">
-        <div role="radiogroup" aria-label="Field size" class="row wrap" id="field-sizes">
-          ${FIELD_FOVS.map(
-            (f) => `<button type="button" role="radio" data-ffov="${f}">${f < 1 ? `${f * 60}′` : `${f}°`}</button>`,
-          ).join('')}
+        <div class="row field-size-row">
+          <div role="radiogroup" aria-label="Field size (wider fields catch faster-moving objects but load more slowly; + and − keys)" class="row" id="field-sizes">
+            ${FIELD_FOVS.map(
+              (f) => `<button type="button" role="radio" data-ffov="${f}">${f < 1 ? `${f * 60}′` : `${f}°`}</button>`,
+            ).join('')}
+          </div>
         </div>
         <div class="row field-band-row">
           <div class="field-dets" role="radiogroup" aria-label="Wavelength range: detectors D1 (shortest) to D6 (longest)">
@@ -31,7 +33,7 @@ export function createFieldView(root, { store, commands, getWavelengths = () => 
               )
               .join('')}
           </div>
-          <button type="button" id="band-more-toggle" class="band-more-toggle" aria-expanded="false" aria-controls="band-more">More band options</button>
+          <button type="button" id="band-more-toggle" class="band-more-toggle" aria-expanded="false" aria-controls="band-more">More bands</button>
         </div>
         <div class="row wrap" id="band-more" hidden role="group" aria-label="More band options">
           <button type="button" id="field-band-prev" aria-keyshortcuts="["><kbd>[</kbd> Previous band</button>
@@ -58,7 +60,6 @@ export function createFieldView(root, { store, commands, getWavelengths = () => 
           <button type="submit">Apply</button>
           <span class="muted hint">Use b1–b101, D1–D6, numbers, + − × ÷ and brackets</span>
         </form>
-        <p class="muted hint">Wider fields catch faster-moving objects but load more slowly. <kbd>+</kbd>/<kbd>−</kbd> change the size.</p>
       </div>
       <div id="field-stage" class="field-stage"></div>
     </section>`;
@@ -90,7 +91,7 @@ export function createFieldView(root, { store, commands, getWavelengths = () => 
   moreToggle.addEventListener('click', () => {
     more.hidden = !more.hidden;
     moreToggle.setAttribute('aria-expanded', String(!more.hidden));
-    moreToggle.textContent = more.hidden ? 'More band options' : 'Fewer band options';
+    moreToggle.textContent = more.hidden ? 'More bands' : 'Fewer bands';
   });
   root.querySelector('#field-band-prev').addEventListener('click', () => commands.run('prev_band', {}, 'ui'));
   root.querySelector('#field-band-next').addEventListener('click', () => commands.run('next_band', {}, 'ui'));
@@ -134,7 +135,7 @@ export function createFieldView(root, { store, commands, getWavelengths = () => 
     if (state.mode === 'rgb' || state.mode === 'custom') {
       root.querySelector('#band-more').hidden = false;
       root.querySelector('#band-more-toggle').setAttribute('aria-expanded', 'true');
-      root.querySelector('#band-more-toggle').textContent = 'Fewer band options';
+      root.querySelector('#band-more-toggle').textContent = 'Fewer bands';
     }
     // Focus: into the panel when it opens, back to the page when it closes,
     // so keyboard and screen-reader users always know where they are.
