@@ -466,6 +466,16 @@ in `player.js`; command `toggle_trail` (key `r`, URL `op=trail`). Background: `d
 - Teaching point: WISE 0855 does not appear (too cold for Gaia's visible light); Barnard's Star sits on the target ring.
 - Image: `docs/img/gaia_side_barnard.png`.
 
+## Step 18 — Eye-tracking margins and a 2D clean-up  `[x]`
+- Nothing clickable within 6% of the screen edges: `--edge-x: calc(6vw + 4px)`, `--edge-y: calc(6vh + 4px)` position every
+  panel (sky shell, field view, guide card, Eye control card); the guide card's placement (`guide/popup.js`) uses the same
+  margins. Aladin's corner toolbar (frame menu, layers, grid, zoom, coordinate box) is off: zoom buttons are in the View
+  card, and the status line shows the view centre. Gaze edge-panning now always happens over sky (no panel is in the band).
+- Bug: elements marked `hidden` still showed when a class set `display` (the change-video options appeared in every
+  2D mode). A global `[hidden] { display: none !important }` fixes all such cases.
+- Tests: the edge rule in the sky view and all six 2D modes at 1280×800 and 1920×1080; the friend's gaze and guide tests
+  updated to the new positions (the recorded gaze is shifted onto D6 wherever the layout puts it).
+
 ## Optional (final version): repair the black blotches in the all-sky map  `[ ]`
 IRSA's all-sky tiles mask pixels in the bright, crowded Galactic centre (black blotches); SPHEREx has hundreds of images there
 and the full-resolution layer below 1.5° shows them. A fix: proxy the tiles of that region through the API and fill masked
