@@ -273,7 +273,8 @@ test('change video: WISE 0855 found and tracked; real dates and model frames are
   const caption = page.locator('#player-caption');
   await expect(caption).toContainText(/Moving: CatWISE2020 object at 8\.\d″\/yr/, { timeout: 180_000 });
   await expect(page.locator('#video-badge')).toBeVisible();
-  await expect(caption).toContainText('Steady background'); // the default: still stars stay still
+  await expect(caption).toContainText('In-between frames are a model'); // (the Steady background option is gone)
+  await expect(page.getByRole('switch', { name: 'Steady background' })).toHaveCount(0);
   // it waits on its first image (2010) until Play is pressed, then plays; pressing again pauses
   await expect(caption).toContainText('Press Play');
   const badge = page.locator('#video-badge');
@@ -283,7 +284,6 @@ test('change video: WISE 0855 found and tracked; real dates and model frames are
   await expect.poll(() => badge.textContent(), { timeout: 5000 }).not.toBe(first);
   await page.locator('#p-play').click(); // pause
   expect(await page.evaluate(() => meridian.store.get().playing)).toBe(false);
-  await page.getByRole('switch', { name: 'Steady background' }).click(); // off: each real image as it is
   await page.keyboard.press('.'); // next real image
   await expect(caption).toContainText('Real image');
   await expect(page.locator('#video-badge')).toHaveText(/^REAL/);

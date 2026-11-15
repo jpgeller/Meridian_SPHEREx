@@ -1,0 +1,42 @@
+{
+ "started": "2026-11-14T21:24:13-08:00",
+ "stage": "stage_a",
+ "mode": "frozen_backbone_cached_features",
+ "selection_metric": "val_mean_euclid_px_macro",
+ "trainable_parameters": 199430,
+ "unigaze_checkpoint": {
+  "checkpoint_name": "unigaze_b16_joint",
+  "path": "training_workspace/checkpoints/hf_cache/models--UniGaze--UniGaze-models/snapshots/d3f8335cd4b7d249adbc32389986ce49b52f6f72/unigaze_b16_joint.safetensors",
+  "bytes": 346291616,
+  "sha256": "2580d707b1395840ecabe7906e2cb35705f38c4ddb0be9c3c38ebb2d5546ffb8",
+  "parameters": 86569194
+ },
+ "manifest_hashes": {
+  "train": "1393bc41ae2d658b",
+  "validation": "1637b34beca7c466"
+ },
+ "config_fingerprint": "ba206e105fbb",
+ "seed": 1234,
+ "device": {
+  "device": "cuda",
+  "name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+  "capability": [
+   12,
+   0
+  ],
+  "total_vram_gb": 7.96,
+  "precision": "bf16",
+  "arch_list": [
+   "sm_75",
+   "sm_80",
+   "sm_86",
+   "sm_90",
+   "sm_100",
+   "sm_120"
+  ]
+ },
+ "finished": "2026-11-14T21:24:17-08:00",
+ "best_epoch": 4,
+ "best_val_metric": 225.1216233291138,
+ "epochs_run": 12
+}

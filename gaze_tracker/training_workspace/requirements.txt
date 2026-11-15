@@ -1,0 +1,3 @@
+# The packages for the whole gaze tracker (capture app, training, live demo) are listed once,
+# in ../requirements.txt. See ../README.md, "Install", for the order (PyTorch first).
+-r ../requirements.txt

@@ -15,3 +15,21 @@ test('resampling onto a finer grid keeps the centre in the centre', () => {
   assert.equal(r.data[3 * 7 + 3], 1);
   assert.equal(r.w, 7);
 });
+
+test('normalising a frame filled by glare (median = top) keeps its range instead of turning black', async () => {
+  const { normaliseFrame } = await import('../src/field/trail.js');
+  const data = new Float32Array(100).fill(255);
+  for (let i = 0; i < 10; i++) data[i] = 20 + i * 10; // a dark saturated core, as in WiseView PNGs
+  const out = normaliseFrame(data);
+  assert.ok(out[99] > 0.99, 'the glare stays bright');
+  assert.ok(out[0] < 0.01, 'the darkest pixel is dark');
+});
+
+test('WISE frames: the share of saturated (255) pixels', async () => {
+  const { saturatedFraction, WISE_SATURATED_MAX } = await import('../src/field/wiseFrames.js');
+  const d = new Float32Array(10).fill(255);
+  d[0] = 3;
+  assert.equal(saturatedFraction(d), 0.9);
+  assert.ok(saturatedFraction(d) > WISE_SATURATED_MAX);
+  assert.equal(saturatedFraction(new Float32Array(4)), 0);
+});

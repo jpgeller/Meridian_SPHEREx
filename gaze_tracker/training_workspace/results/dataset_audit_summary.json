@@ -1,0 +1,742 @@
+{
+ "generated": "2026-11-14T20:37:14-08:00",
+ "decision": "PASS",
+ "critical": [],
+ "warnings": [
+  {
+   "level": "WARNING",
+   "check": "slow_trials",
+   "detail": "6 frames more than 3.0 s after onset in 1 session(s); kept and flagged",
+   "action": "Usually a trial that was retried; check if a session mixes two sittings."
+  },
+  {
+   "level": "WARNING",
+   "check": "possible_blinks",
+   "detail": "~22 decoded frames look like blinks/closed eyes (heuristic, kept and flagged)",
+   "action": "Inspect contact sheets; consider excluding after review."
+  },
+  {
+   "level": "WARNING",
+   "check": "corner_coverage",
+   "detail": "only 1.2% of trials within 10% of a screen corner; corner accuracy will be weakly constrained",
+   "action": ""
+  }
+ ],
+ "acceptable": [
+  {
+   "level": "ACCEPTABLE",
+   "check": "pilot_isolation",
+   "detail": "1 pilot session(s) found and ignored",
+   "action": ""
+  },
+  {
+   "level": "ACCEPTABLE",
+   "check": "ids_match_directories",
+   "detail": "0 participant and 0 session mismatches",
+   "action": ""
+  },
+  {
+   "level": "ACCEPTABLE",
+   "check": "session_metadata_fields",
+   "detail": "0 missing/inconsistent metadata items",
+   "action": ""
+  },
+  {
+   "level": "ACCEPTABLE",
+   "check": "screen_geometry",
+   "detail": "all observations on one 2560x1600 participant monitor",
+   "action": ""
+  },
+  {
+   "level": "ACCEPTABLE",
+   "check": "camera_resolution",
+   "detail": "{(1280, 720): 50000}",
+   "action": ""
+  },
+  {
+   "level": "ACCEPTABLE",
+   "check": "target_coordinates",
+   "detail": "0 out of range, 0 px/norm inconsistent",
+   "action": ""
+  },
+  {
+   "level": "ACCEPTABLE",
+   "check": "capture_after_target_settle",
+   "detail": "0 frames earlier than 0.8 s after target onset (latency range 0.80-3.35 s)",
+   "action": ""
+  },
+  {
+   "level": "ACCEPTABLE",
+   "check": "no_capture_while_paused",
+   "detail": "0 frames inside paused intervals, 0 with a non-CAPTURING state",
+   "action": ""
+  },
+  {
+   "level": "ACCEPTABLE",
+   "check": "duplicates",
+   "detail": "0 duplicate IDs, 0 identical raw frames",
+   "action": ""
+  },
+  {
+   "level": "ACCEPTABLE",
+   "check": "complete_trials",
+   "detail": "0 trials without 10 frames",
+   "action": ""
+  },
+  {
+   "level": "ACCEPTABLE",
+   "check": "files_exist",
+   "detail": "200000 of 200000 referenced image files present",
+   "action": ""
+  },
+  {
+   "level": "ACCEPTABLE",
+   "check": "left_right_eye_labels",
+   "detail": "0 frames where the participant's left eye is not on the image right (unmirrored camera)",
+   "action": ""
+  },
+  {
+   "level": "ACCEPTABLE",
+   "check": "images_decode_and_dimensions",
+   "detail": "50000 observations decoded (full); 0 failed (undecodable, wrong size or not 3-channel)",
+   "action": ""
+  },
+  {
+   "level": "ACCEPTABLE",
+   "check": "color_order",
+   "detail": "PNG files decode as 3-channel BGR in OpenCV; the pipeline converts to RGB exactly once (preprocessing.py)",
+   "action": ""
+  },
+  {
+   "level": "ACCEPTABLE",
+   "check": "exclusion_rate",
+   "detail": "0.00% of observations excluded",
+   "action": ""
+  }
+ ],
+ "counts": {
+  "dataset_root": "NASA_EyeTracking_Dataset",
+  "participants": 10,
+  "sessions": 50,
+  "observations": 50000,
+  "fixation_trials": 5000,
+  "image_files_referenced": 200000,
+  "malformed_annotation_lines": 0,
+  "pilot_sessions_ignored": 1,
+  "per_participant": [
+   {
+    "participant_id": "P001",
+    "sessions": 5,
+    "observations": 5000,
+    "trials": 500,
+    "assigned_split": "train"
+   },
+   {
+    "participant_id": "P002",
+    "sessions": 5,
+    "observations": 5000,
+    "trials": 500,
+    "assigned_split": "train"
+   },
+   {
+    "participant_id": "P003",
+    "sessions": 5,
+    "observations": 5000,
+    "trials": 500,
+    "assigned_split": "train"
+   },
+   {
+    "participant_id": "P004",
+    "sessions": 5,
+    "observations": 5000,
+    "trials": 500,
+    "assigned_split": "train"
+   },
+   {
+    "participant_id": "P005",
+    "sessions": 5,
+    "observations": 5000,
+    "trials": 500,
+    "assigned_split": "train"
+   },
+   {
+    "participant_id": "P006",
+    "sessions": 5,
+    "observations": 5000,
+    "trials": 500,
+    "assigned_split": "train"
+   },
+   {
+    "participant_id": "P007",
+    "sessions": 5,
+    "observations": 5000,
+    "trials": 500,
+    "assigned_split": "validation"
+   },
+   {
+    "participant_id": "P008",
+    "sessions": 5,
+    "observations": 5000,
+    "trials": 500,
+    "assigned_split": "validation"
+   },
+   {
+    "participant_id": "P009",
+    "sessions": 5,
+    "observations": 5000,
+    "trials": 500,
+    "assigned_split": "test"
+   },
+   {
+    "participant_id": "P010",
+    "sessions": 5,
+    "observations": 5000,
+    "trials": 500,
+    "assigned_split": "test"
+   }
+  ],
+  "per_session": [
+   {
+    "participant_id": "P001",
+    "session_id": "S01",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P001",
+    "session_id": "S02",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P001",
+    "session_id": "S03",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P001",
+    "session_id": "S04",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P001",
+    "session_id": "S05",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P002",
+    "session_id": "S01",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P002",
+    "session_id": "S02",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P002",
+    "session_id": "S03",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P002",
+    "session_id": "S04",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P002",
+    "session_id": "S05",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P003",
+    "session_id": "S01",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P003",
+    "session_id": "S02",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P003",
+    "session_id": "S03",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P003",
+    "session_id": "S04",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P003",
+    "session_id": "S05",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P004",
+    "session_id": "S01",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P004",
+    "session_id": "S02",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P004",
+    "session_id": "S03",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P004",
+    "session_id": "S04",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P004",
+    "session_id": "S05",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P005",
+    "session_id": "S01",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P005",
+    "session_id": "S02",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P005",
+    "session_id": "S03",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P005",
+    "session_id": "S04",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P005",
+    "session_id": "S05",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P006",
+    "session_id": "S01",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P006",
+    "session_id": "S02",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P006",
+    "session_id": "S03",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P006",
+    "session_id": "S04",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P006",
+    "session_id": "S05",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P007",
+    "session_id": "S01",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P007",
+    "session_id": "S02",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P007",
+    "session_id": "S03",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P007",
+    "session_id": "S04",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P007",
+    "session_id": "S05",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P008",
+    "session_id": "S01",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P008",
+    "session_id": "S02",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P008",
+    "session_id": "S03",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P008",
+    "session_id": "S04",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P008",
+    "session_id": "S05",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P009",
+    "session_id": "S01",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P009",
+    "session_id": "S02",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P009",
+    "session_id": "S03",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P009",
+    "session_id": "S04",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P009",
+    "session_id": "S05",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P010",
+    "session_id": "S01",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P010",
+    "session_id": "S02",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P010",
+    "session_id": "S03",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P010",
+    "session_id": "S04",
+    "observations": 1000,
+    "trials": 100
+   },
+   {
+    "participant_id": "P010",
+    "session_id": "S05",
+    "observations": 1000,
+    "trials": 100
+   }
+  ],
+  "per_split": [
+   {
+    "assigned_split": "test",
+    "participants": 2,
+    "observations": 10000,
+    "trials": 1000
+   },
+   {
+    "assigned_split": "train",
+    "participants": 6,
+    "observations": 30000,
+    "trials": 3000
+   },
+   {
+    "assigned_split": "validation",
+    "participants": 2,
+    "observations": 10000,
+    "trials": 1000
+   }
+  ],
+  "note": "One observation = one labelled camera frame with 4 image files (raw, face, left_eye, right_eye). Ten frames share one fixation target (a trial). Independent gaze positions per participant = number of trials, not frames."
+ },
+ "quality": {
+  "brightness_capture_app": {
+   "count": 50000.0,
+   "mean": 101.11,
+   "std": 19.29,
+   "min": 42.52,
+   "25%": 85.27,
+   "50%": 100.09,
+   "75%": 116.04,
+   "max": 162.86
+  },
+  "sharpness_capture_app": {
+   "count": 50000.0,
+   "mean": 149.74,
+   "std": 62.18,
+   "min": 22.4,
+   "25%": 104.78,
+   "50%": 128.75,
+   "75%": 183.19,
+   "max": 444.11
+  },
+  "face_score": {
+   "count": 50000.0,
+   "mean": 0.9433,
+   "std": 0.0051,
+   "min": 0.8973,
+   "25%": 0.9402,
+   "50%": 0.9441,
+   "75%": 0.947,
+   "max": 0.9592
+  },
+  "face_width_px": {
+   "count": 50000.0,
+   "mean": 325.0,
+   "std": 52.7,
+   "min": 238.0,
+   "25%": 290.0,
+   "50%": 310.0,
+   "75%": 352.0,
+   "max": 496.0
+  },
+  "eye_box_px": {
+   "count": 50000.0,
+   "mean": 74.3,
+   "std": 11.7,
+   "min": 55.0,
+   "25%": 67.0,
+   "50%": 71.0,
+   "75%": 79.0,
+   "max": 117.0
+  },
+  "brightness_by_participant": {
+   "P001": 116.7,
+   "P002": 75.8,
+   "P003": 113.4,
+   "P004": 113.4,
+   "P005": 128.3,
+   "P006": 85.8,
+   "P007": 87.2,
+   "P008": 99.0,
+   "P009": 97.8,
+   "P010": 93.7
+  },
+  "head_position": {
+   "eye_midpoint_x_px": {
+    "count": 50000.0,
+    "mean": 681.4,
+    "std": 23.0,
+    "min": 586.3,
+    "25%": 664.9,
+    "50%": 681.0,
+    "75%": 697.6,
+    "max": 1089.3
+   },
+   "eye_midpoint_y_px": {
+    "count": 50000.0,
+    "mean": 413.9,
+    "std": 42.7,
+    "min": 134.4,
+    "25%": 380.0,
+    "50%": 404.7,
+    "75%": 450.8,
+    "max": 528.8
+   },
+   "interocular_px_(distance_proxy)": {
+    "count": 50000.0,
+    "mean": 99.4,
+    "std": 14.7,
+    "min": 50.3,
+    "25%": 89.0,
+    "50%": 96.9,
+    "75%": 109.0,
+    "max": 154.2
+   }
+  },
+  "decoded_face_contrast": {
+   "count": 50000.0,
+   "mean": 54.42,
+   "std": 9.34,
+   "min": 25.27,
+   "25%": 45.9,
+   "50%": 53.94,
+   "75%": 61.08,
+   "max": 79.37
+  },
+  "decoded_blur_laplacian": {
+   "count": 50000.0,
+   "mean": 149.74,
+   "std": 62.18,
+   "min": 22.4,
+   "25%": 104.78,
+   "50%": 128.75,
+   "75%": 183.19,
+   "max": 444.11
+  },
+  "overexposed_frames(>5% saturated)": 739,
+  "underexposed_frames(>5% black)": 6787,
+  "adjacent_frame_dhash_hamming": {
+   "count": 45000.0,
+   "mean": 0.95,
+   "std": 1.4,
+   "min": 0.0,
+   "25%": 0.0,
+   "50%": 1.0,
+   "75%": 1.0,
+   "max": 28.0
+  },
+  "near_duplicate_rate_(hamming<=2)": 0.9051,
+  "adjacent_frame_pixel_correlation": {
+   "count": 45000.0,
+   "mean": 0.9958,
+   "std": 0.0134,
+   "min": 0.6524,
+   "25%": 0.9969,
+   "50%": 0.9987,
+   "75%": 0.9997,
+   "max": 1.0
+  },
+  "possible_blink_frames": 22,
+  "blink_heuristic": "eye-crop mean intensity > 1.5 participant SD above the trial median; a screening aid, not a validated blink detector"
+ },
+ "coverage": {
+  "distinct_trials": 5000,
+  "distinct_target_locations": 4996,
+  "repeated_locations": 4,
+  "center_fraction": 0.1408,
+  "edge_fraction_(within_10%)": 0.2156,
+  "corner_fraction": 0.0122,
+  "x_range_norm": [
+   0.0605,
+   0.9395
+  ],
+  "y_range_norm": [
+   0.0669,
+   0.9331
+  ],
+  "trials_per_8x8_cell_min_max": [
+   32,
+   114
+  ],
+  "imbalance_ratio_8x8": 3.56
+ },
+ "excluded_observations": 0,
+ "exclusion_reasons": {},
+ "manifest_info": {
+  "manifest_hash": "dc6214299b84601b",
+  "rows": {
+   "train": 30000,
+   "validation": 10000,
+   "test": 10000
+  },
+  "participants": {
+   "train": [
+    "P001",
+    "P002",
+    "P003",
+    "P004",
+    "P005",
+    "P006"
+   ],
+   "validation": [
+    "P007",
+    "P008"
+   ],
+   "test": [
+    "P009",
+    "P010"
+   ]
+  },
+  "trials": {
+   "train": 3000,
+   "validation": 1000,
+   "test": 1000
+  },
+  "excluded_rows": 0,
+  "leakage_checks": {
+   "train_x_validation_subjects": 0,
+   "train_x_validation_sample_ids": 0,
+   "train_x_validation_trials": 0,
+   "train_x_validation_raw_frame_hashes": 0,
+   "train_x_test_subjects": 0,
+   "train_x_test_sample_ids": 0,
+   "train_x_test_trials": 0,
+   "train_x_test_raw_frame_hashes": 0,
+   "validation_x_test_subjects": 0,
+   "validation_x_test_sample_ids": 0,
+   "validation_x_test_trials": 0,
+   "validation_x_test_raw_frame_hashes": 0
+  },
+  "dataset_root": "NASA_EyeTracking_Dataset"
+ },
+ "geometry_available": {
+  "camera_intrinsics": false,
+  "lens_distortion": false,
+  "camera_position_relative_to_monitor": false,
+  "monitor_physical_size": false,
+  "head_pose": "estimable only approximately (uncalibrated camera)",
+  "face_landmarks": "eye centres stored; 5-point landmarks re-detected from raw frames",
+  "target_screen_coordinates": true
+ }
+}

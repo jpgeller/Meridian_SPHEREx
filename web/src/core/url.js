@@ -52,6 +52,8 @@ export function toQuery(state) {
   return q.toString().replace(/%2C/g, ',');
 }
 
+export const KEEP_PARAMS = ['gaze_ws', 'gaze', 'smooth'];
+
 /**
  * Apply the current URL to the store, then keep the URL updated (throttled).
  * Returns { name } from the URL, and a stop() function.
@@ -60,10 +62,18 @@ export function startUrlSync(store, { throttleMs = 300 } = {}) {
   const { patch, name } = parseQuery(window.location.search);
   store.set(patch, 'url');
 
+  // Setup options that are not view state stay in the URL, so a reload keeps them (the eye-tracker link,
+  // ?gaze=mouse, ?smooth=0).
+  const kept = new URLSearchParams();
+  const now = new URLSearchParams(window.location.search);
+  for (const k of KEEP_PARAMS) if (now.has(k)) kept.set(k, now.get(k));
+  const extra = kept.toString();
+
   let timer = null;
   const write = () => {
     timer = null;
-    const next = `?${toQuery(store.get())}`;
+    const q = toQuery(store.get());
+    const next = `?${[q, extra].filter(Boolean).join('&')}`;
     if (next !== window.location.search) {
       window.history.replaceState(null, '', next + window.location.hash);
     }

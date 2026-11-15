@@ -170,3 +170,22 @@ def test_env_file_loader(tmp_path, monkeypatch):
     assert main.load_env_file(tmp_path / "missing") == []
     monkeypatch.delenv("MERIDIAN_T1")
     monkeypatch.delenv("MERIDIAN_T2")
+
+
+def test_movers_one_catalogue_answering_with_none_is_not_a_failure(monkeypatch):
+    """15 Nov 2026: Gaia answered with no fast stars while CatWISE was down, and the API said 503."""
+    import movers
+
+    monkeypatch.setattr(movers, "_gaia_cone", lambda *a: [])
+
+    def down(*a):
+        raise RuntimeError("CatWISE unavailable (HTTPStatusError)")
+
+    monkeypatch.setattr(movers, "_catwise_cone", down)
+    got = movers.field_movers(127.42493, -6.3222, 0.1)
+    assert got["movers"] == [] and "CatWISE" in got["notes"][0]
+    monkeypatch.setattr(movers, "_gaia_cone", down)
+    import pytest
+
+    with pytest.raises(RuntimeError):
+        movers.field_movers(127.42493, -6.3222, 0.1)

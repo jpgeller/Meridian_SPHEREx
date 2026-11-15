@@ -1,0 +1,132 @@
+{
+ "grid": "6x6",
+ "mode": "gaze+head",
+ "head_gain": 3500.0,
+ "smoothing_level": 3,
+ "n": 20,
+ "hit_rate": 0.9,
+ "median_seconds_per_selection": 3.1635888814926147,
+ "trials": [
+  {
+   "target": 13,
+   "selected": 18,
+   "hit": false,
+   "seconds": 5.06
+  },
+  {
+   "target": 22,
+   "selected": 22,
+   "hit": true,
+   "seconds": 3.39
+  },
+  {
+   "target": 6,
+   "selected": 6,
+   "hit": true,
+   "seconds": 2.48
+  },
+  {
+   "target": 5,
+   "selected": 5,
+   "hit": true,
+   "seconds": 2.22
+  },
+  {
+   "target": 26,
+   "selected": 26,
+   "hit": true,
+   "seconds": 3.46
+  },
+  {
+   "target": 5,
+   "selected": 5,
+   "hit": true,
+   "seconds": 2.29
+  },
+  {
+   "target": 28,
+   "selected": 28,
+   "hit": true,
+   "seconds": 3.43
+  },
+  {
+   "target": 5,
+   "selected": 5,
+   "hit": true,
+   "seconds": 2.3
+  },
+  {
+   "target": 34,
+   "selected": 34,
+   "hit": true,
+   "seconds": 2.25
+  },
+  {
+   "target": 15,
+   "selected": 15,
+   "hit": true,
+   "seconds": 3.24
+  },
+  {
+   "target": 29,
+   "selected": 29,
+   "hit": true,
+   "seconds": 3.13
+  },
+  {
+   "target": 31,
+   "selected": 31,
+   "hit": true,
+   "seconds": 2.97
+  },
+  {
+   "target": 9,
+   "selected": 9,
+   "hit": true,
+   "seconds": 2.29
+  },
+  {
+   "target": 20,
+   "selected": 20,
+   "hit": true,
+   "seconds": 3.19
+  },
+  {
+   "target": 32,
+   "selected": 32,
+   "hit": true,
+   "seconds": 3.36
+  },
+  {
+   "target": 0,
+   "selected": 0,
+   "hit": true,
+   "seconds": 2.86
+  },
+  {
+   "target": 30,
+   "selected": 30,
+   "hit": true,
+   "seconds": 2.28
+  },
+  {
+   "target": 8,
+   "selected": 13,
+   "hit": false,
+   "seconds": 4.0
+  },
+  {
+   "target": 20,
+   "selected": 20,
+   "hit": true,
+   "seconds": 6.48
+  },
+  {
+   "target": 1,
+   "selected": 1,
+   "hit": true,
+   "seconds": 3.6
+  }
+ ],
+ "time": "2026-11-14 23:11:28"
+}
