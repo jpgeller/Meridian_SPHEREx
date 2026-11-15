@@ -966,6 +966,37 @@ body.field-open .handoff {
   vector-effect: non-scaling-stroke;
 }
 
+/* "Not in Gaia": blue circles = sources Gaia explains, orange numbered diamonds = candidates */
+.nogaia-marks {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.nogaia-marks .gaia {
+  fill: none;
+  stroke: #6fb6ff;
+  stroke-width: 1.6;
+  opacity: 0.9;
+  vector-effect: non-scaling-stroke;
+}
+.nogaia-marks .cand {
+  fill: none;
+  stroke: #ffb547;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.nogaia-marks .cand-n {
+  fill: #ffb547;
+  font-size: 5px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: #000;
+  stroke-width: 0.8px;
+}
+
 /* --- guide overlay (U3): pointer, circles, highlights, trails. Never takes a click. --- */
 #guide-overlay {
   position: fixed;

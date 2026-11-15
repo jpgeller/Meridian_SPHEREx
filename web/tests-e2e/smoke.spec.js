@@ -838,7 +838,7 @@ test('side by side with Gaia: a picture drawn from the catalogue, clearly labell
   await page.goto('/?ra=269.44627&dec=4.7682&fov=0.5&band=92&view=field&ffov=0.1&mode=detector');
   await ready(page);
   await expect(page.locator('.epoch')).toHaveCount(5, { timeout: 60_000 });
-  await page.getByRole('radio', { name: 'Side by side with Gaia' }).click();
+  await page.getByRole('radio', { name: /Beside Gaia/ }).click();
   await expect(page).toHaveURL(/compare=gaia/);
   const label = page.locator('#wise-label');
   await expect(label).toContainText('drawn from the catalogue, not a photograph', { timeout: 60_000 });
@@ -846,7 +846,7 @@ test('side by side with Gaia: a picture drawn from the catalogue, clearly labell
   await expect(page.locator('#gaia-canvas')).toBeVisible();
   await expect(page.locator('#wise-img')).toBeHidden();
   expect(Number(await page.locator('#gaia-canvas').getAttribute('data-drawn'))).toBeGreaterThan(100);
-  await page.getByRole('radio', { name: 'Side by side with WISE' }).click();
+  await page.getByRole('radio', { name: /Beside WISE/ }).click();
   await expect(page.locator('#wise-img')).toBeVisible();
   await expect(page.locator('#gaia-canvas')).toBeHidden();
   expect(errors()).toEqual([]);
@@ -886,7 +886,7 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     await page.goto('/?ra=269.44627&dec=4.7682&fov=0.5&band=92&view=field&ffov=0.1&mode=detector');
     await ready(page);
     await expect(page.locator('.epoch').first()).toBeVisible({ timeout: 60_000 });
-    for (const show of ['timelapse', 'video', 'blink', 'wise', 'gaia']) {
+    for (const show of ['timelapse', 'video', 'blink', 'wise', 'gaia', 'nogaia']) {
       await page.evaluate((show) => meridian.run('set_show', { show }), show);
       await page.waitForTimeout(300);
       expect(await controlsNearEdges(page), `field view, ${show}`).toEqual([]);
@@ -899,13 +899,13 @@ test('2D view: one list of what to show; choices exclude each other; old links s
   await ready(page);
   await expect(page.locator('.epoch').first()).toBeVisible({ timeout: 60_000 });
   const list = page.getByRole('radiogroup', { name: 'What to show' });
-  await expect(list.getByRole('radio')).toHaveText([/Time-lapse/, /Change video/, /Blink two dates/, /Side by side with WISE/, /Side by side with Gaia/]);
+  await expect(list.getByRole('radio')).toHaveText([/Time-lapse/, /Change video/, /Blink two dates/, /Beside WISE/, /Beside Gaia/, /Not in Gaia/]);
   const state = () => page.evaluate(() => [meridian.store.get().op, meridian.store.get().compare]);
   await list.getByRole('radio', { name: /Change video/ }).click();
   expect(await state()).toEqual(['video', 'off']);
-  await list.getByRole('radio', { name: /Side by side with WISE/ }).click(); // replaces the video
+  await list.getByRole('radio', { name: /Beside WISE/ }).click(); // replaces the video
   expect(await state()).toEqual(['none', 'side']);
-  await expect(list.getByRole('radio', { name: /Side by side with WISE/ })).toHaveAttribute('aria-checked', 'true');
+  await expect(list.getByRole('radio', { name: /Beside WISE/ })).toHaveAttribute('aria-checked', 'true');
   await expect(list.getByRole('radio', { name: /Change video/ })).toHaveAttribute('aria-checked', 'false');
   await page.locator('#field-title').focus();
   await page.keyboard.press('b'); // blink replaces WISE
@@ -945,7 +945,7 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     await page.goto('/?ra=269.44627&dec=4.7682&fov=2.6&band=92&view=field&ffov=0.1&mode=detector');
     await ready(page);
     await expect(page.locator('.epoch').first()).toBeVisible({ timeout: 60_000 });
-    for (const show of ['timelapse', 'video', 'blink', 'wise', 'gaia']) {
+    for (const show of ['timelapse', 'video', 'blink', 'wise', 'gaia', 'nogaia']) {
       await page.evaluate((s) => meridian.run('set_show', { show: s }), show);
       await page.waitForTimeout(400);
       expect(await smallOrCovered(page), `2D view, ${show}`).toEqual([]);
@@ -985,4 +985,19 @@ test('loading: a bar over the image while images load; Play pressed meanwhile st
   expect(await page.evaluate(() => meridian.store.get().playing)).toBe(true);
   const first = await page.evaluate(() => meridian.player.getShownFrame()?.meta?.date_iso);
   await expect.poll(() => page.evaluate(() => meridian.player.getShownFrame()?.meta?.date_iso), { timeout: 15_000 }).not.toBe(first);
+});
+
+test('not in Gaia: WISE 0855 in D6 is a candidate at the target; the same patch in D1 has none', async ({ page }) => {
+  await page.goto('/?ra=133.75976&dec=-7.24219&fov=2.3&band=92&view=field&ffov=0.1&mode=detector');
+  await ready(page);
+  await expect(page.locator('.epoch').first()).toBeVisible({ timeout: 60_000 });
+  await page.keyboard.press('n');
+  await expect(page).toHaveURL(/op=nogaia/);
+  const caption = page.locator('#player-caption');
+  await expect(caption).toContainText('(your target)', { timeout: 30_000 });
+  await expect(caption).toContainText('candidates, not discoveries');
+  await expect(page.locator('#nogaia-marks .cand').first()).toBeVisible();
+  await expect(page.getByRole('radio', { name: /Not in Gaia/ })).toHaveAttribute('aria-checked', 'true');
+  await page.evaluate(() => meridian.run('set_detector', { detector: 1 }));
+  await expect(caption).toContainText('Every source here has a Gaia star', { timeout: 60_000 });
 });

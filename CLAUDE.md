@@ -97,6 +97,10 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   (`irsa.ipac.caltech.edu/SCS?table=catwise_2020&RA&DEC&SR&format=csv`, pm in arcsec/yr at `meanobsmjd`); IRSA's TAP timed out
   and SCS fails above ~0.1° radius. CatWISE duplicates fast movers and fragments bright glare: fit/merge (see changeModel.js).
   Gaia-propagated positions match the WiseView frames to ~1 px (Barnard's Star, 2014–2024).
+- "Not in Gaia" (2D view, key n, `web/src/field/notInGaia.js`): median-stacks the SPHEREx frames, detects sources (5σ, 3×3),
+  moves Gaia DR3 to the frames' mean date, measures the SPHEREx↔Gaia shift (<1″ on all 5 targets, scatter ~1.5″) and
+  matches within 2.5×scatter + 32″/SNR (3.5–9″); bright sources (≥30σ) also match a bright Gaia star further out (glare).
+  WISE 0855 in D6: found at the target (12σ, a G=16.3 star 6.6″ away; a fixed 9″ radius hid it). Candidates only.
 - R Dra saturates SPHEREx in every image (no spectrum possible; the panel says so). Ingest must pick frames per mode
   exactly like the player (per detector; single bands 40 and 92): neighbouring detectors share band numbers.
 - Names: `GET /api/resolve?name=` (Sesame + proper motion to a fixed epoch 2026.0, so cache keys don't drift).

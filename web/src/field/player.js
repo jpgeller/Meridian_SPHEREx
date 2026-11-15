@@ -14,6 +14,8 @@ import { buildModel, renderAt, bracket } from './changeModel.js';
 import { loadWiseFrames, WISE_PIXEL_ARCSEC } from './wiseFrames.js';
 import { groupByVisit } from './sequence.js';
 import { showOf } from '../core/state.js';
+import { findNotInGaia } from './notInGaia.js';
+import { formatRaDec } from '../core/coords.js';
 
 const SPEEDS = [1, 2, 4, 6, 10]; // frames per second
 const BLINK_HZ = 2;
@@ -44,6 +46,7 @@ export function createPlayer(stage, { store, commands }) {
           <canvas id="frame-canvas" role="img" aria-label="No frame loaded"></canvas>
           <svg class="target-ring" viewBox="0 0 100 100" aria-hidden="true" style="display: none"><!-- off by default: Display options → Mark target --><circle cx="50" cy="50" r="4.5"/></svg>
           <svg class="video-marks" id="video-marks" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+          <svg class="nogaia-marks" id="nogaia-marks" viewBox="0 0 100 100" aria-hidden="true"></svg>
           <span class="video-badge" id="video-badge" hidden></span>
         </div>
         <p id="player-msg" class="player-msg" role="status" aria-live="polite"></p>
@@ -62,8 +65,9 @@ export function createPlayer(stage, { store, commands }) {
         <button type="button" role="radio" data-show="timelapse" data-guide="op-none">Time-lapse <kbd>t</kbd></button>
         <button type="button" role="radio" data-show="video" data-guide="op-video">Change video <kbd>v</kbd></button>
         <button type="button" role="radio" data-show="blink" data-guide="op-blink">Blink two dates <kbd>b</kbd></button>
-        <button type="button" role="radio" data-show="wise" data-guide="op-wise">Side by side with WISE <kbd>w</kbd></button>
-        <button type="button" role="radio" data-show="gaia" data-guide="op-gaia">Side by side with Gaia</button>
+        <button type="button" role="radio" data-show="wise" data-guide="op-wise" title="Side by side with WISE">Beside WISE <kbd>w</kbd></button>
+        <button type="button" role="radio" data-show="gaia" data-guide="op-gaia" title="Side by side with Gaia">Beside Gaia</button>
+        <button type="button" role="radio" data-show="nogaia" data-guide="op-nogaia">Not in Gaia <kbd>n</kbd></button>
       </div>
       <div class="player-bar video-options" role="group" aria-label="Change video options">
         <span class="row wrap" id="video-marks-wrap" hidden>
@@ -113,6 +117,7 @@ export function createPlayer(stage, { store, commands }) {
   let shownFrame = null; // what is on the canvas now (for overlays)
   const wise = { key: '', frames: null, error: '', loading: false }; // WISE epochs for the change video
   const movers = { key: '', list: null, error: '', loading: false }; // catalogue movers for the video
+  const gaiaCat = { key: '', list: null, error: '', loading: false }; // Gaia DR3 stars, for "Not in Gaia"
   const vid = { mjd: null, hold: 0, raf: 0, last: 0, out: null, loop: 0, tick: null, waitStart: null, waitDone: false }; // change-video playhead
   const showListeners = [];
 
@@ -298,6 +303,7 @@ export function createPlayer(stage, { store, commands }) {
       return { frame: seq[k], stretch, cmap: local.colormap, label: `Blink: ${blinkPhase ? 'B' : 'A'} · `, index: k };
     }
     if (s.op === 'video' && n >= 2 && kind !== 'rgb') return videoView(s);
+    if (s.op === 'nogaia' && kind !== 'rgb') return notInGaiaView(s);
     return { frame: seq[i], stretch, cmap: local.colormap, label: '', index: i };
   }
 
@@ -490,6 +496,104 @@ export function createPlayer(stage, { store, commands }) {
     vid.tick = tick;
   }
 
+  // --- "Not in Gaia": the deep image with the sources Gaia has no star for ---------------------
+  function wantGaia(s) {
+    const key = `${s.ra.toFixed(5)},${s.dec.toFixed(5)}|${s.ffov}`;
+    if (gaiaCat.key !== key) Object.assign(gaiaCat, { key, list: null, error: '', loading: false });
+    if (!gaiaCat.list && !gaiaCat.error && !gaiaCat.loading) {
+      gaiaCat.loading = true;
+      fetch(`/api/context/gaia?ra=${s.ra.toFixed(5)}&dec=${s.dec.toFixed(5)}&fov=${s.ffov}`)
+        .then(async (r) => {
+          if (!r.ok) throw new Error(`Gaia unavailable (${r.status})`);
+          const body = await r.json();
+          if (gaiaCat.key === key) gaiaCat.list = body.sources ?? [];
+        })
+        .catch((err) => (gaiaCat.key === key ? (gaiaCat.error = err.message) : null))
+        .finally(() => {
+          if (gaiaCat.key !== key) return;
+          gaiaCat.loading = false;
+          derived.clear();
+          const st = store.get();
+          if (st.op === 'nogaia') show(st);
+        });
+    }
+    return gaiaCat.list;
+  }
+
+  function notInGaiaView(s) {
+    const gaia = wantGaia(s);
+    const key = `nogaia:${seq.length}:${gaia ? 'gaia' : 'wait'}`;
+    if (!derived.has(key)) {
+      const result = gaia ? findNotInGaia(seq, gaia, { ra0: s.ra, dec0: s.dec, scale: SPHEREX_PIXEL_ARCSEC }) : null;
+      derived.set(key, { result });
+    }
+    const { result } = derived.get(key);
+    // the deep image once found (the median of every image), else the first image while Gaia loads
+    const frame = result
+      ? { id: `nogaia:${seq.length}`, data: result.deep.data, w: result.deep.w, h: result.deep.h, meta: { ...seq[0].meta } }
+      : seq[0];
+    return { frame, stretch, cmap: local.colormap, label: '', index: null, nogaia: result ?? { pending: true } };
+  }
+
+  function renderNotInGaia(res, w, h) {
+    const marks = $('#nogaia-marks');
+    if (!res || res.pending) {
+      marks.innerHTML = '';
+      return;
+    }
+    const pct = (x, y) => [((x + 0.5) / w) * 100, ((h - 0.5 - y) / h) * 100];
+    const matched = res.matched
+      .map((m) => {
+        const [x, y] = pct(m.x, m.y);
+        return `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="2.6" class="gaia"/>`;
+      })
+      .join('');
+    const cands = res.candidates
+      .map((c) => {
+        const [x, y] = pct(c.x, c.y);
+        const d = 4;
+        return (
+          `<rect x="${(x - d).toFixed(2)}" y="${(y - d).toFixed(2)}" width="${2 * d}" height="${2 * d}" class="cand" transform="rotate(45 ${x.toFixed(2)} ${y.toFixed(2)})"/>` +
+          `<text x="${(x + d + 1.5).toFixed(2)}" y="${(y - d).toFixed(2)}" class="cand-n">${c.n}</text>`
+        );
+      })
+      .join('');
+    marks.innerHTML = matched + cands;
+  }
+
+  function describeNotInGaia(s, view) {
+    const res = view.nogaia;
+    const band = view.frame.meta?.mode === 'detector' ? `detector D${view.frame.meta.detector}` : `band ${s.band}`;
+    if (res.pending) {
+      return gaiaCat.error
+        ? `Not in Gaia: the Gaia catalogue is not available right now (${gaiaCat.error}).`
+        : 'Not in Gaia: loading the Gaia DR3 stars of this patch…';
+    }
+    const n = seq.length;
+    const head =
+      `Not in Gaia · deep image: the median of ${n} SPHEREx image${n > 1 ? 's' : ''} (${band}). ` +
+      `${res.sources.length} source${res.sources.length === 1 ? '' : 's'} found; ${res.matched.length} match a Gaia DR3 star (blue circles), ` +
+      `moved to ${monthYear(res.mjd)} with its motion. `;
+    const list = res.candidates.length
+      ? `${res.candidates.length} with no Gaia star (orange, numbered): ` +
+        res.candidates
+          .map(
+            (c) =>
+              `${c.n}: ${Object.values(formatRaDec(c.ra, c.dec)).join(' ')}, ${c.snr.toFixed(0)}σ, in ${c.seen} of ${c.ofFrames} single images` +
+              (c.nearestGaiaArcsec != null ? `, nearest Gaia star ${c.nearestGaiaArcsec.toFixed(0)}″ (G ${c.gaiaG?.toFixed(1) ?? '?'})` : '') +
+              (Math.hypot(c.x - (view.frame.w - 1) / 2, c.y - (view.frame.h - 1) / 2) < 1.5 ? ' (your target)' : ''),
+          )
+          .join('; ') +
+        '. '
+      : 'Every source here has a Gaia star: nothing Gaia cannot see stands out in this band. ';
+    const why =
+      'Gaia sees visible light, so cold, red or dusty things (brown dwarfs, young stars in dust, galaxies) can be missing from it. ' +
+      'These are candidates, not discoveries: noise, glare, galaxies and blends with a nearby star also end up here. ' +
+      (res.chance > 0.3 ? `Crowded field: a Gaia star sits by chance within ${res.matchArcsec}″ of ${Math.round(res.chance * 100)}% of spots, so some real ones are hidden. ` : '') +
+      (/^D[5-6]/.test(band.replace('detector ', '')) || s.band >= 70 ? '' : 'Cold objects show best in the long bands: try D5 or D6.');
+    return head + list + why;
+  }
+
   /** What the change video still waits for (shown on the loading bar). */
   function videoWaitingFor() {
     const out = [];
@@ -556,6 +660,7 @@ export function createPlayer(stage, { store, commands }) {
   function describe(s, view) {
     const m = view.frame.meta;
     if (view.frame.video) return describeVideo(view);
+    if (view.nogaia) return describeNotInGaia(s, view);
     const when = m.n_combined
       ? `${fmtDate(m.date_iso)} – ${fmtDate(m.date_end_iso)} (${m.n_combined} images)`
       : fmtDate(m.date_iso);
@@ -608,6 +713,7 @@ export function createPlayer(stage, { store, commands }) {
       b.classList.toggle('current', Number(b.dataset.epoch) === (view.index ?? -1)),
     );
     renderVideoLine(view.frame.video);
+    renderNotInGaia(view.nogaia, view.frame.w, view.frame.h);
     for (const fn of showListeners) fn(view);
   }
 
@@ -639,11 +745,11 @@ export function createPlayer(stage, { store, commands }) {
     const chosen = showOf(s);
     stage.querySelectorAll('[data-show]').forEach((b) => {
       b.setAttribute('aria-checked', String(b.dataset.show === chosen));
-      b.disabled = (['video', 'blink'].includes(b.dataset.show) && few) || (b.dataset.show === 'video' && kind === 'rgb');
+      b.disabled = (['video', 'blink'].includes(b.dataset.show) && few) || (['video', 'nogaia'].includes(b.dataset.show) && kind === 'rgb');
     });
     // the options row only has content in the video (its options) or blink (its hint)
     $('.video-options').hidden = !['video', 'blink'].includes(s.op);
-    epochsEl.hidden = s.op === 'video'; // the video has its own time line; the date buttons are for time-lapse and blink
+    epochsEl.hidden = s.op === 'video' || s.op === 'nogaia'; // the video has its own time line; "Not in Gaia" uses every date
     $('#trail-wise-wrap').hidden = s.op !== 'video';
     $('#video-marks-wrap').hidden = s.op !== 'video';
     $('#p-visit').disabled = s.mode !== 'single'; // other modes are already one per visit

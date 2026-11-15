@@ -9,7 +9,7 @@ export const PROJECTIONS = ['SIN', 'STG', 'AIT'];
 export const MODES = ['single', 'detector', 'rgb', 'custom'];
 export const COMPARES = ['off', 'side', 'timeline', 'blink', 'gaia'];
 // Operations on SPHEREx frames of different dates (field view)
-export const OPS = ['none', 'blink', 'video']; // Add, Difference, Motion trail removed 16 Nov 2026
+export const OPS = ['none', 'blink', 'video', 'nogaia']; // Add, Difference, Motion trail removed 16 Nov 2026
 // The 2D view's one list of what to show (one choice at a time). Each sets op + compare.
 export const SHOWS = {
   timelapse: { op: 'none', compare: 'off' },
@@ -17,6 +17,7 @@ export const SHOWS = {
   blink: { op: 'blink', compare: 'off' },
   wise: { op: 'none', compare: 'side' },
   gaia: { op: 'none', compare: 'gaia' },
+  nogaia: { op: 'nogaia', compare: 'off' }, // sources SPHEREx sees that Gaia does not (notInGaia.js)
 };
 /** Which entry of SHOWS the state is in, or null (e.g. the older timeline / WISE-blink modes from a link). */
 export function showOf(s) {
