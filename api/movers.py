@@ -59,7 +59,7 @@ def _catwise_cone(ra: float, dec: float, radius_deg: float) -> list[dict]:
     last = None
     for attempt in range(2):
         try:
-            r = httpx.get(CATWISE_SCS, params={"table": "catwise_2020", "RA": ra, "DEC": dec, "SR": radius_deg, "format": "csv"}, timeout=30.0)
+            r = httpx.get(CATWISE_SCS, params={"table": "catwise_2020", "RA": ra, "DEC": dec, "SR": radius_deg, "format": "csv"}, timeout=httpx.Timeout(20.0, connect=6.0))
             r.raise_for_status()
             break
         except httpx.HTTPError as err:
@@ -116,4 +116,4 @@ def field_movers(ra: float, dec: float, fov: float) -> dict:
         raise RuntimeError("; ".join(notes))
     movers = merge_movers(found)
     return {"ra": ra, "dec": dec, "fov": fov, "epoch_mjd": EPOCH_MJD, "min_pm_mas": MIN_PM_MAS,
-            "catalogs": "Gaia DR3 (ESA) + CatWISE2020 (IRSA)", "notes": notes, "movers": movers}
+            "catalogs": "Gaia DR3 + CatWISE2020 (IRSA)", "notes": notes, "movers": movers}

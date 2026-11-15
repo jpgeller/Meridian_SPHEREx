@@ -101,7 +101,15 @@ def frames_at(ra: float, dec: float, refresh: bool = False) -> dict:
         hit = cache.get_json("frames", key, ttl_s=FRAMES_TTL_S)
         if hit is not None:
             return {**hit, "cached": True}
-    frames = _add_visits(_query(ra, dec))
+    try:
+        frames = _add_visits(_query(ra, dec))
+    except Exception:
+        # IRSA down (502s, timeouts: 15 Nov 2026): an older list is far better than no images at all.
+        # New SPHEREx visits only arrive weekly, and every cutout of an old list is still valid.
+        stale = cache.get_json("frames", key)
+        if stale is None:
+            raise
+        return {**stale, "cached": True, "stale": True}
     remember(frames)
     visits = []
     for v in sorted({f["visit"] for f in frames}):
@@ -131,7 +139,13 @@ def cube_wavelengths() -> list[float]:
     hit = cache.get_json("cube", "wavelengths", ttl_s=7 * 24 * 3600)
     if hit:
         return hit
-    text = httpx.get(HIPS_PROPERTIES, timeout=20.0, follow_redirects=True).text
+    try:
+        text = httpx.get(HIPS_PROPERTIES, timeout=20.0, follow_redirects=True).text
+    except httpx.HTTPError:
+        stale = cache.get_json("cube", "wavelengths")  # IRSA down: the cube's bands don't change
+        if stale:
+            return stale
+        raise
     m = re.search(r"data_cube_crval3_arr\s*=\s*(.+)", text)
     if not m:
         raise RuntimeError("cube wavelengths not found in HiPS properties")

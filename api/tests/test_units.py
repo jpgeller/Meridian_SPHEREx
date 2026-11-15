@@ -107,3 +107,50 @@ def test_cutout_meta_header_never_contains_nan():
     from main import _finite
     out = json.dumps(_finite({"wavelength_um": math.nan, "x": [1.0, math.inf], "ok": 2.5}), allow_nan=False)
     assert json.loads(out) == {"wavelength_um": None, "x": [1.0, None], "ok": 2.5}
+
+
+def test_frame_list_falls_back_to_an_older_copy_when_irsa_is_down(monkeypatch, tmp_path):
+    """IRSA 502s (15 Nov 2026): an expired frame list is served instead of an error."""
+    import cache
+    import spherex
+
+    monkeypatch.setattr(cache, "ROOT", tmp_path, raising=False)
+    old = {"ra": 1.0, "dec": 2.0, "n_frames": 1, "n_visits": 1, "visits": [], "frames": [{"id": "x"}]}
+    monkeypatch.setattr(cache, "get_json", lambda kind, key, ttl_s=None: None if ttl_s else old)
+
+    def down(*a, **k):
+        raise RuntimeError("502 Proxy Error")
+
+    monkeypatch.setattr(spherex, "_query", down)
+    got = spherex.frames_at(1.0, 2.0)
+    assert got["stale"] is True and got["frames"] == [{"id": "x"}]
+    monkeypatch.setattr(cache, "get_json", lambda kind, key, ttl_s=None: None)
+    import pytest
+
+    with pytest.raises(RuntimeError):
+        spherex.frames_at(1.0, 2.0)
+
+
+def test_gaia_vizier_parser(monkeypatch):
+    """The VizieR mirror's TSV becomes the same rows as ESA's (Barnard's Star, checked 15 Nov 2026)."""
+    import context
+
+    tsv = (
+        "#INFO\n\nSource\tRA_ICRS\tDE_ICRS\tpmRA\tpmDE\tPlx\tGmag\tBP-RP\n"
+        " \tdeg\tdeg\tmas/yr\tmas/yr\tmas\tmag\tmag\n"
+        "---\t---\t---\t---\t---\t---\t---\t---\n"
+        "4472832130942575872\t269.44850252544\t+04.73942005111\t -801.551\t10362.394\t 546.9759\t 8.193974\t 2.833697\n"
+        "381260815198909824\t010.68938748635\t+41.22120852351\t \t \t \t21.442245\t \n"
+    )
+
+    class R:
+        text = tsv
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(context.httpx, "get", lambda *a, **k: R())
+    rows = context._gaia_vizier("http://x", 269.4, 4.7, 0.1)
+    assert rows[0]["source_id"] == "4472832130942575872"
+    assert abs(rows[0]["pmdec"] - 10362.394) < 1e-6 and abs(rows[0]["g_mag"] - 8.193974) < 1e-6
+    assert rows[1]["pmra"] is None and rows[1]["bp_rp"] is None

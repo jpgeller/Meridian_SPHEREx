@@ -74,6 +74,9 @@ def _wiseview_query(ra: float, dec: float, size_px: int, band: int) -> dict:
         except (httpx.HTTPError, ValueError, RuntimeError) as err:
             last = err
             time.sleep(2 * (attempt + 1))
+    stale = cache.get_json("wiseview", key)  # older than WISE_TTL_S, but WISE data are final
+    if stale:
+        return stale
     raise RuntimeError(f"WiseView unavailable ({type(last).__name__})")
 
 
@@ -133,10 +136,78 @@ def wise_frame_png(ra: float, dec: float, fov: float, band: int, index: int) -> 
 
 # --- Gaia --------------------------------------------------------------------------
 GAIA_TAP = "https://gea.esac.esa.int/tap-server/tap/sync"
+# VizieR's copy of Gaia DR3 (I/355/gaiadr3): the same table (positions at epoch 2016.0, checked row for
+# row against ESA on Barnard's Star). ESA's archive went silent for minutes at a time on 15 Nov 2026
+# while the CfA mirror answered in about 1.5 s, so mirrors go first and ESA is the last resort.
+GAIA_VIZIER = (
+    "https://vizier.cfa.harvard.edu/viz-bin/asu-tsv",
+    "https://vizier.cds.unistra.fr/viz-bin/asu-tsv",
+)
+GAIA_TIMEOUT = httpx.Timeout(25.0, connect=6.0)
+
+
+def _num(v):
+    try:
+        f = float(v)
+        return f if math.isfinite(f) else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _gaia_vizier(url: str, ra: float, dec: float, radius_deg: float) -> list[dict]:
+    """Gaia DR3 cone from a VizieR server (TSV; sorted by G before the MAX_GAIA cut)."""
+    params = {
+        "-source": "I/355/gaiadr3",
+        "-c": f"{ra:.6f} {dec:+.6f}",
+        "-c.rd": f"{radius_deg:.5f}",
+        "-out": "Source,RA_ICRS,DE_ICRS,pmRA,pmDE,Plx,Gmag,BP-RP",
+        "-out.max": str(MAX_GAIA),
+        "-sort": "Gmag",
+    }
+    r = httpx.get(url, params=params, timeout=GAIA_TIMEOUT)
+    r.raise_for_status()
+    lines = [ln for ln in r.text.splitlines() if ln.strip() and not ln.startswith("#")]
+    if not lines or not lines[0].startswith("Source"):
+        raise RuntimeError("unexpected VizieR answer")
+    head = lines[0].split("\t")
+    rows = []
+    for ln in lines[3:]:  # header, units, dashes
+        rec = dict(zip(head, (v.strip() for v in ln.split("\t"))))
+        if not rec.get("RA_ICRS"):
+            continue
+        rows.append({
+            "source_id": rec["Source"], "ra": float(rec["RA_ICRS"]), "dec": float(rec["DE_ICRS"]),
+            "pmra": _num(rec.get("pmRA")), "pmdec": _num(rec.get("pmDE")), "parallax": _num(rec.get("Plx")),
+            "g_mag": _num(rec.get("Gmag")), "bp_rp": _num(rec.get("BP-RP")),
+        })
+    return rows
+
+
+def _gaia_esa(ra: float, dec: float, radius_deg: float) -> list[dict]:
+    """Gaia DR3 cone from the ESA archive TAP."""
+    import csv
+
+    query = (
+        f"SELECT TOP {MAX_GAIA} source_id, ra, dec, pmra, pmdec, parallax, phot_g_mean_mag, bp_rp "
+        "FROM gaiadr3.gaia_source "
+        f"WHERE 1=CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', {ra:.6f}, {dec:.6f}, {radius_deg:.5f})) "
+        "ORDER BY phot_g_mean_mag"
+    )
+    r = httpx.post(GAIA_TAP, data={"REQUEST": "doQuery", "LANG": "ADQL", "FORMAT": "csv", "QUERY": query},
+                   timeout=httpx.Timeout(40.0, connect=6.0))
+    r.raise_for_status()
+    return [
+        {
+            "source_id": rec["source_id"], "ra": float(rec["ra"]), "dec": float(rec["dec"]),
+            "pmra": _num(rec["pmra"]), "pmdec": _num(rec["pmdec"]), "parallax": _num(rec["parallax"]),
+            "g_mag": _num(rec["phot_g_mean_mag"]), "bp_rp": _num(rec["bp_rp"]),
+        }
+        for rec in csv.DictReader(io.StringIO(r.text))
+    ]
 
 
 def _gaia_cone(ra: float, dec: float, radius_deg: float) -> list[dict]:
-    """Gaia DR3 from the ESA archive (positions at epoch 2016.0).
+    """Gaia DR3 stars in a cone (positions at epoch 2016.0), brightest first, at most MAX_GAIA.
 
     Not MAST: astroquery's MAST Gaia catalogue only serves DR2 (epoch 2015.5) and silently
     falls back to it when asked for version 3 (found 14 Nov 2026).
@@ -145,41 +216,20 @@ def _gaia_cone(ra: float, dec: float, radius_deg: float) -> list[dict]:
     hit = cache.get_json("gaia", key)
     if hit is not None:
         return hit
-    query = (
-        f"SELECT TOP {MAX_GAIA} source_id, ra, dec, pmra, pmdec, parallax, phot_g_mean_mag, bp_rp "
-        "FROM gaiadr3.gaia_source "
-        f"WHERE 1=CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', {ra:.6f}, {dec:.6f}, {radius_deg:.5f})) "
-        "ORDER BY phot_g_mean_mag"
-    )
-    last = None
-    for attempt in range(3):
-        try:
-            r = httpx.post(GAIA_TAP, data={"REQUEST": "doQuery", "LANG": "ADQL", "FORMAT": "csv", "QUERY": query}, timeout=90.0)
-            r.raise_for_status()
-            break
-        except httpx.HTTPError as err:
-            last = err
-            time.sleep(2 * (attempt + 1))
-    else:
-        raise RuntimeError(f"Gaia archive unavailable ({type(last).__name__})")
-    import csv
-
-    def num(v):
-        try:
-            f = float(v)
-            return f if math.isfinite(f) else None
-        except (TypeError, ValueError):
-            return None
-
-    rows = []
-    for rec in csv.DictReader(io.StringIO(r.text)):
-        rows.append({
-            "source_id": rec["source_id"], "ra": float(rec["ra"]), "dec": float(rec["dec"]),
-            "pmra": num(rec["pmra"]), "pmdec": num(rec["pmdec"]), "parallax": num(rec["parallax"]),
-            "g_mag": num(rec["phot_g_mean_mag"]), "bp_rp": num(rec["bp_rp"]),
-        })
-    cache.put_json("gaia", key, rows)
-    return rows
+    sources = [(u, lambda u=u: _gaia_vizier(u, ra, dec, radius_deg)) for u in GAIA_VIZIER]
+    sources.append((GAIA_TAP, lambda: _gaia_esa(ra, dec, radius_deg)))
+    errors = []
+    for attempt in range(2):
+        for name, fetch in sources:
+            try:
+                rows = fetch()
+            except (httpx.HTTPError, RuntimeError, ValueError, KeyError) as err:
+                errors.append(f"{name.split('/')[2]}: {type(err).__name__}")
+                continue
+            cache.put_json("gaia", key, rows)
+            return rows
+        time.sleep(2)
+    raise RuntimeError("Gaia archives unavailable (" + "; ".join(errors[-3:]) + ")")
 
 
 def gaia_sources(ra: float, dec: float, fov: float, mjd: float | None = None) -> dict:

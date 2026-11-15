@@ -48,8 +48,8 @@ export function createControls(root, { store, commands, getWavelengths }) {
           <button type="button" class="big" data-proj="STG" title="As if standing inside the sky: shapes stay the same as they move">Planetarium</button>
         </div>
         <div role="group" aria-label="Zoom" class="contents">
-          <button type="button" class="big" data-cmd="zoom_out" aria-label="Zoom out" aria-keyshortcuts="-">− Zoom</button>
-          <button type="button" class="big" data-cmd="zoom_in" aria-label="Zoom in" aria-keyshortcuts="+">+ Zoom</button>
+          <button type="button" class="big zoom-btn" data-cmd="zoom_out" aria-label="Zoom out" aria-keyshortcuts="-">−<small>zoom</small></button>
+          <button type="button" class="big zoom-btn" data-cmd="zoom_in" aria-label="Zoom in" aria-keyshortcuts="+">+<small>zoom</small></button>
         </div>
       </div>
     </section>

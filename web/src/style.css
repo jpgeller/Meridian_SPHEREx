@@ -196,6 +196,27 @@ body {
 .grid-4 {
   grid-template-columns: repeat(4, 1fr);
 }
+/* View row: the two view names need room ("Planetarium" is the longest word in the panel); zoom
+   buttons are a sign over a small "zoom", at the 64 px minimum */
+.shell .grid-4.view-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) 64px 64px;
+}
+.shell .view-row button.big {
+  padding-inline: var(--space-1);
+}
+.shell .view-row .zoom-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  font-size: 22px;
+  line-height: 1;
+}
+.shell .view-row .zoom-btn small {
+  font-size: var(--fs-s, 12px);
+  color: var(--muted, #aab);
+}
 .shell-left .card-title {
   margin-bottom: var(--space-1);
 }
@@ -631,6 +652,47 @@ body.field-open .handoff {
 }
 .player-msg:empty {
   display: none;
+}
+/* loading bar over the image: images being fetched, or the change video waiting for its catalogues */
+.player-loading {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(80%, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: rgba(8, 10, 18, 0.94);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  color: var(--text);
+  text-align: center;
+  pointer-events: none;
+  z-index: 3;
+}
+.pl-bar {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.14);
+}
+.pl-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 4px;
+  background: var(--accent);
+  transition: width 0.2s linear;
+}
+.pl-bar.is-busy .pl-fill {
+  width: 35%;
+  animation: pl-busy 1.2s ease-in-out infinite;
+}
+@keyframes pl-busy {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(290%); }
 }
 .player-bar {
   display: flex;
@@ -1078,11 +1140,16 @@ body.field-open .handoff {
   top: var(--edge-y);
   right: var(--edge-x);
 }
-body.field-open .guide-pill,
 body.field-open .guide-popup {
   /* below the field view's header ("Back to sky"), and 6% from the edges for eye tracking */
   top: calc(var(--edge-y) + 104px);
   right: var(--edge-x);
+}
+body.field-open .guide-pill {
+  /* in the header row, left of the Eye control card (gaze.css: right edge-x + 160px, ~141 px wide):
+     below it sat on the field-size buttons */
+  top: calc(var(--edge-y) + 4px);
+  right: calc(var(--edge-x) + 330px);
 }
 .guide-pill {
   display: inline-flex;

@@ -1,5 +1,6 @@
 // App entry: core (state, commands, URL, inputs) -> sky -> controls -> status.
 import './style.css';
+import './sky/smoothTiles.js'; // before Aladin starts: smooth (bilinear) sky tiles instead of hard pixel squares
 import { store, commands, run, startCore, setSkyCoords } from './core/index.js';
 import { formatSexagesimal } from './core/coords.js';
 import { createSky } from './sky/sky.js';

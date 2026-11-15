@@ -19,6 +19,9 @@ const SPEEDS = [1, 2, 4, 6, 10]; // frames per second
 const BLINK_HZ = 2;
 const SPHEREX_PIXEL_ARCSEC = 6.15;
 const VIDEO_SECONDS = 12; // the whole time line, 2010 → 2026, plays in this many seconds
+// Play waits at most this long for WISE 2010–2024 and the motion catalogue, then starts with what it has
+// (they join the video when they arrive). Without a limit, a slow archive left Play on the first image.
+const VIDEO_WAIT_MS = 10000;
 const VIDEO_HOLD = 0.45; // seconds to hold on each real image (optional: "Pause on real images")
 const VIDEO_END_HOLD = 1; // seconds on the last image before the video loops
 const VIDEO_STRETCH = { vmin: 0, vmax: 1, kind: 'linear' };
@@ -44,6 +47,10 @@ export function createPlayer(stage, { store, commands }) {
           <span class="video-badge" id="video-badge" hidden></span>
         </div>
         <p id="player-msg" class="player-msg" role="status" aria-live="polite"></p>
+        <div class="player-loading" id="player-loading" hidden>
+          <span class="pl-text" id="pl-text" role="status" aria-live="polite"></span>
+          <div class="pl-bar" id="pl-bar" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100"><div class="pl-fill" id="pl-fill"></div></div>
+        </div>
       </div>
       <div class="video-line" id="video-line" data-guide="video-line" hidden aria-hidden="true">
         <span id="video-from"></span><div class="video-track" id="video-track"><div class="video-head" id="video-head"></div></div><span id="video-to"></span>
@@ -107,7 +114,7 @@ export function createPlayer(stage, { store, commands }) {
   let shownFrame = null; // what is on the canvas now (for overlays)
   const wise = { key: '', frames: null, error: '', loading: false }; // WISE epochs for the change video
   const movers = { key: '', list: null, error: '', loading: false }; // catalogue movers for the video
-  const vid = { mjd: null, hold: 0, raf: 0, last: 0, out: null, loop: 0, tick: null }; // change-video playhead
+  const vid = { mjd: null, hold: 0, raf: 0, last: 0, out: null, loop: 0, tick: null, waitStart: null, waitDone: false }; // change-video playhead
   const showListeners = [];
 
   // --- controls -> commands --------------------------------------------------------
@@ -196,6 +203,21 @@ export function createPlayer(stage, { store, commands }) {
     e.currentTarget.setAttribute('aria-expanded', String(!row.hidden));
   });
 
+  // A loading bar over the image: fraction 0..1, or null for "busy, no count".
+  const loadingEl = $('#player-loading');
+  function setProgress(text, fraction = null) {
+    loadingEl.hidden = false;
+    $('#pl-text').textContent = text;
+    const bar = $('#pl-bar');
+    bar.classList.toggle('is-busy', fraction == null);
+    $('#pl-fill').style.width = fraction == null ? '' : `${Math.round(Math.min(1, Math.max(0, fraction)) * 100)}%`;
+    if (fraction == null) bar.removeAttribute('aria-valuenow');
+    else bar.setAttribute('aria-valuenow', String(Math.round(fraction * 100)));
+  }
+  function hideProgress() {
+    loadingEl.hidden = true;
+  }
+
   function setMessage(text, actions = []) {
     msg.textContent = text;
     for (const a of actions) {
@@ -218,15 +240,18 @@ export function createPlayer(stage, { store, commands }) {
     loading = true;
     seq = [];
     stretch = null;
+    vid.waitDone = false; // a new patch: the video waits for its catalogues again (up to VIDEO_WAIT_MS)
     derived.clear();
     clearCanvas();
-    setMessage('Finding SPHEREx images of this patch…');
+    setMessage('');
+    setProgress('Finding SPHEREx images of this patch…');
+    render(store.get()); // Play stays pressable while loading
     try {
       const list = await loadFrameList(s.ra, s.dec);
       if (stale()) return;
       const result = await buildSequence(list, s, local, {
         stale,
-        progress: (done, total) => setMessage(`Loading ${total} image${total > 1 ? 's' : ''}… ${done}/${total}`),
+        progress: (done, total) => setProgress(`Loading ${total} image${total > 1 ? 's' : ''}… ${done}/${total}`, total ? done / total : null),
       });
       if (stale()) return;
       if (!result.items.length) {
@@ -255,11 +280,16 @@ export function createPlayer(stage, { store, commands }) {
       if (stale()) return;
       loadedKey = '';
       console.error('[player]', err); // details for developers; the screen gets a short message
+      if (store.get().playing) store.set({ playing: false }, 'player'); // nothing to play: the button reads Play again
       setMessage('Could not load the images (the SPHEREx archive may be busy).', [
         { label: 'Retry', run: () => reload(store.get(), { force: true }) },
       ]);
     } finally {
-      if (!stale()) loading = false;
+      if (!stale()) {
+        loading = false;
+        hideProgress();
+        render(store.get());
+      }
     }
   }
 
@@ -463,20 +493,45 @@ export function createPlayer(stage, { store, commands }) {
     vid.tick = tick;
   }
 
+  /** What the change video still waits for (shown on the loading bar). */
+  function videoWaitingFor() {
+    const out = [];
+    if (local.trailWise && wise.loading) out.push('WISE images 2010–2024');
+    if (movers.loading) out.push('the moving-object catalogues');
+    return out;
+  }
+
   function videoTick(now, id) {
     if (id !== vid.loop) return; // a newer loop took over
     vid.raf = 0;
     const st = store.get();
-    if (!(st.op === 'video' && st.view === 'field' && st.playing && seq.length)) return;
+    if (!(st.op === 'video' && st.view === 'field' && st.playing && seq.length)) {
+      if (vid.waitStart != null) {
+        vid.waitStart = null;
+        if (!loading) hideProgress();
+      }
+      return;
+    }
     const dt = vid.last ? Math.min(0.5, (now - vid.last) / 1000) : 0;
     vid.last = now;
     const model = videoModel(st);
-    if ((local.trailWise && wise.loading) || movers.loading) {
-      // wait on the first image until WISE 2010–2024 and the motion catalogue are in
-      vid.mjd = null;
-      show(st);
-      vid.raf = requestAnimationFrame(vid.tick);
-      return;
+    const waitingFor = videoWaitingFor();
+    if (waitingFor.length && !vid.waitDone) {
+      // wait on the first image until WISE 2010–2024 and the motion catalogue are in, at most VIDEO_WAIT_MS
+      vid.waitStart ??= now;
+      const waited = now - vid.waitStart;
+      if (waited < VIDEO_WAIT_MS) {
+        vid.mjd = null;
+        show(st);
+        setProgress(`Getting the change video ready: ${waitingFor.join(' and ')}…`, waited / VIDEO_WAIT_MS);
+        vid.raf = requestAnimationFrame(vid.tick);
+        return;
+      }
+      vid.waitDone = true; // start now; what is still loading joins when it arrives
+    }
+    if (vid.waitStart != null) {
+      vid.waitStart = null;
+      hideProgress();
     }
     if (vid.hold > 0) {
       vid.hold -= dt;
@@ -576,12 +631,16 @@ export function createPlayer(stage, { store, commands }) {
     // no aria-label: the name is what is on screen ("Play Space" / "Pause Space")
     const many = seq.length > 1;
     const timelapse = s.op === 'none' || s.op === 'video'; // the video plays, pauses and steps too
-    for (const id of ['#p-prev', '#p-play', '#p-next']) $(id).disabled = !many || !timelapse;
+    // While the images load, Play and the views stay pressable: Play then starts by itself once they are in
+    // (a disabled Play looked broken, 15 Nov 2026). Only a loaded patch with a single image disables them.
+    const few = !many && !loading;
+    for (const id of ['#p-prev', '#p-next']) $(id).disabled = !many || !timelapse;
+    playBtn.disabled = few || !timelapse;
     scrub.disabled = !many || !timelapse;
     const chosen = showOf(s);
     stage.querySelectorAll('[data-show]').forEach((b) => {
       b.setAttribute('aria-checked', String(b.dataset.show === chosen));
-      b.disabled = (['video', 'blink'].includes(b.dataset.show) && !many) || (b.dataset.show === 'video' && kind === 'rgb');
+      b.disabled = (['video', 'blink'].includes(b.dataset.show) && few) || (b.dataset.show === 'video' && kind === 'rgb');
     });
     // the options row only has content in the video (its options) or blink (its hint)
     $('.video-options').hidden = !['video', 'blink'].includes(s.op);

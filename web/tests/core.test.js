@@ -185,7 +185,7 @@ test('commands: toggle_layer and field commands', () => {
 
 test('colour views: valid presets and custom mixes; blank bands refused', () => {
   const store = createStore();
-  assert.equal(store.get().color, 'tint');
+  assert.equal(store.get().color, 'grey');
   store.set({ color: 'dust' });
   assert.equal(store.get().color, 'dust');
   quiet(() => store.set({ color: 'neon', mix: [50, 46, 22] }));

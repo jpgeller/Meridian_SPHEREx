@@ -189,7 +189,7 @@ test('the band label shows the wavelength once it is known', async ({ page }) =>
 });
 
 test('colour views: tinted band follows the detector; presets and custom mixes swap the map', async ({ page }) => {
-  await page.goto('/?band=40');
+  await page.goto('/?band=40&color=tint'); // the page opens in Grey; this test starts from Tinted band
   await ready(page);
   // While the map swaps between the band cube and a colour mix there is briefly no base layer.
   const cmap = () => page.evaluate(() => aladin.getBaseImageLayer()?.getColorCfg?.().getColormap() ?? null);
@@ -954,3 +954,35 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     }
   });
 }
+
+test('opens in the Grey colour view; no button text spills out of its frame (Planetarium)', async ({ page }) => {
+  await page.goto('/?fov=60');
+  await ready(page);
+  expect(await page.evaluate(() => meridian.store.get().color)).toBe('grey');
+  await page.evaluate(() => meridian.run('toggle_panel', { open: true }));
+  await expect(page.locator('[data-proj="STG"]')).toBeVisible();
+  const spill = await page.evaluate(() =>
+    [...document.querySelectorAll('button')]
+      .filter((b) => b.offsetParent && (b.scrollWidth > b.clientWidth + 1 || b.scrollHeight > b.clientHeight + 1))
+      .map((b) => b.textContent.trim()),
+  );
+  expect(spill).toEqual([]);
+});
+
+test('loading: a bar over the image while images load; Play pressed meanwhile starts once they are in', async ({ page }) => {
+  await page.route('**/api/frames?*', async (route) => {
+    await new Promise((r) => setTimeout(r, 2500)); // a slow archive
+    await route.continue();
+  });
+  await page.goto('/?ra=269.44627&dec=4.7682&fov=2.3&band=92&view=field&ffov=0.1&mode=detector');
+  const bar = page.locator('#player-loading');
+  await expect(bar).toBeVisible();
+  await expect(page.locator('#pl-text')).toContainText('Finding SPHEREx images');
+  await page.evaluate(() => meridian.run('set_show', { show: 'video' }));
+  await expect(page.locator('#p-play')).toBeEnabled(); // pressable while loading
+  await page.locator('#p-play').click();
+  await expect(bar).toBeHidden({ timeout: 60_000 });
+  expect(await page.evaluate(() => meridian.store.get().playing)).toBe(true);
+  const first = await page.evaluate(() => meridian.player.getShownFrame()?.meta?.date_iso);
+  await expect.poll(() => page.evaluate(() => meridian.player.getShownFrame()?.meta?.date_iso), { timeout: 15_000 }).not.toBe(first);
+});

@@ -45,7 +45,7 @@ export const DEFAULTS = Object.freeze({
   ffov: 0.1, // field-view size, one of FIELD_FOVS
   proj: 'SIN',
   band: 40,
-  color: 'tint', // full-map colour view (COLORS)
+  color: 'grey', // full-map colour view (COLORS)
   mix: [62, 46, 22], // custom colour mix: red, green, blue bands
   level: [0, 0], // map brightness and contrast steps (0, 0 = as served); see sky/levels.js
   mode: 'single',

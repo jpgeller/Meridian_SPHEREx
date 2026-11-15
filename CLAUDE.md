@@ -69,8 +69,10 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
 - Aladin's right-drag (trackpad two-finger click + drag) changes the base layer's cuts (PNG default [0, 255]).
   `web/src/sky/levels.js` mirrors it to state `level`. Black blotches near the Galactic centre are masked pixels in IRSA's
   all-sky tiles, not missing SPHEREx data (the full-resolution layer fills them).
-- The HiPS cube stops at order 5 (12.9″/px) and Aladin draws tiles with NEAREST filtering (hard-coded), so deep zoom looks
-  blocky. `web/src/sky/nativeLayer.js` + `/api/skypatch` overlay full-resolution (6.15″) patches below 1.5°: **switched off**
+- The HiPS cube stops at order 5 (12.9″/px) and Aladin draws tiles with NEAREST filtering (hard-coded), so deep zoom looked
+  blocky. `web/src/sky/smoothTiles.js` (imported first in main.js) turns the tile textures' MAG filter to LINEAR through
+  WebGL2's `texParameteri`, and snaps the cube shader's band coordinate to its slice centre (else LINEAR blends neighbour
+  bands: blacks turned grey). MIN filter left alone (it changed wide-view brightness). `?smooth=0` turns it off. `web/src/sky/nativeLayer.js` + `/api/skypatch` overlay full-resolution (6.15″) patches below 1.5°: **switched off**
   (`NATIVE_LAYER_ENABLED = false`) until the whole sky can have that quality, as only the zoomed patch looked different. PNG overlays via
   `A.image(url, {imgFormat:'png', wcs})` need CD1_1 < 0 and CD2_2 > 0 (rows top = north).
 - Time series: `Irsa.query_sia(pos=(coord, r), collection=['spherex_dr1','spherex_qr3'])` (+ `_deep`). Each row is
@@ -84,8 +86,11 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   returns JSON `ims` (keys on `https://amnh-citsci-public.s3-us-west-2.amazonaws.com/`) plus `mjds`, CRVAL/CRPIX, and 2.75″/px.
   Unofficial (Backyard Worlds); cache it. Registration verified: the PNG is north-up (row 0 = north) with TAN CD = ±2.75″.
 - IRSA's cutout service throttles parallel requests with 503s that clear in seconds: back off and retry; keep 4 browser requests in parallel.
-- Gaia DR3 = catalogue only (epoch 2016.0). Use the **ESA archive TAP** (`gea.esac.esa.int/tap-server/tap/sync`,
-  `gaiadr3.gaia_source`). NOT astroquery MAST: it only has DR2 (epoch 2015.5) and silently ignores `version=3`.
+  IRSA also has outages (SIA and SCS 502 "Proxy Error", 15 Nov 2026): frame lists, WISE and cube wavelengths fall back to
+  their expired cached copy rather than fail.
+- Gaia DR3 = catalogue only (epoch 2016.0). Sources in order (`context._gaia_cone`): VizieR `I/355/gaiadr3` at
+  `vizier.cfa.harvard.edu` (~1.5 s; identical rows), the CDS VizieR, then the **ESA archive TAP** (`gea.esac.esa.int`),
+  which went silent for minutes on 15 Nov 2026. NOT astroquery MAST: it only has DR2 (epoch 2015.5) and silently ignores `version=3`.
   Propagate proper motion to each frame's date. Barnard's Star is about 2.8′ from its J2000 position.
 - Challenge targets: Barnard's Star, eps Ind B, WISE 0855 (08h55m10.831s −07d14m42.53s), RW Aur, R Dra. Each has 4–19 SPHEREx visits.
 - Moving objects: `/api/context/movers` (Gaia DR3 + CatWISE2020). CatWISE via IRSA SCS

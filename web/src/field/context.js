@@ -81,41 +81,45 @@ export function createContext(player, { store, commands }) {
   let blinkPhase = 0;
   let wiseEpoch = -1; // -1 = latest
 
+  // WISE and Gaia are both fetched as soon as the 2D view opens (each is one small, cached request), so
+  // "Side by side with WISE / Gaia" is ready when pressed instead of starting its download then.
+  let wiseStatus = 'idle'; // idle | loading | ok | error
+  let gaiaStatus = 'idle';
   async function loadContext(s) {
     const key = `${s.ra.toFixed(5)},${s.dec.toFixed(5)}|${s.ffov}`;
     if (key === fieldKey) return;
     fieldKey = key;
     wise = null;
     gaia = null;
+    wiseStatus = gaiaStatus = 'loading';
     const q = `ra=${s.ra.toFixed(5)}&dec=${s.dec.toFixed(5)}&fov=${s.ffov}`;
-    if (s.compare !== 'off' && s.compare !== 'gaia') {
-      wiseLabel.textContent = 'Loading WISE images…';
-      fetch(`/api/context/wise?${q}&band=2`)
-        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-        .then((d) => {
-          if (key !== fieldKey) return;
-          wise = d;
-          render();
-        })
-        .catch((err) => {
-          console.error('[context] WISE', err);
-          if (key === fieldKey) wiseLabel.textContent = 'WISE images are not available right now.';
-        });
-    }
-    if (s.layers.includes('gaia') || s.compare === 'gaia') {
-      if (s.compare === 'gaia') wiseLabel.textContent = 'Loading Gaia stars…';
-      fetch(`/api/context/gaia?${q}`)
-        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-        .then((d) => {
-          if (key !== fieldKey) return;
-          gaia = d;
-          render();
-        })
-        .catch((err) => {
-          console.error('[context] Gaia', err);
-          if (key === fieldKey && store.get().compare === 'gaia') wiseLabel.textContent = 'Gaia stars are not available right now.';
-        });
-    }
+    const get = (url) => fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))));
+    get(`/api/context/wise?${q}&band=2`)
+      .then((d) => {
+        if (key !== fieldKey) return;
+        wise = d;
+        wiseStatus = 'ok';
+        render();
+      })
+      .catch((err) => {
+        console.error('[context] WISE', err);
+        if (key !== fieldKey) return;
+        wiseStatus = 'error';
+        render();
+      });
+    get(`/api/context/gaia?${q}`)
+      .then((d) => {
+        if (key !== fieldKey) return;
+        gaia = d;
+        gaiaStatus = 'ok';
+        render();
+      })
+      .catch((err) => {
+        console.error('[context] Gaia', err);
+        if (key !== fieldKey) return;
+        gaiaStatus = 'error';
+        render();
+      });
   }
 
   // --- drawing -------------------------------------------------------------------------
@@ -145,7 +149,11 @@ export function createContext(player, { store, commands }) {
   }
 
   function showWise(frame, s) {
-    if (!frame) return;
+    if (!frame) {
+      wiseLabel.textContent =
+        wiseStatus === 'error' ? 'WISE images are not available right now.' : wiseStatus === 'ok' ? 'No WISE images of this patch.' : 'Loading WISE images…';
+      return;
+    }
     if (wiseImg.dataset.src !== frame.url) {
       wiseImg.dataset.src = frame.url;
       wiseImg.src = frame.url;
@@ -161,7 +169,11 @@ export function createContext(player, { store, commands }) {
     wiseImg.hidden = true;
     wiseOverlay.hidden = true;
     gaiaCanvas.hidden = false;
-    if (!gaia) return;
+    if (!gaia) {
+      wiseLabel.textContent =
+        gaiaStatus === 'error' ? 'Gaia stars are not available right now (the star archives did not answer). Try again later.' : 'Loading Gaia stars…';
+      return;
+    }
     const size = Math.round((s.ffov * 3600) / 2.75) | 1; // same 2.75" grid as WISE
     const key = `${fieldKey}|${Math.round(mjd)}|${size}`;
     if (key !== gaiaPicKey) {
@@ -271,7 +283,6 @@ export function createContext(player, { store, commands }) {
       return;
     }
     if (['ra', 'dec', 'ffov', 'view'].some((k) => changed.includes(k))) fieldKey = '';
-    if (changed.includes('compare') || changed.includes('layers')) fieldKey = '';
     loadContext(s);
     render();
   });
