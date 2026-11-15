@@ -102,7 +102,7 @@ export function createPlayer(stage, { store, commands }) {
   let shownFrame = null; // what is on the canvas now (for overlays)
   const wise = { key: '', frames: null, error: '', loading: false }; // WISE epochs for the change video
   const movers = { key: '', list: null, error: '', loading: false }; // catalogue movers for the video
-  const vid = { mjd: null, hold: 0, raf: 0, last: 0, out: null }; // change-video playhead
+  const vid = { mjd: null, hold: 0, raf: 0, last: 0, out: null, loop: 0, tick: null }; // change-video playhead
   const showListeners = [];
 
   // --- controls -> commands --------------------------------------------------------
@@ -220,7 +220,6 @@ export function createPlayer(stage, { store, commands }) {
       if (st.frameIndex >= seq.length) patch.frameIndex = 0;
       // Selected dates belong to a sequence; keep them only for the first load (they may come from the URL).
       if (!firstLoad || st.t.some((i) => i >= seq.length)) patch.t = [];
-      if (firstLoad && st.op === 'video' && !st.playing) patch.playing = true; // a shared video link starts playing
       if (Object.keys(patch).length) store.set(patch, 'player');
       renderEpochs(store.get());
       render(store.get());
@@ -322,7 +321,9 @@ export function createPlayer(stage, { store, commands }) {
 
   function videoView(s) {
     const model = videoModel(s);
-    // a new model (WISE or the motion catalogue just arrived) keeps the current date if it can
+    // A new model: when WISE arrives the time line grows back to 2010, so start again from there;
+    // otherwise (the motion catalogue arrived) keep the current date.
+    if (vid.model && model.t0 < vid.model.t0 - 1) vid.mjd = null;
     vid.model = model;
     if (vid.mjd == null || vid.mjd < model.t0 || vid.mjd > model.t1) vid.mjd = model.t0;
     if (!vid.out || vid.out.length !== model.w * model.h) vid.out = new Float32Array(model.w * model.h);
@@ -348,6 +349,8 @@ export function createPlayer(stage, { store, commands }) {
       ? `between the real ${missionOf(f[k])} image of ${monthYear(model.mjds[k])} and the ${missionOf(f[k + 1])} image of ${monthYear(model.mjds[k + 1])}`
       : '';
     let when;
+    const waiting = !store.get().playing && vid.mjd === model.t0;
+    const prompt = waiting ? 'Press Play (Space) to start the video. ' : '';
     if (local.videoSteady) when = `~${monthYear(vid.mjd)}${real ? `, moving objects from the real ${missionOf(real)} image of this date` : `, ${between}`}`;
     else if (real) when = `Real image ${k + 1} of ${f.length}: ${missionOf(real)} · ${fmtDate(real.meta.date_iso ?? mjdToIso(real.meta.mjd))}`;
     else when = `Model frame ~${monthYear(vid.mjd)}, ${between}`;
@@ -372,7 +375,7 @@ export function createPlayer(stage, { store, commands }) {
       wiseNote = wise.loading ? ' Loading WISE 2010–2024…' : wise.error ? ` WISE not available here (${wise.error}).` : '';
     }
     return (
-      `${when}. ${moving} ${how}${wiseNote}`
+      `${prompt}${when}. ${moving} ${how}${wiseNote}`
     );
   }
 
@@ -421,18 +424,30 @@ export function createPlayer(stage, { store, commands }) {
     badge.classList.toggle('real', isReal);
   }
 
-  function videoTick(now) {
+  // One playback loop at a time: each start gets an id and older loops stop (two loops would
+  // double the speed). Time follows the real clock, so slow or throttled frames make the video
+  // jumpier, never slower or frozen (capped at 0.5 s per frame, e.g. after switching tabs).
+  function startVideoLoop() {
+    const id = ++vid.loop;
+    vid.last = 0;
+    const tick = (now) => videoTick(now, id);
+    vid.raf = requestAnimationFrame(tick);
+    vid.tick = tick;
+  }
+
+  function videoTick(now, id) {
+    if (id !== vid.loop) return; // a newer loop took over
     vid.raf = 0;
     const st = store.get();
     if (!(st.op === 'video' && st.view === 'field' && st.playing && seq.length)) return;
-    const dt = vid.last ? Math.min(0.1, (now - vid.last) / 1000) : 0;
+    const dt = vid.last ? Math.min(0.5, (now - vid.last) / 1000) : 0;
     vid.last = now;
     const model = videoModel(st);
     if ((local.trailWise && wise.loading) || movers.loading) {
       // wait on the first image until WISE 2010–2024 and the motion catalogue are in
       vid.mjd = null;
       show(st);
-      vid.raf = requestAnimationFrame(videoTick);
+      vid.raf = requestAnimationFrame(vid.tick);
       return;
     }
     if (vid.hold > 0) {
@@ -453,7 +468,7 @@ export function createPlayer(stage, { store, commands }) {
       vid.mjd = t;
     }
     show(st);
-    vid.raf = requestAnimationFrame(videoTick);
+    vid.raf = requestAnimationFrame(vid.tick);
   }
 
   function describe(s, view) {
@@ -569,8 +584,7 @@ export function createPlayer(stage, { store, commands }) {
       }, 1000 / local.speed);
     }
     if (active && s.op === 'video' && s.playing && !vid.raf) {
-      vid.last = 0;
-      vid.raf = requestAnimationFrame(videoTick);
+      startVideoLoop();
     }
     const wantBlink = active && s.op === 'blink';
     if (wantBlink && !blinkTimer) {
@@ -597,11 +611,9 @@ export function createPlayer(stage, { store, commands }) {
       reloadTimer = setTimeout(() => reload(store.get()), 250); // panning/band scrubbing: wait until settled
     }
     if (changed.includes('t')) derived.clear();
-    if (changed.includes('op') && s.op === 'video' && !s.playing) {
-      vid.mjd = null;
-      store.set({ playing: true }, 'player'); // the video starts playing (Space pauses)
-      return;
-    }
+    // The video waits on its first image (2010) until Play is pressed: starting by itself made the
+    // button read "Pause", so pressing it to start the video stopped it (16 Nov 2026).
+    if (changed.includes('op') && s.op === 'video') vid.mjd = null;
     render(s);
   });
   if (store.get().view === 'field') reload(store.get());

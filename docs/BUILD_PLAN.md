@@ -495,6 +495,10 @@ Decided with the team on 16 Nov 2026.
   Blink two dates `b`, Side by side with WISE `w`, Side by side with Gaia. One choice at a time (`set_show`; `SHOWS` and
   `showOf` in `core/state.js`; `set_op` / `set_compare` now reset each other). The timeline and WISE-blink modes have no
   button (the change video covers them) but still open from links and `set_compare`. The video hides the date buttons.
+- The change video no longer starts by itself: starting by itself made Play read "Pause", so pressing it to start the video
+  stopped it. It waits on 2010 ("Press Play"), goes back to 2010 when the WISE images arrive (they extend the time line), runs
+  one playback loop at a time (Play/Pause/Play could start two, doubling the speed) and follows the real clock (slow frames
+  made it crawl, looking frozen). Measured: 1.36 years/s for the designed 16 years in 12 s.
 - Gaia is not on the "Timeline 2010→2026": the timeline steps through real images (WISE, SPHEREx); Gaia has none. The drawn
   Gaia picture is in "Side by side with Gaia".
 
