@@ -45,6 +45,10 @@ def _photometry(image: np.ndarray, variance: np.ndarray, x: float, y: float) -> 
         return None
     vals = image[ap]
     saturated = bool(np.isposinf(vals).any())
+    # Most of the aperture saturated (e.g. R Dra, every image): no measurable flux at all. Say so,
+    # rather than calling it missing data. A few saturated pixels still give a lower limit.
+    if np.isposinf(vals).mean() >= 0.3:
+        return {"flag": "saturated_core"}
     good = np.isfinite(vals)
     if good.mean() < 0.7:
         return {"flag": "partial"}
@@ -134,6 +138,8 @@ def spectrum(ra0: float, dec0: float, fov: float, ra: float, dec: float, max_new
         "aperture_arcsec": R_AP * cutouts.PIXEL_SCALE_ARCSEC,
         "points": points,
         "failed": sum(1 for m in measured if m and "error" in m),
+        "n_saturated": sum(1 for m in measured if m and m.get("flag") == "saturated_core"),
+        "n_partial": sum(1 for m in measured if m and m.get("flag") == "partial"),
     }
 
 

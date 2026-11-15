@@ -80,6 +80,8 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   (`irsa.ipac.caltech.edu/SCS?table=catwise_2020&RA&DEC&SR&format=csv`, pm in arcsec/yr at `meanobsmjd`); IRSA's TAP timed out
   and SCS fails above ~0.1° radius. CatWISE duplicates fast movers and fragments bright glare: fit/merge (see changeModel.js).
   Gaia-propagated positions match the WiseView frames to ~1 px (Barnard's Star, 2014–2024).
+- R Dra saturates SPHEREx in every image (no spectrum possible; the panel says so). Ingest must pick frames per mode
+  exactly like the player (per detector; single bands 40 and 92): neighbouring detectors share band numbers.
 - Names: `GET /api/resolve?name=` (Sesame + proper motion to a fixed epoch 2026.0, so cache keys don't drift).
   WISE 0855's resolvable name is `WISEA J085510.74-071442.5`, about 2′ from the challenge's (older) coordinates.
   RA/Dec are kept to 5 decimals everywhere (state, URL, API cache keys).

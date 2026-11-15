@@ -75,7 +75,9 @@ export function loadCutout(frame, ra, dec, fov, ext = 'image') {
       const meta = JSON.parse(r.headers.get('X-Meta') ?? '{}');
       const data = new Float32Array(await r.arrayBuffer());
       if (data.length !== w * h) throw new Error('cutout size mismatch');
-      return { id: frame.id, data, w, h, meta: { ...frame, ...meta } };
+      // a value the server could not compute comes as null: keep the frame list's value then
+      const known = Object.fromEntries(Object.entries(meta).filter(([, v]) => v != null));
+      return { id: frame.id, data, w, h, meta: { ...frame, ...known } };
     });
     p.catch(() => cutoutCache.delete(key));
     cutoutCache.set(key, p);

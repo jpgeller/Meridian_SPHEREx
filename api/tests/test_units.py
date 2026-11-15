@@ -91,3 +91,19 @@ def test_movers_merge_keeps_gaia_and_drops_catwise_duplicates():
     cw_other = {"id": "c2", "catalog": "CatWISE2020", "ra": 10.05, "dec": 0.0, "pmra": 400.0, "pmdec": 0.0, "pm_err_mas": 40}
     out = movers.merge_movers([cw_dup, cw_other, gaia])
     assert [m["id"] for m in out] == ["g", "c2"]  # fastest first; the CatWISE copy of the Gaia star is gone
+
+
+def test_photometry_reports_a_saturated_core_instead_of_missing_data():
+    import numpy as np
+    import spectra
+    img = np.zeros((31, 31))
+    img[13:18, 13:18] = np.inf  # clipped core
+    out = spectra._photometry(img, np.ones_like(img), 15.0, 15.0)
+    assert out == {"flag": "saturated_core"}
+
+
+def test_cutout_meta_header_never_contains_nan():
+    import json, math
+    from main import _finite
+    out = json.dumps(_finite({"wavelength_um": math.nan, "x": [1.0, math.inf], "ok": 2.5}), allow_nan=False)
+    assert json.loads(out) == {"wavelength_um": None, "x": [1.0, None], "ok": 2.5}

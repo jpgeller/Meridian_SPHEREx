@@ -271,7 +271,7 @@ the WISE 0855 timeline scrolls 2010 to 2026.
 
 ---
 
-## Step 10 — Spectrum on demand  `[ ]`
+## Step 10 — Spectrum on demand  `[x]`
 **Files:** `api/spectra.py`, `web/src/field/spectrum.js`
 
 - `GET /api/spectrum?ra&dec&visit` (optional visit): for each frame covering the point, do forced photometry in a 2-pixel-radius aperture
@@ -292,10 +292,15 @@ the WISE 0855 timeline scrolls 2010 to 2026.
 > - **WISE 0855:** D4 0.27 → D5 0.41 → D6 0.49 mJy, rising to 5 µm. D6 matches WISE W2 (13.9 mag ≈ 0.47 mJy). The short-wavelength
 >   light is a **G=16.3 Gaia star 3.3″ away** (blended in the 12″ aperture). The API now returns `blends` (Gaia stars inside the
 >   aperture at the measurement date) and the panel warns about them.
+>
+> **R Dra check (15 Nov 2026): R Dra cannot be measured.** It saturates SPHEREx in all 204 images (every aperture pixel
+> clipped). These used to be dropped silently as "partial", giving an empty plot. Now they are counted (`n_saturated`)
+> and the panel says "Too bright for SPHEREx". The method checks out on a G = 14.3 star 92″ away, in the same images:
+> 196 points, a smooth stellar shape (~10–11 mJy at 1–1.5 µm falling to 1.9 mJy at 5 µm), no saturation or blends.
 
 ---
 
-## Step 11 — Showcase cache + update command  `[~]`
+## Step 11 — Showcase cache + update command  `[x]`
 **Files:** `api/ingest.py`
 
 - `python -m ingest --targets showcase` precomputes frames, cutouts (fov 0.1 and 0.25), WISE and Gaia for the 5 targets.
@@ -313,6 +318,19 @@ the WISE 0855 timeline scrolls 2010 to 2026.
 >   64 MB in 16 s). Ingest now uses 2 workers, **never** falls back to full files, pauses 2 min after 6 straight 503s, and skips
 >   (reports) frames that stay busy. Rerun `python -m ingest --targets showcase` when IRSA is responsive: about an hour for all five.
 > - `api/cache/full` holds about 4 GB from the earlier fallback burst. `python -m ingest --clean-full` frees it.
+>
+> **Finished 15 Nov 2026.** Full run: 1,324 cutouts, 0 failed (IRSA responsive again; R Dra's 347 took 7.5 min).
+> - Network-off test (API behind a dead proxy, so every outside request fails): all 5 targets × 8 modes (detector 92 and
+>   40, single band 40 and 92, colour, change video, motion trail, WISE side by side + Gaia) open in < 1 s, no failed requests.
+> - It found three gaps, now fixed:
+>   - ingest counted frames without a band (the app ignores them), shifting which frames the per-detector spread picks.
+>   - Neighbouring detectors overlap in wavelength, so a D5 frame can share a band number with a D6 one. Picking over
+>     all detectors at once differs from detector mode: ingest now picks per detector, and for the default colour mix.
+>   - Single-band mode loads every frame of the band: ingest adds all frames of bands 40 (default) and 92 (D6).
+>   - Also cached: the moving-object lists for the change video.
+> - Bug found on the way: a frame whose wavelength map has no value at the target sent `"wavelength_um": NaN` in the
+>   `X-Meta` header, which browsers refuse to parse ("1 image could not be loaded"). The API now writes null.
+> - The cache lives only on the machine that ran ingest (`api/cache/`, gitignored): run it on the demo machine too.
 
 ---
 
