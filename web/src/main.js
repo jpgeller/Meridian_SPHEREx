@@ -13,6 +13,7 @@ import { createSpectrum } from './field/spectrum.js';
 import { createGuide } from './guide/index.js';
 import { startGaze } from './input/gaze.js';
 import { createInputModeButton } from './ui/inputModeButton.js';
+import { startGazeSocket } from './input/gazeSocket.js';
 
 const statusEl = document.querySelector('#status');
 // ?gaze=mouse: the guide's attention follows the mouse in input mode A (UI plan U6/U9). Read before the URL sync rewrites the URL.
@@ -59,6 +60,10 @@ window.guide = createGuide({ store, commands, sky, player, spectrum, gaze: gazeP
 // Eye tracking (U9): gaze messages -> the face panel's dot, the guide (mode B) and dwell-to-press (mode C).
 window.meridian.gaze = startGaze({ store, commands, guide: window.guide, mouseParam: gazeParam === 'mouse', face: () => window.meridian.face });
 createInputModeButton({ store, commands });
+// ?gaze_ws=8765: a native eye tracker on this machine streams gaze over a WebSocket (docs/EYE_TRACKING.md)
+window.meridian.gazeSocket = startGazeSocket(new URLSearchParams(window.location.search).get('gaze_ws'), {
+  getInput: () => store.get().input,
+});
 store.subscribe(() => renderStatus());
 
 if (urlName) run('fly_to', { target: urlName, fov: store.get().fov < 5 ? store.get().fov : undefined }, 'url');

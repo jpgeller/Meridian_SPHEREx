@@ -181,6 +181,43 @@ the window. A real recording in that shape replays the same way.
 The first version of this layer (commit `89f89ae`, removed for a while) is now back in `web/src/input/`,
 with the rest zone moved and the modes added.
 
+## Connecting a Python tracker: the local WebSocket (`?gaze_ws=`)
+
+A native tracker cannot call `postMessage`, so Meridian can connect to it instead. Open the page with
+`?gaze_ws=PORT` and Meridian connects to `ws://localhost:PORT/` (only this machine is allowed), keeps
+reconnecting, and shows "Eye tracker connected" at the bottom of the screen. The parameter stays in the
+URL across reloads. No relay page is needed. Code: `web/src/input/gazeSocket.js`.
+
+The tracker side is ready to use, standard library only: `gaze_tracker/meridian_bridge.py`.
+
+```python
+from meridian_bridge import MeridianBridge
+bridge = MeridianBridge(port=8765, screen_w=2560, screen_h=1600).start()  # physical screen pixels
+bridge.send_gaze(x, y, confidence)   # each calibrated sample, ~30 per second
+bridge.send_gaze(None, None, 0)      # tracking lost
+bridge.targets                       # the page's buttons (page px), for your own snapping or tests
+bridge.send_face(landmarks, ear=[...], mar=0.1)   # optional: the face panel
+bridge.command("zoom_in")            # optional: any Meridian command
+```
+
+- **Messages** (JSON, one per WebSocket text message or an array): `{type: 'gaze', x, y, confidence?,
+  screen_w?, screen_h?, space?}` and the bridge messages `face`, `command`, `list_commands`, `get_state`.
+  Meridian sends back `{type: 'hello', input, viewport}` on connect and `{type: 'targets', items}` as in the
+  gaze section above.
+- **Coordinates:** send the physical screen pixels your model outputs, with `screen_w`/`screen_h`. Meridian
+  converts them to its own pixels with the screen size the browser reports, so macOS "scaled" resolutions
+  and Windows display scaling are handled. It also subtracts the window's position and toolbar, but the
+  toolbar height is estimated: **run the browser full-screen** and the conversion is exact.
+  `space: 'viewport'` skips the conversion if you already send page pixels.
+- **Calibrate first**, then stream calibrated raw points. Meridian smooths (120 ms), snaps (24 px) and
+  times the dwell itself; do not add your own dwell.
+- **Which mode:** with an error of about one button (64 px), use `&input=assist` (mode B): gaze feeds the
+  guide and never presses anything. `&input=gaze` (mode C) presses after a 0.8 s look and will often press a
+  neighbouring button at that accuracy.
+- **Try it without a tracker:** `python gaze_tracker/meridian_bridge.py --fake circle` (a point circling the
+  screen) or `--fake buttons` (visits each button the page reports), then open
+  `http://localhost:5173/?gaze_ws=8765&input=assist`.
+
 ## Notes from building it
 
 - Put any rest or pause zone away from the bottom-right corner. Aladin's logo is there, and its

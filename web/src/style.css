@@ -1563,3 +1563,21 @@ button[role='switch'][aria-checked='true']::before {
   width: calc(50% - 6px);
   max-height: 100%;
 }
+
+/* eye-tracker link note (?gaze_ws): not clickable, bottom centre, inside the 6% edges */
+.gaze-ws-chip {
+  position: fixed;
+  bottom: var(--edge-y);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(8, 10, 18, 0.85);
+  color: var(--muted, #aab);
+  font-size: 13px;
+  pointer-events: none;
+}
+.gaze-ws-chip[data-state='live'] {
+  color: #7ee2a8;
+}
