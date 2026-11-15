@@ -14,7 +14,7 @@ Decisions (Nov 15, 2026):
 - [x] B3 — Clear overlays on end
 - [x] B4 — Stable card layout (body sized for title + ~5 lines so no current step scrolls)
 - [x] B5 — Hint placement
-- [ ] B7 — Object explanations via Claude (non-Place objects)
+- [x] B7 — Object explanations via Claude (non-Place objects)
 
 ## P0 guide presence
 - [ ] Remove idle arrow; orb docks in pill

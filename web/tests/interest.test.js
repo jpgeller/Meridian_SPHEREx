@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createInterest, describeCommand } from '../src/guide/interest.js';
-import { createNudge, FALLBACK, topicOf } from '../src/guide/nudge.js';
+import { createNudge, FALLBACK, topicOf, objectOffer } from '../src/guide/nudge.js';
 import { classifyTarget } from '../src/guide/attention.js';
 
 const clock = (t = 0) => {
@@ -159,7 +159,7 @@ test('nudge: tour and explain options; "Not now" blocks the topic for the visit'
   assert.deepEqual(s.tours, [['colours', null]]);
   const e = setup({ reply: { ...REPLY, options: [{ label: 'Explain', kind: 'explain' }, REPLY.options[1]] } });
   await e.n.handle({ moment: 'compare' });
-  assert.deepEqual(e.explains, [{ offer: 'Cold things glow in D6: In D6 the coldest things glow. Try it with the Ices view.', moment: 'compare', target: undefined }]);
+  assert.deepEqual(e.explains, [{ offer: 'Cold things glow in D6: In D6 the coldest things glow. Try it with the Ices view.', moment: 'compare', target: undefined, trigger: 'explore' }]);
   assert.equal(e.n.snapshot().calls, 2, 'the explanation counts in the visit budget');
   const no = setup({ answer: 'not_now' });
   await no.n.handle({ moment: 'bands' });
@@ -202,6 +202,48 @@ test('nudge: a failed or empty reply plays the local offer; a feature with no lo
   assert.equal(await f.n.handle({ moment: 'feature:op-video' }), 'skip');
   assert.equal(f.shown.length, 0);
   assert.equal(topicOf({ moment: 'object', target: { id: 'sky:target' } }), 'object:sky:target');
+});
+
+const VEGA = { id: 'sky:target', name: 'Vega' };
+
+test('B7: an object moment with no Claude offer shows a local offer naming it; "Yes, tell me" asks for an object explanation', async () => {
+  const s = setup({ reply: { fallback: true, reason: 'timeout' }, answer: 'o0' });
+  assert.equal(await s.n.handle({ moment: 'object', target: VEGA }), 'done');
+  const card = s.shown[0];
+  assert.equal(card.title, 'Vega');
+  assert.match(card.say, /looking at Vega/);
+  assert.deepEqual(card.answers.map((a) => a.label), ['Yes, tell me', 'Not now']);
+  assert.deepEqual(s.marks.slice(0, 3), [['clear'], ['circle', 'sky:target'], ['point', 'sky:target']]);
+  assert.deepEqual(s.explains, [{ trigger: 'object', target: VEGA, moment: 'object' }]);
+  assert.equal(s.n.snapshot().calls, 2, 'the nudge call and the explanation both count');
+  // no name: a generic "this star"
+  assert.equal(objectOffer({ id: 'sky:x' }).title, 'This star');
+  assert.match(objectOffer(null).line, /this star/);
+});
+
+test('B7: an explain option of a Claude offer on an object uses trigger "object" (other moments keep "explore")', async () => {
+  const s = setup({ reply: { ...REPLY, options: [{ label: 'Tell me', kind: 'explain' }] } });
+  await s.n.handle({ moment: 'object', target: VEGA });
+  assert.deepEqual(s.explains, [{ trigger: 'object', target: VEGA, moment: 'object' }]);
+  // "Tell me more" after an apply on an object moment: also an object explanation
+  const t = setup();
+  const n = createNudge({
+    ask: async () => REPLY, buildBody: () => ({}), say: async () => 'o0', overlay: { pointAt() {}, circle() {}, clear() {} },
+    runScript: async () => 'explain', tour: async () => 'done', explain: async (x) => (t.explains.push(x), 'done'),
+    storage: { getItem: () => null, setItem() {} }, log: () => {},
+  });
+  await n.handle({ moment: 'object', target: VEGA });
+  assert.deepEqual(t.explains, [{ trigger: 'object', target: VEGA, moment: 'object' }]);
+});
+
+test('B7: visit budget spent -> no API call; "Yes, tell me" plays the local object script', async () => {
+  const mem = new Map([['meridian.guide.nudges', '15']]);
+  const s = setup({ storage: { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) }, answer: 'o0' });
+  await s.n.handle({ moment: 'object', target: VEGA });
+  assert.equal(s.asked.length, 0);
+  assert.equal(s.shown[0].title, 'Vega');
+  assert.deepEqual(s.explains, [{ trigger: 'object', target: VEGA, moment: 'object', local: true }]);
+  assert.equal(s.n.snapshot().calls, 15, 'nothing more counted');
 });
 
 test('B3: a nudge clears earlier marks before drawing its own, and clears on every non-option answer', async () => {

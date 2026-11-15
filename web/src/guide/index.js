@@ -163,12 +163,17 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
       window.removeEventListener('meridian:command', onCommand);
       if (pending === ctrl) pending = null;
     }
-    if (outcome || ctrl.signal.aborted) return outcome ?? 'stopped';
+    if (outcome || ctrl.signal.aborted) {
+      console.info(`[guide] /api/guide ${outcome ?? 'stopped'} (trigger=${trigger})`);
+      return outcome ?? 'stopped';
+    }
     if (reply.steps) {
+      // B7: say every time where the explanation came from
+      console.info(`[guide] /api/guide trigger=${trigger} source=${reply.source ?? 'unknown'} model=${reply.model ?? '?'} cached=${Boolean(reply.cached)}`);
       const how = await runner.runScript(pointFirst(reply.steps, trigger, t), { trigger, target: t });
       if (how !== 'empty') return how;
-      console.info('[guide] nothing valid in the reply; playing the local script');
-    } else console.info(`[guide] using the local script (${reply.reason})`);
+      console.info('[guide] /api/guide fallback (nothing valid in the reply): local script');
+    } else console.info(`[guide] /api/guide fallback (${reply.reason}): local script (trigger=${trigger})`);
     if (trigger === 'explore') return tour('where'); // a proactive offer's topic: a plain local word instead
     return fallback(trigger, target);
   }
@@ -337,9 +342,18 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
     overlay,
     runScript: runner.runScript,
     tour: (kind, id) => tour(kind, id),
-    explain: async ({ offer, moment, target }) => {
+    // B7: an object moment asks for an object explanation (no offer text: same request, same cache, as a click);
+    // local: the visit budget is spent, so the local object script plays with no API call
+    explain: async ({ offer, moment, target, trigger = 'explore', local = false }) => {
       guide.stop();
       await null;
+      if (trigger === 'object') {
+        if (local) {
+          console.info('[guide] object explanation: visit budget spent; local script (no /api/guide call)');
+          return fallback('object', target);
+        }
+        return startGuide('object', target);
+      }
       return startGuide('explore', target ?? null, { offer, moment });
     },
     isBusy: () => popup.isOpen() || runner.isRunning() || !!pending,
