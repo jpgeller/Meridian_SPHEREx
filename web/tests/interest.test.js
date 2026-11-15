@@ -143,7 +143,7 @@ test('nudge: the pointer goes first, then the offer with its options; "apply" ru
   const s = setup();
   assert.equal(await s.n.handle({ moment: 'bands' }), 'done');
   assert.equal(s.asked.length, 1);
-  assert.deepEqual(s.marks.slice(0, 2), [['circle', 'band-d6'], ['point', 'band-d6']]);
+  assert.deepEqual(s.marks.slice(0, 3), [['clear'], ['circle', 'band-d6'], ['point', 'band-d6']]);
   const card = s.shown[0];
   assert.equal(card.title, 'Cold things glow in D6');
   assert.deepEqual(card.answers.map((a) => a.label), ['Show D6 with Ices', 'Tour the colours', 'Not now']);
@@ -202,4 +202,23 @@ test('nudge: a failed or empty reply plays the local offer; a feature with no lo
   assert.equal(await f.n.handle({ moment: 'feature:op-video' }), 'skip');
   assert.equal(f.shown.length, 0);
   assert.equal(topicOf({ moment: 'object', target: { id: 'sky:target' } }), 'object:sky:target');
+});
+
+test('B3: a nudge clears earlier marks before drawing its own, and clears on every non-option answer', async () => {
+  for (const answer of ['not_now', 'close', 'dismissed', 'replaced', 'timeout']) {
+    const s = setup({ answer });
+    assert.equal(await s.n.handle({ moment: 'bands' }), answer);
+    assert.deepEqual(s.marks[0], ['clear'], `${answer}: cleared before drawing`);
+    assert.deepEqual(s.marks.at(-1), ['clear'], `${answer}: its marks are gone after`);
+    assert.equal(s.scripts.length + s.tours.length + s.explains.length, 0);
+  }
+  // no point on screen: still a clean screen for the offer
+  const s = setup({ answer: 'close' });
+  const hidden = createNudge({
+    ask: async () => REPLY, buildBody: () => ({}), say: async () => 'close', overlay: { pointAt() {}, circle() {}, clear: () => s.marks.push(['clear']) },
+    runScript: async () => 'done', tour: async () => 'done', explain: async () => 'done', canShow: () => false,
+    storage: { getItem: () => null, setItem() {} }, log: () => {},
+  });
+  await hidden.handle({ moment: 'bands' });
+  assert.deepEqual(s.marks, [['clear'], ['clear']]);
 });

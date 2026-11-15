@@ -116,6 +116,7 @@ export function createNudge({
   async function show(offer, m) {
     lastShown = now();
     const point = offer.point && canShow(offer.point) ? offer.point : m.target?.id && canShow(m.target.id) ? m.target.id : null;
+    overlay.clear(); // B3: a new offer starts from a clean screen, then draws only its own marks
     if (point) {
       // the pointer goes first: it flies there and circles it, so the offer needs no explaining
       overlay.circle(point);

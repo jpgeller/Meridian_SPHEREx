@@ -11,7 +11,7 @@ Decisions (Nov 15, 2026):
 ## P0 bug fixes
 - [x] B1 — Colours flow content
 - [x] B2 — Last step label
-- [ ] B3 — Clear overlays on end
+- [x] B3 — Clear overlays on end
 - [ ] B4 — Stable card layout
 - [ ] B5 — Hint placement
 - [ ] B7 — Object explanations via Claude (non-Place objects)

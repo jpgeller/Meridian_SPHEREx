@@ -315,7 +315,10 @@ export function createRunner({
   function runScript(script, { trigger, target } = {}) {
     stop('replaced');
     const steps = validateScript(script, { commands: list(), sanitize, state: getState(), log });
-    if (!steps.length) return Promise.resolve('empty');
+    if (!steps.length) {
+      overlay.clear(); // B3: no marks outlive a flow, even one with nothing to play
+      return Promise.resolve('empty');
+    }
     const end = script && !Array.isArray(script) && script.end && typeof script.end === 'object' ? script.end : null;
 
     return new Promise((resolve) => {
@@ -383,7 +386,8 @@ export function createRunner({
         if (!alive()) return;
         if (end) {
           // only reached when the last step kept its own custom answers and one of them continued
-          // the closing card keeps the last step's marks on screen
+          // B3: the closing card draws nothing, so the last step's marks go
+          overlay.clear();
           const id = await wait(say({ title: end.title, say: end.say, answers: end.answers ?? ['got_it'] }));
           if (!alive()) return;
           if (id === 'close' || id === 'dismissed' || id === 'stop') return me.end('closed');

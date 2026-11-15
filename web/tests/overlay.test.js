@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { easeOutCubic, flyPoint, aimFor, ringFor, edgePoint, placeLabel, hits, trailPath } from '../src/guide/overlay.js';
+import { easeOutCubic, flyPoint, aimFor, ringFor, edgePoint, placeLabel, hits, trailPath, createOverlay } from '../src/guide/overlay.js';
 
 const VIEW = { w: 1440, h: 900 };
 const close = (a, b, eps = 1e-6) => Math.abs(a - b) < eps;
@@ -98,4 +98,109 @@ test('hits: rect vs circle and rect vs box', () => {
 
 test('trailPath: a quadratic curve from a to b', () => {
   assert.match(trailPath({ x: 0, y: 0 }, { x: 100, y: 0 }), /^M0\.0,0\.0 Q50\.0,-20\.0 100\.0,0\.0$/);
+});
+
+// A tiny DOM fake: enough for createOverlay (elements with classes, attributes, children, style).
+function fakeDom() {
+  const all = [];
+  const el = (tag) => {
+    const cls = new Set();
+    const e = {
+      tagName: tag,
+      children: [],
+      parent: null,
+      style: {},
+      attrs: {},
+      textContent: '',
+      set innerHTML(_) {},
+      set className(v) {
+        cls.clear();
+        String(v).split(/\s+/).filter(Boolean).forEach((c) => cls.add(c));
+      },
+      classList: {
+        add: (c) => cls.add(c),
+        remove: (c) => cls.delete(c),
+        contains: (c) => cls.has(c),
+        toggle: (c, on) => (on ?? !cls.has(c) ? cls.add(c) : cls.delete(c), cls.has(c)),
+      },
+      setAttribute(k, v) {
+        e.attrs[k] = String(v);
+        if (k === 'class') e.className = v;
+      },
+      getAttribute: (k) => e.attrs[k] ?? null,
+      append(...kids) {
+        for (const k of kids) {
+          k.parent = e;
+          e.children.push(k);
+        }
+      },
+      remove() {
+        if (e.parent) e.parent.children = e.parent.children.filter((k) => k !== e);
+        e.parent = null;
+      },
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 120, height: 28, bottom: 28 }),
+      get connected() {
+        let p = e;
+        while (p.parent) p = p.parent;
+        return p === body;
+      },
+      get hidden() {
+        return cls.has('is-hidden');
+      },
+    };
+    all.push(e);
+    return e;
+  };
+  const body = el('body');
+  const frames = [];
+  const timers = [];
+  const win = {
+    innerWidth: 1440,
+    innerHeight: 900,
+    matchMedia: () => ({ matches: false }),
+    requestAnimationFrame: (f) => (frames.push(f), frames.length),
+    setTimeout: (f, ms) => (timers.push({ f, ms }), timers.length),
+  };
+  const doc = { defaultView: win, body, createElement: el, createElementNS: (_, t) => el(t), querySelector: () => null };
+  const frame = (t) => frames.splice(0).forEach((f) => f(t));
+  const flushTimers = () => timers.splice(0).forEach(({ f }) => f());
+  // what a person would see: in the document, not faded out, and (a label) with text
+  const visible = (sel) => all.filter((e) => e.connected && !e.hidden && sel(e));
+  return { doc, win, frame, flushTimers, visible };
+}
+
+test('B3: overlay.clear() leaves no visible ring or label; the pointer goes home with no text', () => {
+  const d = fakeDom();
+  const spots = { 'sky:milky_way': { x: 500, y: 400, r: 20 }, 'band-d6': { x: 800, y: 820, rect: { x: 770, y: 800, w: 64, h: 64 } } };
+  const o = createOverlay({ locate: (id) => spots[id] ?? null, doc: d.doc, events: new EventTarget(), getHome: () => ({ x: 1200, y: 60 }) });
+  const isLabel = (e) => e.classList.contains('go-label') && e.textContent;
+  const isRing = (e) => e.classList.contains('go-circle') || e.classList.contains('go-highlight');
+  o.circle('sky:milky_way');
+  o.highlight('band-d6');
+  o.pointAt('sky:milky_way', 'Milky Way centre');
+  d.frame(performance.now() + 10000); // the flight has landed: the label shows
+  assert.equal(d.visible(isLabel).length, 1);
+  assert.equal(d.visible(isRing).length, 2);
+
+  o.clear();
+  // at once, before any frame or the fade timeout: nothing readable or ringed is left
+  assert.equal(d.visible(isLabel).length, 0, 'no label right after clear()');
+  assert.equal(d.visible(isRing).length, 0, 'no ring right after clear()');
+  assert.equal(d.visible((e) => e.classList.contains('go-label')).length, 0, 'no empty label box either, even if no frame runs (background tab)');
+  assert.deepEqual(o.active(), [], 'only the parked pointer');
+  d.frame(performance.now() + 10000);
+  d.flushTimers();
+  assert.equal(d.visible(isLabel).length, 0);
+  assert.equal(d.visible((e) => e.classList.contains('go-label')).length, 0, 'the label box itself is hidden');
+  assert.equal(d.visible(isRing).length, 0);
+
+  // a ring re-added under the same key during the fade is the new one, not a stale one
+  o.circle('sky:milky_way');
+  o.clear();
+  o.circle('sky:milky_way');
+  d.flushTimers();
+  assert.equal(d.visible(isRing).length, 1);
+  o.clear();
+  d.flushTimers();
+  assert.equal(d.visible(isRing).length, 0);
 });

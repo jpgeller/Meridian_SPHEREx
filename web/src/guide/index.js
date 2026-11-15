@@ -125,6 +125,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
     pending?.abort();
     const ctrl = new AbortController();
     pending = ctrl;
+    overlay.clear(); // B3: the "Thinking…" card starts from a clean screen (the script re-draws its marks)
     const t = describeTarget(target);
     let outcome = null;
     const cancel = (how) => {
@@ -249,6 +250,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
   /** The pill (key A): "What can I show you?" */
   async function ask() {
     guide.stop();
+    overlay.clear(); // B3: the menu shows no earlier ring or label
     const a = await popup.say(menuCard());
     if (a === 'here') return hereTour();
     if (a === 'moving') return tour('motion', 'barnard');

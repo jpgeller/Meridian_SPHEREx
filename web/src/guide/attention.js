@@ -379,6 +379,7 @@ export function startAttention({ guide, startGuide, onMoment = () => false, stor
     if (trigger === 'feature') return;
     // the pointer goes first: it flies to the thing and circles it, so the question needs no explaining
     const mark = trigger === 'change' ? 'time-player' : target ?? 'band-ribbon';
+    guide.overlay.clear(); // B3: no earlier ring or label stays beside the new offer
     guide.overlay.circle(mark);
     guide.overlay.pointAt(mark);
     const secs = Math.round(dwellMs / 1000);

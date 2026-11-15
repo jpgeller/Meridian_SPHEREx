@@ -307,6 +307,7 @@ export function createOverlay({ locate: locateTarget, doc = document, events = w
         const fresh = !p.pos || el.classList.contains('is-hidden');
         p.id = id;
         label.textContent = text ?? '';
+        show(label, false); // B3: an old label never lingers; update() shows the new one once landed
         p.labelSize = null;
         const start = fresh ? origin() : p.pos;
         p.flight = reduced() ? null : { from: start, start: performance.now() };

@@ -339,3 +339,91 @@ function createCommandsList() {
   registerDefaultCommands(commands, store);
   return commands.list;
 }
+
+test('B3: every runScript outcome clears the overlay', async () => {
+  const clears = (t) => t.marks.filter((m) => m[0] === 'clear').length;
+  const last = (t) => t.marks.at(-1);
+  const S = [{ say: 'One', actions: [{ circle: 'band-d6' }, { point: 'band-d6', label: 'D6' }] }, { say: 'Two', actions: [{ circle: 'band-d6' }] }];
+  const END = { steps: S, end: { title: 'Want more?', answers: [{ id: 'again', label: 'Again' }, 'got_it'] } };
+
+  // done (Got it), an end-card answer, closed, dismissed, stop
+  for (const [script, answers, outcome] of [
+    [S, ['next', 'got_it'], 'done'],
+    [END, ['next', 'again'], 'again'],
+    [S, ['close'], 'closed'],
+    [S, ['dismissed'], 'closed'],
+    [S, ['next', 'stop'], 'closed'],
+  ]) {
+    const t = setup();
+    const done = t.runner.runScript(script);
+    for (const a of answers) await t.answer(a);
+    assert.equal(await done, outcome);
+    assert.deepEqual(last(t), ['clear'], `${outcome}: cleared at the end`);
+  }
+  // stopped, replaced
+  const t = setup();
+  const a = t.runner.runScript(S);
+  await tick();
+  t.runner.stop();
+  assert.equal(await a, 'stopped');
+  assert.deepEqual(last(t), ['clear']);
+  const b = t.runner.runScript(S);
+  await tick();
+  const n = clears(t);
+  const c = t.runner.runScript([{ say: 'C' }]);
+  assert.equal(await b, 'replaced');
+  assert.ok(clears(t) > n, 'replaced: cleared');
+  await t.answer('got_it');
+  await c;
+  // the card was replaced by a newer card (popup answers 'replaced')
+  const r = setup();
+  const rd = r.runner.runScript(S);
+  await r.answer('replaced');
+  assert.equal(await rd, 'replaced');
+  assert.deepEqual(last(r), ['clear']);
+  // interrupted by the person's own command
+  const i = setup();
+  const id = i.runner.runScript(S);
+  await tick();
+  i.commands.run('zoom_in', {}, 'ui');
+  assert.equal(await id, 'interrupted');
+  assert.deepEqual(last(i), ['clear']);
+  // empty: nothing to play still leaves a clean screen
+  const e = setup();
+  assert.equal(await e.runner.runScript([{ say: '' }]), 'empty');
+  assert.deepEqual(e.marks, [['clear']]);
+  // a script error (the pop-up throws) ends 'stopped' and clears
+  const cleared = [];
+  const broken = createRunner({
+    say: () => {
+      throw new Error('pop-up broke');
+    },
+    overlay: { pointAt() {}, circle() {}, highlight() {}, trail() {}, clear: () => cleared.push(1) },
+    run: () => ({ ok: true }),
+    list: () => [],
+    sanitize,
+    getState: () => createStore().get(),
+    log: () => {},
+  });
+  const err = console.error;
+  console.error = () => {};
+  try {
+    assert.equal(await broken.runScript([{ say: 'One' }]), 'stopped');
+  } finally {
+    console.error = err;
+  }
+  assert.ok(cleared.length >= 2, 'cleared at the step and at the end');
+});
+
+test('B3: a closing card after custom answers shows no marks from the last step', async () => {
+  const t = setup();
+  const done = t.runner.runScript({
+    steps: [{ say: 'Pick', actions: [{ circle: 'band-d6' }, { point: 'band-d6', label: 'D6' }], answers: ['more', 'got_it'] }],
+    end: { title: 'Is that clear?', answers: ['got_it'] },
+  });
+  await t.answer('more');
+  assert.equal(t.shown.length, 2, 'the closing card is shown');
+  assert.deepEqual(t.marks.at(-1), ['clear'], 'its marks went before the closing card');
+  await t.answer('got_it');
+  assert.equal(await done, 'done');
+});
