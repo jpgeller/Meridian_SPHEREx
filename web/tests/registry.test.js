@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createRegistry, rectResult, fieldToViewport, pickTarget, SKY_OBJECT_R } from '../src/guide/registry.js';
+import { createRegistry, rectResult, fieldToViewport, pickTarget, screenDirection, SKY_OBJECT_R } from '../src/guide/registry.js';
 import { skyToPixel } from '../src/field/context.js';
 
 const VIEW = { w: 1440, h: 900 };
@@ -22,13 +22,14 @@ function fakeDom(specs) {
   };
 }
 
-function setup({ state = {}, dom = [], world2pix = () => null, field = null, fetchJson = null, isSkyVisible } = {}) {
+function setup({ state = {}, dom = [], world2pix = () => null, pix2world = null, field = null, fetchJson = null, isSkyVisible } = {}) {
   const s = { view: 'sky', ra: 0, dec: 0, ...state };
   const events = new EventTarget();
   const reg = createRegistry({
     root: fakeDom(dom),
     getState: () => s,
     world2pix,
+    pix2world,
     isSkyVisible,
     field,
     fetchJson,
@@ -238,4 +239,70 @@ test('field ids are null in the sky view and before an image is shown', () => {
   assert.equal(setup({ field }).reg.resolve('field:target'), null);
   assert.equal(setup({ field, state: { view: 'field' } }).reg.resolve('field:target'), null);
   assert.equal(setup({ field, state: { view: 'field' } }).reg.resolve('field:mover:0'), null);
+});
+
+// --- locate: off-screen directions for the overlay's edge arrow (U3) ---
+
+test('screenDirection: north up / east left, and follows a flipped or rotated view', () => {
+  const c = [180, 0];
+  const right = [180 - 0.01, 0]; // a normal sky view: east is left, so right of centre is lower RA
+  const up = [180, 0.01];
+  const near = (d, x, y) => Math.abs(d.x - x) < 1e-6 && Math.abs(d.y - y) < 1e-6;
+  assert.ok(near(screenDirection(c, right, up, [180, 30]), 0, -1), 'north -> up');
+  assert.ok(near(screenDirection(c, right, up, [200, 0]), -1, 0), 'east -> left');
+  assert.ok(near(screenDirection(c, right, up, [180, -60]), 0, 1), 'south -> down');
+  // far side of the sky (140° away, behind the globe) still gets a direction
+  assert.ok(screenDirection(c, right, up, [320, 0]).x < -0.99, '140° east -> left');
+  // a view rotated by 90° (north to the right)
+  const d = screenDirection(c, [180, 0.01], [180 + 0.01, 0], [180, 30]);
+  assert.ok(near(d, 1, 0));
+  assert.equal(screenDirection(c, c, c, [0, 0]), null, 'degenerate frame');
+});
+
+test('locate: on screen = resolve; off screen = direction to the edge; covered or unknown = null', () => {
+  const { reg } = setup({
+    dom: [{ id: 'search', rect: box(10, 10, 100, 40) }],
+    world2pix: (ra) => (Math.round(ra) === 266 ? { pageX: 2000, pageY: 450, inView: false } : null),
+    pix2world: (x, y) => ({ ra: 180 - (x - 720) * 0.01, dec: (450 - y) * 0.01 }),
+  });
+  assert.deepEqual(reg.locate('search'), reg.resolve('search'));
+  // milky_way preset (266.4) projects off to the right
+  const mw = reg.locate('sky:milky_way');
+  assert.equal(mw.offscreen, true);
+  assert.ok(mw.dir.x > 0.99 && Math.abs(mw.dir.y) < 0.01);
+  assert.deepEqual(mw.bounds, { x: 0, y: 0, w: VIEW.w, h: VIEW.h });
+  // a place behind the globe: direction from the view's orientation (pix2world)
+  const { reg: reg2, events } = setup({ world2pix: () => null, pix2world: (x, y) => ({ ra: 180 - (x - 720) * 0.01, dec: (450 - y) * 0.01 }) });
+  flyTo(events, 'somewhere'); // sky:target at the state's ra/dec = 0, 0: 180° away is degenerate-free on dec
+  assert.equal(reg2.resolve('sky:target'), null);
+  const t = reg2.locate('sky:target');
+  assert.ok(t?.offscreen && Math.hypot(t.dir.x, t.dir.y) > 0.99);
+  // covered by a panel: on screen, so no edge arrow
+  const { reg: reg3, events: ev3 } = setup({ world2pix: () => ({ pageX: 300, pageY: 300, inView: true }), isSkyVisible: () => false });
+  flyTo(ev3, 'x');
+  assert.equal(reg3.locate('sky:target'), null);
+  assert.equal(reg.locate('band-d6'), null);
+  assert.equal(reg.locate('field:target'), null, 'field ids only in the field view');
+  assert.equal(reg.locate(42), null);
+});
+
+test('locate: in the field view, a target off the image points to the image edge', () => {
+  const geom = { ra0: 269.45, dec0: 4.74, scale: 6.15, w: 59, h: 59 };
+  const { reg, events } = setup({
+    state: { view: 'field', ra: 269.45, dec: 4.74 },
+    field: { canvas: { getBoundingClientRect: () => box(100, 50, 590, 590) }, getGeometry: () => geom, getMovers: () => null },
+  });
+  flyTo(events, 'north'); // sky:target = the centre
+  assert.ok(reg.locate('field:target').x, 'on the image');
+  const { reg: r2, events: e2, s } = setup({
+    state: { view: 'field', ra: 269.45, dec: 4.74 + 0.5 },
+    field: { canvas: { getBoundingClientRect: () => box(100, 50, 590, 590) }, getGeometry: () => geom, getMovers: () => null },
+  });
+  flyTo(e2, 'far north'); // 0.5° north of the image centre
+  s.ra = 269.45;
+  const n = r2.locate('sky:target');
+  assert.equal(n.offscreen, true);
+  assert.ok(n.dir.y < -0.99, 'north = up');
+  assert.deepEqual(n.bounds, { x: 100, y: 50, w: 590, h: 590 });
+  assert.deepEqual(n.from, { x: 395, y: 345 });
 });

@@ -148,7 +148,7 @@ failure in "a cached field opens its time-lapse" that did not come back in 8 mor
 
 ---
 
-## Step U3 — Overlay: pointer, circle, highlight  `[ ]`  P0
+## Step U3 — Overlay: pointer, circle, highlight  `[x]`  P0
 **Files:** `web/src/guide/overlay.js` (new), CSS in `style.css`
 
 - One full-screen `<div id="guide-overlay">` with `pointer-events: none`, above the Aladin canvas, below the pop-up.
@@ -161,6 +161,21 @@ failure in "a cached field opens its time-lapse" that did not come back in 8 mor
 - A label next to the pointer must not overlap the dwell ring (reposition above/below).
 
 **Done when:** from the console, `guide.pointAt('band-d6','Longest wavelengths')` and `guide.circle('sky:barnard')` work, follow a pan, and clicks pass through them.
+
+Progress (Nov 14): `guide/overlay.js` (pure geometry exported and unit-tested, DOM part below it); `window.guide` gains
+`pointAt / circle / highlight / trail / clear` and `guide.overlay` (`setAvoid(fn)` for the U6 dwell ring, `active()`).
+Choices made with the team: the pointer is an **amber arrow cursor with a glow** (so nobody takes it for the mouse). It
+flies on a slight arc **from the pop-up card** (`[data-guide="guide-popup"]`, U4; until then the top-right corner), then
+moves from wherever it is. Sky objects: tip on the rim, pointing up-left. Controls: tip on the top edge pointing down, so
+the button text stays readable (bottom edge, pointing up, near the top of the screen). It mirrors near the edges. **Auto-clear =
+any successful command whose source is not `guide`** (and not `preset`, the `fly_to` nested in `go_preset`). Dragging or
+zooming by hand is not a command, so the marks follow it. The runner (U5) calls `clear()` at step end. **Off screen:** new
+`registry.locate(id)` gives `{offscreen, from, dir, bounds}`, and the pointer waits at the edge aimed at the target (circles
+and highlights show a chevron). Directions come from `world2pix` when it projects, otherwise from the view's orientation
+via `pix2world` (behind the globe). In the field view the edge is the image's. Hidden or covered by a panel → fade.
+Layer `z-index: 40` (above the field view; the pop-up should use 50+), `pointer-events: none`, `aria-hidden` (U4 speaks).
+Reduced motion: no flight or glide (jump), no pulse. The label tries 8 spots and avoids the target, the arrow and `setAvoid`
+shapes. `npm test` 62/62 (10 new), `test:e2e` 18/18 (3 new).
 
 ---
 

@@ -1,6 +1,8 @@
 // Target registry (UI plan, U2): where is "X" on screen right now?
 //
 //   resolve(id)          -> { x, y, r } (a point) | { x, y, rect: {x, y, w, h} } (an element) | null
+//   locate(id)           -> resolve(id), or { offscreen: true, from, dir, bounds } when the target is
+//                           known but outside the view (for the overlay's edge arrow), or null
 //   targetAt(x, y, pad)  -> id | null      (what is at this viewport point, within `pad` px)
 //   list()               -> [{ id, label?, x, y, r? | rect? }]   everything on screen now
 //
@@ -82,6 +84,32 @@ export function pickTarget(items, x, y, pad = 0) {
   return best?.id ?? null;
 }
 
+/** [east, north] direction from sky position c to t ([ra, dec] degrees); right for any separation < 180°. */
+export function tangentDir(c, t) {
+  const d = Math.PI / 180;
+  const dra = (t[0] - c[0]) * d;
+  return [
+    Math.cos(t[1] * d) * Math.sin(dra),
+    Math.cos(c[1] * d) * Math.sin(t[1] * d) - Math.sin(c[1] * d) * Math.cos(t[1] * d) * Math.cos(dra),
+  ];
+}
+
+/**
+ * Which way is `target` on screen? `right` and `up` are the sky positions a few pixels right of and
+ * above the view centre `centre` (they carry the view's orientation and flip). -> unit {x, y}, y down.
+ */
+export function screenDirection(centre, right, up, target) {
+  const R = tangentDir(centre, right);
+  const U = tangentDir(centre, up);
+  const T = tangentDir(centre, target);
+  const det = R[0] * U[1] - R[1] * U[0];
+  if (!det) return null;
+  const a = (T[0] * U[1] - T[1] * U[0]) / det; // T = a·R + b·U
+  const b = (R[0] * T[1] - R[1] * T[0]) / det;
+  const len = Math.hypot(a, b);
+  return len > 0 && Number.isFinite(len) ? { x: a / len, y: -b / len } : null;
+}
+
 // --- the registry ----------------------------------------------------------------------
 
 /**
@@ -89,6 +117,8 @@ export function pickTarget(items, x, y, pad = 0) {
  * @param {Document|Element} o.root      where to look for [data-guide] elements
  * @param {Function} o.getState          store.get
  * @param {Function} o.world2pix         (ra, dec) -> { pageX, pageY, inView } | null  (sky/skyCoords.js)
+ * @param {Function} [o.pix2world]       (x, y) inside the sky view -> { ra, dec } | null (off-screen directions)
+ * @param {Function} [o.skyRect]         () -> the sky view's client rect
  * @param {Function} [o.isSkyVisible]    (x, y) -> false when a panel covers that point of the sky
  * @param {Object}   [o.field]           { canvas, getGeometry, getMovers } (field/player.js)
  * @param {Function} [o.fetchJson]       url -> Promise<json>, to look up preset names
@@ -99,6 +129,8 @@ export function createRegistry({
   root,
   getState,
   world2pix,
+  pix2world = null,
+  skyRect = null,
   isSkyVisible = () => true,
   field = null,
   fetchJson = null,
@@ -255,6 +287,82 @@ export function createRegistry({
     return out;
   }
 
+  // --- off-screen directions (overlay edge arrow) ---
+
+  /** Where a sky id or field id is on the sky, or null. */
+  function skyPosition(id) {
+    if (id.startsWith('sky:')) {
+      const p = places.get(id);
+      return p ? [p.ra, p.dec] : null;
+    }
+    const s = getState();
+    if (id === 'field:target') return [s.ra, s.dec];
+    const m = /^field:mover:(\d+)$/.exec(id);
+    if (!m) return null;
+    const cat = field?.getMovers?.();
+    const mover = cat?.movers?.[Number(m[1])];
+    if (!mover) return null;
+    const mjd = field?.getGeometry?.()?.mjd;
+    const at = Number.isFinite(mjd) && Number.isFinite(mover.pmra) ? moveTo(mover, cat.epoch_mjd, mjd) : mover;
+    return [at.ra, at.dec];
+  }
+
+  function offscreenInField([ra, dec]) {
+    const geom = field?.getGeometry?.();
+    const box = fieldBox();
+    if (!geom || !box || !(geom.w > 0)) return null;
+    const { x, y } = skyToPixel(ra, dec, geom.ra0, geom.dec0, geom.scale, geom.w);
+    const dx = x - (geom.w - 1) / 2;
+    const dy = y - (geom.h - 1) / 2;
+    const len = Math.hypot(dx, dy);
+    if (!(len > 0)) return null;
+    const from = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    return { offscreen: true, from, dir: { x: dx / len, y: dy / len }, bounds: { x: box.left, y: box.top, w: box.width, h: box.height } };
+  }
+
+  function offscreenInSky([ra, dec]) {
+    const { w, h } = viewport();
+    const bounds = { x: 0, y: 0, w, h };
+    const r = skyRect?.() ?? { left: 0, top: 0, width: w, height: h };
+    const from = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    const p = world2pix(ra, dec);
+    if (p) {
+      const inside = p.inView && p.pageX >= 0 && p.pageY >= 0 && p.pageX < w && p.pageY < h;
+      if (inside) return null; // on screen but covered by a panel: not an edge case
+      const dx = p.pageX - from.x;
+      const dy = p.pageY - from.y;
+      const len = Math.hypot(dx, dy);
+      if (len > 0) return { offscreen: true, from, dir: { x: dx / len, y: dy / len }, bounds };
+    }
+    // behind the globe (no projection): use the view's orientation at the centre
+    if (!pix2world) return null;
+    const cx = r.width / 2;
+    const cy = r.height / 2;
+    const c = pix2world(cx, cy);
+    const right = pix2world(cx + 20, cy);
+    const up = pix2world(cx, cy - 20);
+    if (!c || !right || !up) return null;
+    const dir = screenDirection([c.ra, c.dec], [right.ra, right.dec], [up.ra, up.dec], [ra, dec]);
+    return dir ? { offscreen: true, from, dir, bounds } : null;
+  }
+
+  /** resolve(id), or which way the target lies when it is off screen (sky and field objects only). */
+  function locate(id) {
+    const on = resolve(id);
+    if (on) return on;
+    try {
+      if (typeof id !== 'string' || !(id.startsWith('sky:') || id.startsWith('field:'))) return null;
+      const s = getState();
+      if (id.startsWith('field:') && s.view !== 'field') return null;
+      const at = skyPosition(id);
+      if (!at || !at.every(Number.isFinite)) return null;
+      return s.view === 'field' ? offscreenInField(at) : offscreenInSky(at);
+    } catch (err) {
+      console.warn('[guide] locate failed', id, err);
+      return null;
+    }
+  }
+
   function targetAt(x, y, pad = 0) {
     if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
     try {
@@ -266,5 +374,5 @@ export function createRegistry({
   }
 
   lookUpPresets();
-  return { resolve, targetAt, list, learnFlyTo };
+  return { resolve, locate, targetAt, list, learnFlyTo };
 }

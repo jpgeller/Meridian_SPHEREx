@@ -341,3 +341,89 @@ test('guide registry: in the field view the target sits in the middle of the ima
   expect(await page.evaluate(({ x, y }) => guide.targetAt(x, y), r.t)).toBe('field:target');
   expect(await page.evaluate(() => guide.resolve('band-d6'))).toBeNull(); // the sky controls are hidden here
 });
+
+// --- guide overlay (U3) ---
+
+/** The pointer's tip in viewport px (from its transform), or null when hidden. */
+const pointerTip = (page) =>
+  page.evaluate(() => {
+    const el = document.querySelector('#guide-overlay .go-pointer');
+    if (!el || el.classList.contains('is-hidden')) return null;
+    const m = /translate\(([-\d.]+)px, ([-\d.]+)px\)/.exec(el.style.transform);
+    return m && { x: Number(m[1]), y: Number(m[2]), flying: el.classList.contains('is-flying') };
+  });
+
+test('guide overlay: the pointer flies to a control, labels it, and clicks pass through', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?ra=269.45&dec=4.74&fov=20');
+  await ready(page);
+  await page.evaluate(() => guide.pointAt('band-d6', 'Longest wavelengths'));
+  // it starts near the top right (the pop-up's corner) and lands on D6 in about 600 ms
+  const start = await pointerTip(page);
+  expect(start.x).toBeGreaterThan(640);
+  await expect.poll(async () => (await pointerTip(page))?.flying, { timeout: 2000 }).toBe(false);
+  const d6 = await page.evaluate(() => guide.resolve('band-d6'));
+  const tip = await pointerTip(page);
+  expect(Math.abs(tip.x - d6.x)).toBeLessThan(1); // centred, on the top edge (the arrow sits above it)
+  expect(tip.y).toBeGreaterThan(d6.rect.y);
+  expect(tip.y).toBeLessThan(d6.rect.y + 12);
+  // the label is on screen and does not sit on the tip
+  const label = page.locator('#guide-overlay .go-label');
+  await expect(label).toHaveText('Longest wavelengths');
+  await expect(label).not.toHaveClass(/is-hidden/);
+  const lb = await label.boundingBox();
+  expect(lb.y + lb.height).toBeLessThanOrEqual(800);
+  expect(tip.x >= lb.x && tip.x <= lb.x + lb.width && tip.y >= lb.y && tip.y <= lb.y + lb.height).toBe(false);
+  // the overlay never takes a click: the button under the tip gets it
+  expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y).closest('[data-guide]')?.dataset.guide, tip)).toBe('band-d6');
+  await page.mouse.click(tip.x, tip.y);
+  await expect.poll(() => page.evaluate(() => meridian.store.get().band)).toBeGreaterThan(84);
+  // ...and that click was the person acting: the guide's marks clear
+  await expect.poll(() => page.evaluate(() => guide.overlay.active().length)).toBe(0);
+  expect(errors()).toEqual([]);
+});
+
+test('guide overlay: a circle follows the sky, waits at the edge when off screen, guide commands keep it', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?ra=269.45&dec=4.74&fov=2');
+  await ready(page);
+  await expect.poll(() => page.evaluate(() => guide.resolve('sky:barnard')), { timeout: 15000 }).not.toBeNull();
+  await page.evaluate(() => guide.circle('sky:barnard'));
+  const ring = page.locator('#guide-overlay circle.go-circle');
+  const ringAt = () => ring.evaluate((c) => ({ x: +c.getAttribute('cx'), y: +c.getAttribute('cy'), hidden: c.classList.contains('is-hidden') }));
+  const before = await ringAt();
+  expect(before.hidden).toBe(false);
+  // drag the sky by hand: the ring moves with Barnard's Star
+  await page.mouse.move(640, 380);
+  await page.mouse.down();
+  await page.mouse.move(540, 330, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(async () => Math.abs((await ringAt()).x - before.x)).toBeGreaterThan(50);
+  const star = await page.evaluate(() => guide.resolve('sky:barnard'));
+  const after = await ringAt();
+  expect(Math.abs(after.x - star.x)).toBeLessThan(3);
+  expect(Math.abs(after.y - star.y)).toBeLessThan(3);
+  // a command run by the guide does not clear it
+  await page.evaluate(() => meridian.run('set_band', { band: 40 }, 'guide'));
+  expect(await page.evaluate(() => guide.overlay.active())).toEqual(['circle:sky:barnard']);
+  // move the view 10° west (no command): the star is now east of it, off the left edge
+  await page.evaluate(() => aladin.gotoRaDec(259.45, 4.74));
+  await expect(ring).toHaveClass(/is-hidden/);
+  const edge = page.locator('#guide-overlay .go-edge');
+  await expect(edge).not.toHaveClass(/is-hidden/);
+  const eb = await edge.boundingBox();
+  expect(eb.x).toBeLessThan(80); // east is left on the sky
+  expect(errors()).toEqual([]);
+});
+
+test('guide overlay: reduced motion jumps straight to the target', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/?ra=269.45&dec=4.74&fov=20');
+  await ready(page);
+  await page.evaluate(() => guide.pointAt('search'));
+  const tip = await pointerTip(page);
+  const s = await page.evaluate(() => guide.resolve('search'));
+  expect(tip.flying).toBe(false);
+  expect(Math.abs(tip.x - s.x)).toBeLessThan(1); // on the bottom edge: the search box is at the top
+  expect(tip.y).toBeGreaterThan(s.rect.y + s.rect.h - 12);
+});
