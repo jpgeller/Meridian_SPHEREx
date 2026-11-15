@@ -76,7 +76,11 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
 - The HiPS cube stops at order 5 (12.9″/px) and Aladin draws tiles with NEAREST filtering (hard-coded), so deep zoom looked
   blocky. `web/src/sky/smoothTiles.js` (imported first in main.js) turns the tile textures' MAG filter to LINEAR through
   WebGL2's `texParameteri`, and snaps the cube shader's band coordinate to its slice centre (else LINEAR blends neighbour
-  bands: blacks turned grey). MIN filter left alone (it changed wide-view brightness). `?smooth=0` turns it off. `web/src/sky/nativeLayer.js` + `/api/skypatch` overlay full-resolution (6.15″) patches below 1.5°: **switched off**
+  bands: blacks turned grey). MIN filter left alone (it changed wide-view brightness). It also rewrites the cube's fragment
+  shader: zoomed in, a 4×4 cubic B-spline (round soft stars, no pixel grid); star-core holes filled. IRSA's palette PNGs store
+  saturated cores as index 0 (transparent) but the darkest sky as index 1 (opaque black), and Aladin's RG8 texture keeps
+  only the grey value (both channels = grey, alpha = grey), so a 0 is a hole only if enclosed by a bright rim (`HOLE_RIM`);
+  a looser test drew streaks across dark fields. `?smooth=0` turns it all off. `web/src/sky/nativeLayer.js` + `/api/skypatch` overlay full-resolution (6.15″) patches below 1.5°: **switched off**
   (`NATIVE_LAYER_ENABLED = false`) until the whole sky can have that quality, as only the zoomed patch looked different. PNG overlays via
   `A.image(url, {imgFormat:'png', wcs})` need CD1_1 < 0 and CD2_2 > 0 (rows top = north).
 - Time series: `Irsa.query_sia(pos=(coord, r), collection=['spherex_dr1','spherex_qr3'])` (+ `_deep`). Each row is
