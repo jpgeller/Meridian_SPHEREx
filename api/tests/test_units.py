@@ -82,3 +82,12 @@ def test_mask_planes_read_from_header():
     planes = cutouts.mask_planes(h)
     assert planes == {"TRANSIENT": 1, "SOURCE": 2097152}
     assert "SOURCE" not in cutouts.BAD_PLANES and "OUTLIER" not in cutouts.BAD_PLANES
+
+
+def test_movers_merge_keeps_gaia_and_drops_catwise_duplicates():
+    import movers
+    gaia = {"id": "g", "catalog": "Gaia DR3", "ra": 10.0, "dec": 0.0, "pmra": -800.0, "pmdec": 10000.0}
+    cw_dup = {"id": "c1", "catalog": "CatWISE2020", "ra": 10.0 + 3 / 3600, "dec": 0.0, "pmra": -790.0, "pmdec": 9900.0, "pm_err_mas": 50}
+    cw_other = {"id": "c2", "catalog": "CatWISE2020", "ra": 10.05, "dec": 0.0, "pmra": 400.0, "pmdec": 0.0, "pm_err_mas": 40}
+    out = movers.merge_movers([cw_dup, cw_other, gaia])
+    assert [m["id"] for m in out] == ["g", "c2"]  # fastest first; the CatWISE copy of the Gaia star is gone

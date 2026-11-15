@@ -9,7 +9,7 @@ export const PROJECTIONS = ['SIN', 'STG', 'AIT'];
 export const MODES = ['single', 'detector', 'rgb', 'custom'];
 export const COMPARES = ['off', 'side', 'timeline', 'blink'];
 // Operations on SPHEREx frames of different dates (field view)
-export const OPS = ['none', 'blink', 'add', 'subtract', 'trail'];
+export const OPS = ['none', 'blink', 'add', 'subtract', 'trail', 'video'];
 export const LAYERS = ['gaia', 'wise', 'flags', 'simbad'];
 // Colour views of the full map: one band in grey or tinted, or a false-colour mix of three bands
 export const COLORS = ['grey', 'tint', 'ir', 'dust', 'ice', 'custom'];

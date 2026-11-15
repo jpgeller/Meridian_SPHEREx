@@ -398,7 +398,34 @@ in `player.js`; command `toggle_trail` (key `r`, URL `op=trail`). Background: `d
 - Not available in colour-mix sequences (three channels already use the colours). The legend bar places a colour stop per date.
 - Verified: Barnard's Star streaks blue (south) → red (north), its known motion; WISE 0855 leaves a clean streak ending
   at its 2026 position, all field stars white. Images: `docs/img/trail_barnard.png`, `docs/img/trail_wise0855.png`.
-- Next (if wanted): the model-based video (option C in the research note).
+- The model-based video followed as Step 16.
+
+## Step 16 — Change video (real images + model frames in between)  `[x]`
+**Files:** `web/src/field/changeModel.js` (pure, `tests/changeModel.test.js`), op `video` in `player.js`, command
+`toggle_video` (key `v`, URL `op=video`); API `api/movers.py`, `GET /api/context/movers?ra&dec&fov`. Research: option C.
+- Time line: the WISE W2 epochs (2010–2024) + SPHEREx visits on WISE's 2.75″ grid (same as the trail), ~12 s for 16 years,
+  holding ~0.45 s on each real image. Space pauses, `,` `.` jump between real images, the slider scrubs time.
+- Model: each image scaled 0..1 on its own; background = median over dates **leaving out each date's movers** (else a bright,
+  slow-ish star leaves a ghost); a frame between real images k and k+1 cross-fades them, except around each mover, where
+  the background is restored and the mover's own image from both dates is slid to its position at t. At a real date the
+  output is exactly that image. A badge says **REAL · mission · date** or **MODEL · date**; ticks on the time line mark real images.
+- Movers: `/api/context/movers` = Gaia DR3 (≥150 mas/yr) + **CatWISE2020** (IRSA cone search; ≥300 mas/yr, ≥5σ, W2 ≤ 16.5) for
+  cold brown dwarfs Gaia can't see. Each candidate is **measured in the real images** and dropped if they don't show it.
+  - Gaia paths are used as they are: they agree with the WISE images to ~1 px every year (checked on Barnard's Star).
+  - CatWISE paths are **fitted to the images**, because CatWISE extrapolates several arcseconds off over 16 years. It also lists
+    very fast movers several times and splits a bright star's glare into fake movers; tracks close to a brighter one and
+    moving with it are merged.
+- The cut-out radius per mover is measured (where its light falls to the background, widest over dates), so saturated
+  WISE glare moves as one piece. Centroids use a box that grows with the flat (clipped) core.
+- Results: WISE 0855 tracked at 8.2″/yr (catalogue ~8.1″/yr), ending in the 2026 target ring; Barnard's Star at Gaia's 10.4″/yr.
+  A dashed cyan ring and dotted path mark each mover (switchable): 0855 is faint in single WISE images.
+- IRSA's CatWISE cone search fails or times out above ~0.1° radius (Nov 2026): capped at 0.08° around the target.
+- Images: `docs/img/video_wise0855_frames.png`, `docs/img/video_barnard_frames.png`.
+
+## Optional (final version): repair the black blotches in the all-sky map  `[ ]`
+IRSA's all-sky tiles mask pixels in the bright, crowded Galactic centre (black blotches); SPHEREx has hundreds of images there
+and the full-resolution layer below 1.5° shows them. A fix: proxy the tiles of that region through the API and fill masked
+pixels from the neighbouring band (real data, slightly different wavelength), caching the result. ~Half a day.
 
 ---
 

@@ -114,8 +114,13 @@ export function registerDefaultCommands(commands, store) {
   register('play', () => set({ playing: true }), { label: 'Play' });
   register('pause', () => set({ playing: false }), { label: 'Pause' });
   register('toggle_play', () => set({ playing: !s().playing }), { label: 'Play / pause', keys: [' '] });
-  register('step_next', () => set({ frameIndex: s().frameIndex + 1, playing: false }), { label: 'Next frame', keys: ['.'] });
-  register('step_prev', () => set({ frameIndex: Math.max(0, s().frameIndex - 1), playing: false }), {
+  // In the change video, , and . jump between real images (the player owns the video's time line).
+  const videoStep = (dir) => {
+    set({ playing: false });
+    globalThis.dispatchEvent?.(new CustomEvent('meridian:video-step', { detail: { dir } }));
+  };
+  register('step_next', () => (s().op === 'video' ? videoStep(1) : set({ frameIndex: s().frameIndex + 1, playing: false })), { label: 'Next frame', keys: ['.'] });
+  register('step_prev', () => (s().op === 'video' ? videoStep(-1) : set({ frameIndex: Math.max(0, s().frameIndex - 1), playing: false })), {
     label: 'Previous frame',
     keys: [','],
   });
@@ -132,12 +137,13 @@ export function registerDefaultCommands(commands, store) {
   const opCommand = (op) => () => set({ op: s().op === op ? 'none' : op, playing: false });
   register('set_op', ({ op }) => set({ op, playing: false }), {
     label: 'Compare dates',
-    args: { op: 'none (time-lapse) | blink | add | subtract | trail' },
+    args: { op: 'none (time-lapse) | blink | add | subtract | trail | video' },
   });
   register('toggle_blink', opCommand('blink'), { label: 'Blink two dates', keys: ['b'] });
   register('toggle_add', opCommand('add'), { label: 'Add dates (deeper image)', keys: ['m'] });
   register('toggle_subtract', opCommand('subtract'), { label: 'Difference of two dates', keys: ['d'] });
   register('toggle_trail', opCommand('trail'), { label: 'Motion trail (all dates in one picture)', keys: ['r'] });
+  register('toggle_video', opCommand('video'), { label: 'Change video (real images + model in between)', keys: ['v'] });
   register('show_timelapse', () => set({ op: 'none' }), { label: 'Back to time-lapse', keys: ['t'] });
 
   // --- layers -------------------------------------------------------------------

@@ -200,3 +200,25 @@ test('motion trail: WISE 0855 leaves a rainbow streak over 2010–2026', async (
   await expect(caption).toContainText('Motion trail: 4 SPHEREx visits, 2025–2026');
   expect(errors()).toEqual([]);
 });
+
+test('change video: WISE 0855 found and tracked; real dates and model frames are labelled', async ({ page }) => {
+  test.setTimeout(240_000);
+  const errors = collectErrors(page);
+  await page.goto('/?ra=133.7578&dec=-7.242&fov=0.5&band=92&view=field&ffov=0.1&mode=detector');
+  await ready(page);
+  await expect(page.locator('.epoch')).toHaveCount(4, { timeout: 60_000 });
+  await page.keyboard.press('v');
+  await expect(page).toHaveURL(/op=video/);
+  const caption = page.locator('#player-caption');
+  await expect(caption).toContainText(/Moving: CatWISE2020 object at 8\.\d″\/yr/, { timeout: 180_000 });
+  await expect(page.locator('#video-badge')).toBeVisible();
+  await page.keyboard.press(' '); // pause
+  await page.keyboard.press('.'); // next real image
+  await expect(caption).toContainText('Real image');
+  await expect(page.locator('#video-badge')).toHaveText(/^REAL/);
+  await page.locator('#p-scrub').fill('333');
+  await expect(caption).toContainText('Model frame');
+  await expect(page.locator('#video-badge')).toHaveText(/^MODEL/);
+  await expect(page.locator('#video-marks circle')).toHaveCount(1);
+  expect(errors()).toEqual([]);
+});

@@ -73,6 +73,10 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   `gaiadr3.gaia_source`). NOT astroquery MAST: it only has DR2 (epoch 2015.5) and silently ignores `version=3`.
   Propagate proper motion to each frame's date. Barnard's Star is about 2.8′ from its J2000 position.
 - Challenge targets: Barnard's Star, eps Ind B, WISE 0855 (08h55m10.831s −07d14m42.53s), RW Aur, R Dra. Each has 4–19 SPHEREx visits.
+- Moving objects: `/api/context/movers` (Gaia DR3 + CatWISE2020). CatWISE via IRSA SCS
+  (`irsa.ipac.caltech.edu/SCS?table=catwise_2020&RA&DEC&SR&format=csv`, pm in arcsec/yr at `meanobsmjd`); IRSA's TAP timed out
+  and SCS fails above ~0.1° radius. CatWISE duplicates fast movers and fragments bright glare: fit/merge (see changeModel.js).
+  Gaia-propagated positions match the WiseView frames to ~1 px (Barnard's Star, 2014–2024).
 - Names: `GET /api/resolve?name=` (Sesame + proper motion to a fixed epoch 2026.0, so cache keys don't drift).
   WISE 0855's resolvable name is `WISEA J085510.74-071442.5`, about 2′ from the challenge's (older) coordinates.
   RA/Dec are kept to 5 decimals everywhere (state, URL, API cache keys).

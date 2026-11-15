@@ -2,7 +2,7 @@
 
 Question (15 Nov 2026): can the few SPHEREx visits of a patch, plus the WISE images from 2010–2024, play
 as a smooth video that shows what moved or changed? Is it worth it, and what's the cheapest good way?
-**Option D (motion trail) is built: Step 15 in BUILD_PLAN. The rest is research only.**
+**Built: option D (motion trail, Step 15) and option C (change video, Step 16 in BUILD_PLAN).**
 
 ## What we have to work with
 | Source | Dates per patch | Pixel | Wavelengths |

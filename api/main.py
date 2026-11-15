@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import resolve as resolver
 import context
+import movers
 import cutouts
 import skypatch
 import spectra
@@ -179,6 +180,19 @@ async def gaia_context(
         return await run_in_threadpool(context.gaia_sources, ra, dec, fov, mjd)
     except Exception as err:
         raise HTTPException(status_code=503, detail=f"Gaia unavailable: {err}")
+
+
+@app.get("/api/context/movers")
+async def movers_context(
+    ra: float = Query(..., ge=0, lt=360),
+    dec: float = Query(..., ge=-90, le=90),
+    fov: float = Query(0.1, ge=0.02, le=1.0),
+) -> dict:
+    """Fast-moving objects in the field (Gaia DR3 + CatWISE2020), positions at 2026.0, motions in mas/yr."""
+    try:
+        return await run_in_threadpool(movers.field_movers, ra, dec, fov)
+    except Exception as err:
+        raise HTTPException(status_code=503, detail=f"Motion catalogues unavailable: {err}")
 
 
 @app.get("/api/spectrum")
