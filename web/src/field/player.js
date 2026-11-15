@@ -42,7 +42,7 @@ export function createPlayer(stage, { store, commands }) {
       <div class="player-view">
         <div class="canvas-wrap">
           <canvas id="frame-canvas" role="img" aria-label="No frame loaded"></canvas>
-          <svg class="target-ring" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="4.5"/></svg>
+          <svg class="target-ring" viewBox="0 0 100 100" aria-hidden="true" style="display: none"><!-- off by default: Display options → Mark target --><circle cx="50" cy="50" r="4.5"/></svg>
           <svg class="video-marks" id="video-marks" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
           <span class="video-badge" id="video-badge" hidden></span>
         </div>
@@ -85,7 +85,7 @@ export function createPlayer(stage, { store, commands }) {
         <button type="button" id="p-speed" title="Press to change">Speed: 2 fps</button>
         <button type="button" role="switch" aria-checked="false" id="p-visit">One per visit</button>
         <button type="button" id="p-cmap" title="Press to change">Colours: grey</button>
-        <button type="button" role="switch" aria-checked="true" id="p-ring">Mark target</button>
+        <button type="button" role="switch" aria-checked="false" id="p-ring">Mark target</button>
       </div>
       </div>
     </div>`;
