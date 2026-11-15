@@ -683,9 +683,9 @@ test('guide runner: the fallback scripts play with the API unreachable; Close en
 
 // --- guide attention (U6) ---
 
-test('guide attention: with ?gaze=mouse, resting the mouse on Barnard\'s Star for 7 s shows the offer; Yes starts the guide', async ({ page }) => {
+test('guide attention: resting the mouse on Barnard\'s Star for 5 s shows the offer (no ?gaze= needed); Yes starts the guide', async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto('/?ra=269.45&dec=4.74&fov=20&gaze=mouse');
+  await page.goto('/?ra=269.45&dec=4.74&fov=20');
   await ready(page);
   await mockGuideApi(page);
   expect(await page.evaluate(() => guide.attention.source)).toBe('mouse');
@@ -700,8 +700,8 @@ test('guide attention: with ?gaze=mouse, resting the mouse on Barnard\'s Star fo
   await expect(ring).toHaveAttribute('data-target', 'sky:barnard');
   expect(Date.now() - t0).toBeGreaterThan(1000); // not before 1.2 s
   await expect(card).toContainText('Want to know what this is?', { timeout: 10000 });
-  await expect(card).toContainText('You have been looking at it for 7 seconds.');
-  expect(Date.now() - t0).toBeGreaterThan(6500); // about 7 s
+  await expect(card).toContainText('You have been looking at it for 5 seconds.');
+  expect(Date.now() - t0).toBeGreaterThan(4500); // about 5 s (a mouse that rests that long means interest; gaze: 7 s)
   await expect(ring).not.toHaveClass(/is-on/);
   // the pointer went first: it is on the star, circled, before any answer
   expect(await page.evaluate(() => guide.overlay.active().sort())).toEqual(['circle:sky:barnard', 'pointer']);
@@ -718,9 +718,9 @@ test('guide attention: with ?gaze=mouse, resting the mouse on Barnard\'s Star fo
   expect(errors()).toEqual([]);
 });
 
-test('guide attention: without ?gaze=mouse the mouse is ignored; gaze samples (U9 feed) ask about the colours', async ({ page }) => {
+test('guide attention: with ?gaze=off the mouse is ignored; gaze samples (U9 feed) ask about the colours', async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto('/?fov=60');
+  await page.goto('/?fov=60&gaze=off');
   await ready(page);
   await expect.poll(() => page.evaluate(() => guide.attention.snapshot().quiet), { timeout: 30000 }).toBeNull();
   await page.evaluate(() => guide.attention.configure({ ringDelayMs: 200, dwellMs: 1200 }));

@@ -156,6 +156,22 @@ def test_gaia_vizier_parser(monkeypatch):
     assert rows[1]["pmra"] is None and rows[1]["bp_rp"] is None
 
 
+def test_env_file_loader(tmp_path, monkeypatch):
+    import main
+    f = tmp_path / ".env"
+    f.write_text('# comment\nMERIDIAN_T1="quoted value"\nexport MERIDIAN_T2=plain\nMERIDIAN_T3=\nMERIDIAN_T4=keep\n')
+    monkeypatch.delenv("MERIDIAN_T1", raising=False)
+    monkeypatch.delenv("MERIDIAN_T2", raising=False)
+    monkeypatch.setenv("MERIDIAN_T4", "already set")
+    assert main.load_env_file(f) == ["MERIDIAN_T1", "MERIDIAN_T2"]
+    import os
+    assert os.environ["MERIDIAN_T1"] == "quoted value" and os.environ["MERIDIAN_T2"] == "plain"
+    assert os.environ["MERIDIAN_T4"] == "already set"  # the real environment wins
+    assert main.load_env_file(tmp_path / "missing") == []
+    monkeypatch.delenv("MERIDIAN_T1")
+    monkeypatch.delenv("MERIDIAN_T2")
+
+
 def test_movers_one_catalogue_answering_with_none_is_not_a_failure(monkeypatch):
     """15 Nov 2026: Gaia answered with no fast stars while CatWISE was down, and the API said 503."""
     import movers

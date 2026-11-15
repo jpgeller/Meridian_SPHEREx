@@ -1,9 +1,36 @@
 """Meridian API. Routes are added step by step (see docs/BUILD_PLAN.md).
 
 Run:  uvicorn main:app --reload --port 8000   (from meridian/api)
+Settings (ANTHROPIC_API_KEY, GUIDE_MODEL, GUIDE_DAILY_MAX) are read from api/.env at startup, so
+--env-file is optional; variables already set in the environment win.
 """
 import json
 import math
+import os
+from pathlib import Path
+
+
+def load_env_file(path: Path) -> list[str]:
+    """KEY=VALUE lines -> os.environ (only keys not already set). Returns the names loaded, never values."""
+    loaded = []
+    if not path.is_file():
+        return loaded
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.removeprefix("export ").strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        if key and value and key not in os.environ:
+            os.environ[key] = value
+            loaded.append(key)
+    return loaded
+
+
+load_env_file(Path(__file__).with_name(".env"))
 
 import numpy as np
 from fastapi import FastAPI, HTTPException, Query, Response

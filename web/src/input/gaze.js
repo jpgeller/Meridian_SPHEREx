@@ -40,7 +40,7 @@ const viewH = () => innerHeight || document.documentElement.clientHeight;
  * @param {Object} o.store
  * @param {Object} o.commands
  * @param {Object} [o.guide]       window.guide: attention (feed/lose/setMouse/setGaze), popup, runner, list
- * @param {boolean} [o.mouseParam] ?gaze=mouse was given (the guide's dwell follows the mouse in mode A)
+ * @param {boolean} [o.mouseParam] the guide's dwell follows the mouse in mode A (default; ?gaze=off turns it off)
  * @param {Function} [o.face]      () => face panel sink with setGaze({ x, y, confidence }) | null
  */
 export function startGaze({ store, commands, guide = null, mouseParam = false, face = () => null }) {
