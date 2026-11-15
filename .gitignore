@@ -2,6 +2,11 @@
 node_modules/
 dist/
 
+# Secrets (ANTHROPIC_API_KEY lives in api/.env, never in the repo or the browser)
+.env
+.env.*
+!.env.example
+
 # Python
 .venv/
 __pycache__/
