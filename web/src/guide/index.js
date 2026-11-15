@@ -5,16 +5,18 @@
 // guide.say({ say: '…', answers: ['got_it', 'more', 'close'] }).then((answer) => …),
 // guide.run([{ say: '…', actions: [{ circle: 'band-d6' }, { cmd: 'set_band', args: { band: 93 } }] }]).then((how) => …),
 // guide.fallback('colours'), guide.fallback('object', { id: 'sky:barnard' }), guide.runner.isRunning(), guide.stop(),
-// guide.startGuide('object', { id: 'sky:barnard' }), guide.attention.snapshot(), guide.attention.feed({ x, y, confidence }).
+// guide.startGuide('object', { id: 'sky:barnard' }) (asks /api/guide, U7; local fallback on any failure),
+// guide.attention.snapshot(), guide.attention.feed({ x, y, confidence }).
 import { createRegistry } from './registry.js';
-import { createOverlay } from './overlay.js';
+import { createOverlay, QUIET_SOURCES } from './overlay.js';
 import { createPopup } from './popup.js';
 import { createRunner } from './runner.js';
 import { fallbackScript } from './fallback.js';
 import { startAttention } from './attention.js';
+import { askGuide, buildRequest, describeTarget, gatherFacts } from './client.js';
 import { sanitize } from '../core/state.js';
 
-export function createGuide({ store, commands, sky, player, gaze = null }) {
+export function createGuide({ store, commands, sky, player, spectrum = null, gaze = null }) {
   const skyEl = document.querySelector('#sky');
   let throughPopup = false;
   let popup = null;
@@ -69,9 +71,57 @@ export function createGuide({ store, commands, sky, player, gaze = null }) {
   // trigger: 'object' | 'change' | 'colours'; target: { id, name } or an id
   const fallback = (trigger, target) =>
     runner.runScript(fallbackScript(trigger, target, store.get()), { trigger, target });
-  // An accepted offer starts the guide. For now: the fixed script (U5). U7 swaps this for the
-  // API client (which falls back to the same script on failure).
-  const startGuide = (trigger, target) => fallback(trigger, target);
+  // An accepted offer starts the guide (U7): a "Thinking…" card while /api/guide (Claude) answers,
+  // then its script; the fixed local script (U5) on any failure, timeout or empty/invalid reply.
+  // Close/Esc on the card, any command the person runs, or guide.stop() cancels the wait.
+  let pending = null; // AbortController of the request in flight
+  async function startGuide(trigger, target) {
+    pending?.abort();
+    const ctrl = new AbortController();
+    pending = ctrl;
+    const t = describeTarget(target);
+    let outcome = null;
+    const cancel = (how) => {
+      if (outcome) return;
+      outcome = how;
+      ctrl.abort();
+    };
+    popup.say({ say: 'Thinking…', answers: ['close'], target: t?.id }).then((a) => {
+      if (a !== 'replaced') cancel('closed'); // 'replaced' = the script (or fallback) took the card
+    });
+    const onCommand = (e) => {
+      if (e.detail?.ok && !QUIET_SOURCES.has(e.detail.source)) {
+        cancel('interrupted');
+        popup.dismiss('close');
+      }
+    };
+    window.addEventListener('meridian:command', onCommand);
+    let reply;
+    try {
+      const state = store.get();
+      const body = buildRequest({
+        trigger,
+        target: t,
+        state,
+        facts: gatherFacts({ state, target: t, player, spectrum, wavelengths: sky.wavelengths }),
+        commands: commands.list(),
+        ids: registry.list().map((x) => x.id),
+      });
+      reply = await askGuide(body, { signal: ctrl.signal });
+    } catch (err) {
+      reply = { fallback: true, reason: String(err?.message ?? err) };
+    } finally {
+      window.removeEventListener('meridian:command', onCommand);
+      if (pending === ctrl) pending = null;
+    }
+    if (outcome || ctrl.signal.aborted) return outcome ?? 'stopped';
+    if (reply.steps) {
+      const how = await runner.runScript(reply.steps, { trigger, target: t });
+      if (how !== 'empty') return how;
+      console.info('[guide] nothing valid in the reply; playing the local script');
+    } else console.info(`[guide] using the local script (${reply.reason})`);
+    return fallback(trigger, target);
+  }
   const guide = {
     resolve: registry.resolve,
     locate: registry.locate,
@@ -89,7 +139,13 @@ export function createGuide({ store, commands, sky, player, gaze = null }) {
     popup,
     run: runner.runScript,
     fallback,
-    stop: () => runner.stop(),
+    stop: () => {
+      if (pending) {
+        pending.abort();
+        popup.dismiss('close');
+      }
+      runner.stop();
+    },
     runner,
     startGuide,
   };

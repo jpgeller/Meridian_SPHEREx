@@ -304,7 +304,7 @@ D6 → colours offer, presets → none; back-and-forth stepping → "what change
 
 ---
 
-## Step U7 — Guide endpoint (Claude)  `[ ]`  P0
+## Step U7 — Guide endpoint (Claude)  `[x]`  P0
 **Files:** `api/guide.py` (new), `api/main.py` (one `include_router`), `api/requirements.txt` (`anthropic`), `api/tests/test_guide.py`, `web/src/guide/client.js` (new)
 
 `POST /api/guide` body:
@@ -326,6 +326,29 @@ Reply: `{ "steps": [ { "say": "...", "actions": [ ... ] } ] }` (the script forma
 - Tests mock the client: valid JSON, invalid JSON, timeout, a command not on the whitelist.
 
 **Done when:** `curl` with a sample body returns a valid script for each trigger; with the key missing or the network off, the same call returns the fallback script; tests pass offline.
+
+Progress (Nov 14): `api/guide.py` (router; `main.py` only gains `include_router`), `guide/client.js`, `startGuide` rewired in
+`guide/index.js`, one hook (own commit): `createSpectrum()` returns `getLast()` so the blends can be sent. **Fallback = a marker,
+not a Python copy:** on any failure (no key, timeout 8 s, invalid JSON, schema/stop-reason problem, upstream error, rate limit,
+context over 8 KB, nothing valid left) the server answers **200 `{steps: [], fallback: true, reason}`** and the browser plays
+`fallback.js` (one copy of the fallbacks). Success: `{steps, source: 'claude', model, cached}` in the U5 format. Request = the plan's
+body plus **`commands`** (names from `commands.list()`, stubs left out) and **`ids`** (`registry.list()` ids in the page). Whitelist =
+a **static allow-list in `guide.py`** (22 guide-relevant commands with arg specs; toggles left out where a setter exists, e.g.
+`set_op` not `toggle_trail`) ∩ the client's `commands`; a test reads `web/src` and fails if a name or arg is no longer registered.
+Overlay ids must be in the client's `ids` (+ the target; a default control list for curl). Bad actions are dropped (steps keep their
+text); the browser runner re-validates everything. Model: `claude-haiku-5-5` (env `GUIDE_MODEL`), structured output (static JSON
+schema with a flat action `{type,id,to,label,cmd,args}`, args as a JSON string), thinking off, effort low, `max_tokens` 1200, SDK
+timeout 8 s and no retries. Cache: in memory, 1 h, key = sha256(trigger, target.id, state, facts); the raw reply is cached and
+re-filtered against each request's `commands`/`ids`; failures are not cached. Rate limit: 10 model calls/min per client IP
+(cache hits are free; behind the Vite proxy every browser is 127.0.0.1, so locally it is one shared budget). Facts (client, small,
+<2 KB): band/detector/channel/wavelength, preset label+note, time-lapse (frame count, ≤12 dates, shown frame, wavelength range,
+″/px, field size), movers (count, 5 nearest with pm, mag, separation; `target_match` within 10″), spectrum points/blends (same
+field only). No gaze, no person data. UI: Yes → a "Thinking…" card (Close only) while waiting (client timeout 9 s); Close/Esc, any
+command by the person or `guide.stop()` cancels and a late reply is ignored; `empty`/invalid script → local fallback. e2e guide tests
+now mock `/api/guide` (deterministic, no tokens spent). `pytest -q` 33 passed (16 new), `npm test` 97/97 (5 new), `test:e2e` 28/28
+(2 new). **Live test:** put `ANTHROPIC_API_KEY=…` in `api/.env`, start the API with `--env-file .env`, then
+`curl -s -XPOST localhost:8000/api/guide -H 'content-type: application/json' -d '{"trigger":"object","target":{"id":"sky:barnard"},"state":{"view":"sky","band":40}}'`
+(expect `"source":"claude"`; a second identical call says `"cached":true`); in the app, `guide.startGuide('colours')` or a real offer.
 
 ---
 

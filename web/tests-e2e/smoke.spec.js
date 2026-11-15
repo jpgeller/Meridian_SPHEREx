@@ -18,6 +18,16 @@ function collectErrors(page) {
   return () => errors.filter((e) => !IGNORED.some((re) => re.test(e)));
 }
 
+// The guide endpoint (U7) without the model: the server's "use your local script" marker, or a given reply.
+const GUIDE_FALLBACK = { steps: [], fallback: true, reason: 'test' };
+async function mockGuideApi(page, body = GUIDE_FALLBACK, { delayMs = 0, onRequest } = {}) {
+  await page.route('**/api/guide', async (route) => {
+    onRequest?.(route.request().postDataJSON());
+    if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
+    await route.fulfill({ json: body }).catch(() => {}); // the page may have moved on
+  });
+}
+
 async function ready(page) {
   await page.waitForFunction(() => window.meridian && document.querySelector('#controls'));
 }
@@ -645,6 +655,7 @@ test('guide attention: with ?gaze=mouse, resting the mouse on Barnard\'s Star fo
   const errors = collectErrors(page);
   await page.goto('/?ra=269.45&dec=4.74&fov=20&gaze=mouse');
   await ready(page);
+  await mockGuideApi(page);
   expect(await page.evaluate(() => guide.attention.source)).toBe('mouse');
   await expect.poll(() => page.evaluate(() => guide.resolve('sky:barnard')), { timeout: 15000 }).not.toBeNull();
   await expect.poll(() => page.evaluate(() => guide.attention.snapshot().quiet), { timeout: 30000 }).toBeNull();
@@ -705,6 +716,7 @@ test('guide attention: stepping back and forth in a time-lapse offers "what chan
   const errors = collectErrors(page);
   await page.goto('/?ra=133.7578&dec=-7.242&fov=0.5&band=92&view=field&ffov=0.1&mode=detector');
   await ready(page);
+  await mockGuideApi(page);
   await expect(page.locator('.epoch')).toHaveCount(4, { timeout: 60_000 });
   await expect.poll(() => page.evaluate(() => guide.attention.snapshot().quiet), { timeout: 30000 }).toBeNull();
   const card = page.locator('[data-guide="guide-popup"]');
@@ -716,4 +728,70 @@ test('guide attention: stepping back and forth in a time-lapse offers "what chan
   await expect(card).toContainText('replaying the same visits');
   expect(await page.evaluate(() => guide.runner.isRunning())).toBe(true);
   expect(errors()).toEqual([]);
+});
+
+// --- guide endpoint (U7) ---
+
+test('guide endpoint: Yes shows "Thinking…", then plays the API\'s script; facts and whitelist are sent, no gaze', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?fov=60');
+  await ready(page);
+  let sent = null;
+  const script = {
+    steps: [
+      { say: 'These bands are infrared light. Here is a short-wavelength band.', actions: [{ cmd: 'set_band', args: { band: 20 } }, { circle: 'band-d2' }] },
+      { say: 'The colours are a display choice.', actions: [{ cmd: 'not_a_command' }, { point: 'colour-views' }] },
+    ],
+    source: 'claude',
+  };
+  await mockGuideApi(page, script, { delayMs: 600, onRequest: (b) => (sent = b) });
+  const card = page.locator('[data-guide="guide-popup"]');
+  await page.evaluate(() => {
+    window.__how = null;
+    guide.startGuide('colours').then((how) => (window.__how = how));
+  });
+  await expect(card).toContainText('Thinking');
+  await expect(card).toContainText('short-wavelength band');
+  await expect.poll(() => page.evaluate(() => meridian.store.get().band)).toBe(20);
+  expect(sent.trigger).toBe('colours');
+  expect(sent.commands).toContain('set_band');
+  expect(sent.ids).toContain('band-d6');
+  expect(sent.facts.band).toMatchObject({ band: 40, detector: 'D3' });
+  expect(JSON.stringify(sent)).not.toMatch(/gaze|confidence/);
+  await card.getByRole('button', { name: 'Show me more' }).click();
+  await expect(card).toContainText('display choice'); // the bad command was dropped, the step kept
+  await card.getByRole('button', { name: 'Got it' }).click();
+  await expect.poll(() => page.evaluate(() => window.__how)).toBe('done');
+  expect(errors()).toEqual([]);
+});
+
+test('guide endpoint: the fallback marker or a failed call plays the local script; Close while thinking cancels', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?fov=60');
+  await ready(page);
+  const card = page.locator('[data-guide="guide-popup"]');
+  await mockGuideApi(page); // { fallback: true }
+  await page.evaluate(() => void guide.startGuide('colours'));
+  await expect(card).toContainText('SPHEREx splits it into 102 bands'); // fallback.js
+  await page.evaluate(() => guide.stop());
+  await expect(card).toBeHidden();
+
+  await page.unroute('**/api/guide');
+  await page.route('**/api/guide', (r) => r.fulfill({ status: 500, body: 'boom' }));
+  await page.evaluate(() => void guide.startGuide('object', { id: 'sky:barnard' }));
+  await expect(card).toContainText("This is Barnard's Star");
+  await page.evaluate(() => guide.stop());
+
+  await page.unroute('**/api/guide');
+  await mockGuideApi(page, { steps: [{ say: 'Too late.', actions: [] }] }, { delayMs: 1500 });
+  await page.evaluate(() => {
+    window.__how = null;
+    guide.startGuide('colours').then((how) => (window.__how = how));
+  });
+  await expect(card).toContainText('Thinking');
+  await card.getByRole('button', { name: 'Close' }).click();
+  await expect.poll(() => page.evaluate(() => window.__how)).toBe('closed');
+  await page.waitForTimeout(1800);
+  await expect(card).toBeHidden(); // the late reply is ignored
+  expect(errors().filter((e) => !/HTTP 500 .*\/api\/guide/.test(e))).toEqual([]);
 });

@@ -12,6 +12,7 @@ import colormix
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
+import guide
 import resolve as resolver
 import context
 import movers
@@ -21,6 +22,7 @@ import spectra
 import spherex
 
 app = FastAPI(title="Meridian API", version="0.0.1")
+app.include_router(guide.router)  # POST /api/guide (AI guide, UI plan U7)
 
 # The Vite dev server proxies /api, but allow direct calls from it too.
 app.add_middleware(
