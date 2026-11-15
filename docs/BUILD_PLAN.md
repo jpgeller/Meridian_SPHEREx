@@ -271,7 +271,7 @@ the WISE 0855 timeline scrolls 2010 to 2026.
 
 ---
 
-## Step 10 — Spectrum on demand  `[ ]`
+## Step 10 — Spectrum on demand  `[x]`
 **Files:** `api/spectra.py`, `web/src/field/spectrum.js`
 
 - `GET /api/spectrum?ra&dec&visit` (optional visit): for each frame covering the point, do forced photometry in a 2-pixel-radius aperture
@@ -292,10 +292,15 @@ the WISE 0855 timeline scrolls 2010 to 2026.
 > - **WISE 0855:** D4 0.27 → D5 0.41 → D6 0.49 mJy, rising to 5 µm. D6 matches WISE W2 (13.9 mag ≈ 0.47 mJy). The short-wavelength
 >   light is a **G=16.3 Gaia star 3.3″ away** (blended in the 12″ aperture). The API now returns `blends` (Gaia stars inside the
 >   aperture at the measurement date) and the panel warns about them.
+>
+> **R Dra check (15 Nov 2026): R Dra cannot be measured.** It saturates SPHEREx in all 204 images (every aperture pixel
+> clipped). These used to be dropped silently as "partial", giving an empty plot. Now they are counted (`n_saturated`)
+> and the panel says "Too bright for SPHEREx". The method checks out on a G = 14.3 star 92″ away, in the same images:
+> 196 points, a smooth stellar shape (~10–11 mJy at 1–1.5 µm falling to 1.9 mJy at 5 µm), no saturation or blends.
 
 ---
 
-## Step 11 — Showcase cache + update command  `[~]`
+## Step 11 — Showcase cache + update command  `[x]`
 **Files:** `api/ingest.py`
 
 - `python -m ingest --targets showcase` precomputes frames, cutouts (fov 0.1 and 0.25), WISE and Gaia for the 5 targets.
@@ -313,6 +318,19 @@ the WISE 0855 timeline scrolls 2010 to 2026.
 >   64 MB in 16 s). Ingest now uses 2 workers, **never** falls back to full files, pauses 2 min after 6 straight 503s, and skips
 >   (reports) frames that stay busy. Rerun `python -m ingest --targets showcase` when IRSA is responsive: about an hour for all five.
 > - `api/cache/full` holds about 4 GB from the earlier fallback burst. `python -m ingest --clean-full` frees it.
+>
+> **Finished 15 Nov 2026.** Full run: 1,324 cutouts, 0 failed (IRSA responsive again; R Dra's 347 took 7.5 min).
+> - Network-off test (API behind a dead proxy, so every outside request fails): all 5 targets × 8 modes (detector 92 and
+>   40, single band 40 and 92, colour, change video, motion trail, WISE side by side + Gaia) open in < 1 s, no failed requests.
+> - It found three gaps, now fixed:
+>   - ingest counted frames without a band (the app ignores them), shifting which frames the per-detector spread picks.
+>   - Neighbouring detectors overlap in wavelength, so a D5 frame can share a band number with a D6 one. Picking over
+>     all detectors at once differs from detector mode: ingest now picks per detector, and for the default colour mix.
+>   - Single-band mode loads every frame of the band: ingest adds all frames of bands 40 (default) and 92 (D6).
+>   - Also cached: the moving-object lists for the change video.
+> - Bug found on the way: a frame whose wavelength map has no value at the target sent `"wavelength_um": NaN` in the
+>   `X-Meta` header, which browsers refuse to parse ("1 image could not be loaded"). The API now writes null.
+> - The cache lives only on the machine that ran ingest (`api/cache/`, gitignored): run it on the demo machine too.
 
 ---
 
@@ -360,6 +378,10 @@ SPHEREx's own pixels are 6.15″, twice as fine.
   The data covers the whole sky (whole-sky view and the north galactic pole checked).
 
 ---
+
+> **Switched off 15 Nov 2026** (`NATIVE_LAYER_ENABLED = false` in `web/src/sky/nativeLayer.js`): only the patch you zoom into
+> became sharp, so it looked different from the rest of the map (e.g. Barnard's Star in grey). The code stays; turn it on
+> again together with the whole-sky sharp level (Optional, below), so every place has the same quality.
 
 ## Step 14 — Colour views of the full map  `[x]`
 **Files:** `web/src/sky/colorViews.js`, `api/colormix.py`, `/api/hips/mix/{R-G-B}/…`; state `color` + `mix` (URL `color=`, `mix=`).
@@ -420,7 +442,29 @@ in `player.js`; command `toggle_trail` (key `r`, URL `op=trail`). Background: `d
 - Results: WISE 0855 tracked at 8.2″/yr (catalogue ~8.1″/yr), ending in the 2026 target ring; Barnard's Star at Gaia's 10.4″/yr.
   A dashed cyan ring and dotted path mark each mover (switchable): 0855 is faint in single WISE images.
 - IRSA's CatWISE cone search fails or times out above ~0.1° radius (Nov 2026): capped at 0.08° around the target.
+- Fixes after first use (15 Nov 2026): opened from the sky the field is 0.5° wide, and Barnard's clipped flat core was wider
+  than the centroid box, so every measurement stuck to its edge and the star was rejected (the video only cross-faded).
+  Flat cores are now measured by flood-filling the clipped pixels. The video waits on its first image until WISE and the
+  motion catalogue have loaded, and no longer jumps back to 2010 when they arrive.
+- Smooth by default (16 Nov 2026): no pause on each real image ("Pause on real images" option, off); a 1 s pause at the
+  end before it loops. **Steady background** (option, on): what doesn't move is the masked median of all dates, so the field
+  stays still instead of shimmering. It shimmered because every real image has its own noise, sharpness (WISE 2.75″ vs
+  SPHEREx 6.15″), per-image scaling and, for SPHEREx, wavelength. Only the movers change, each cut out of its own images at
+  that image's own size (measured per image, outside-in, so WISE's hollow saturated cores don't fool it: ~45 px of WISE
+  glare vs ~17 px in SPHEREx for Barnard's Star). With it on, the badge always says MODEL. Image: `docs/img/video_barnard_steady.png`.
 - Images: `docs/img/video_wise0855_frames.png`, `docs/img/video_barnard_frames.png`.
+
+## Step 17 — Side by side with Gaia  `[x]`
+**Files:** `web/src/field/gaiaPicture.js` (pure, `tests/gaiaPicture.test.js`), compare mode `gaia` in `context.js`
+(`set_compare {compare: 'gaia'}`, URL `compare=gaia`).
+- Gaia publishes no images: it measures stars. The picture is **drawn from the Gaia DR3 catalogue** on WISE's 2.75″ grid of the
+  same patch: each star at its position on the date of the SPHEREx image on screen (proper motion from 2016.0), as a soft dot
+  with its G brightness (asinh stretch: G≈20 just visible, G≈10 near white) and a colour from BP − RP (hot blue-white,
+  cool orange-red). Brighter stars get wider dots, like a photograph's halo.
+- The label says so every time: "Gaia DR3 · drawn from the catalogue, not a photograph · visible light 0.33–1.05 µm · N stars at
+  <date>"; the API keeps the 3,000 brightest stars per field, noted when the cap is hit.
+- Teaching point: WISE 0855 does not appear (too cold for Gaia's visible light); Barnard's Star sits on the target ring.
+- Image: `docs/img/gaia_side_barnard.png`.
 
 ## Optional (final version): repair the black blotches in the all-sky map  `[ ]`
 IRSA's all-sky tiles mask pixels in the bright, crowded Galactic centre (black blotches); SPHEREx has hundreds of images there

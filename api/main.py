@@ -3,6 +3,7 @@
 Run:  uvicorn main:app --reload --port 8000   (from meridian/api)
 """
 import json
+import math
 
 import numpy as np
 from fastapi import FastAPI, HTTPException, Query, Response
@@ -122,7 +123,7 @@ async def cutout(
     headers = {
         "X-Width": str(arr.shape[1]),
         "X-Height": str(arr.shape[0]),
-        "X-Meta": json.dumps(result["meta"], separators=(",", ":")),
+        "X-Meta": json.dumps(_finite(result["meta"]), separators=(",", ":"), allow_nan=False),
         # The server cache answers in ~7 ms; letting browsers cache would serve stale
         # pixels after a processing change (bit us on 14 Nov 2026).
         "Cache-Control": "no-cache",
@@ -182,6 +183,18 @@ async def gaia_context(
         return await run_in_threadpool(context.gaia_sources, ra, dec, fov, mjd)
     except Exception as err:
         raise HTTPException(status_code=503, detail=f"Gaia unavailable: {err}")
+
+
+def _finite(v):
+    """NaN/inf -> None, recursively: json.dumps would write NaN, which browsers refuse to parse.
+    (A frame whose wavelength map has no value at the target gave wavelength_um NaN, 15 Nov 2026.)"""
+    if isinstance(v, float):
+        return v if math.isfinite(v) else None
+    if isinstance(v, dict):
+        return {k: _finite(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_finite(x) for x in v]
+    return v
 
 
 @app.get("/api/context/movers")

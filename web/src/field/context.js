@@ -5,6 +5,8 @@
 //   layer 'gaia'         : Gaia DR3 stars as circles, moved to the date of each image
 // Positions use a small-field gnomonic approximation (fields are ≤ 1°).
 
+import { renderGaia, drawGaiaPicture } from './gaiaPicture.js';
+
 const GAIA_EPOCH_MJD = 57388.5; // 2016.0
 const SPHEREX_SCALE = 6.15; // arcsec/px
 const BLINK_HZ = 2;
@@ -44,6 +46,7 @@ export function createContext(player, { store, commands }) {
        <button type="button" role="radio" data-compare="side">Side by side with WISE</button>
        <button type="button" role="radio" data-compare="timeline">Timeline 2010→2026</button>
        <button type="button" role="radio" data-compare="blink">Blink WISE / SPHEREx</button>
+       <button type="button" role="radio" data-compare="gaia">Side by side with Gaia</button>
      </div>
      <label class="inline"><input type="checkbox" id="ctx-gaia" /> Gaia stars</label>`,
   );
@@ -52,6 +55,7 @@ export function createContext(player, { store, commands }) {
   side.hidden = true;
   side.innerHTML = `
     <img id="wise-img" alt="" />
+    <canvas id="gaia-canvas" role="img" hidden></canvas>
     <svg class="overlay" id="wise-overlay" aria-hidden="true"></svg>
     <p class="ctx-label" id="wise-label"></p>`;
   viewEl.append(side);
@@ -72,6 +76,8 @@ export function createContext(player, { store, commands }) {
   const wiseImg = side.querySelector('#wise-img');
   const wiseOverlay = side.querySelector('#wise-overlay');
   const wiseLabel = side.querySelector('#wise-label');
+  const gaiaCanvas = side.querySelector('#gaia-canvas');
+  let gaiaPicKey = '';
   const scrubEl = timeline.querySelector('#ctx-scrub');
   const whenEl = timeline.querySelector('#ctx-when');
 
@@ -91,7 +97,7 @@ export function createContext(player, { store, commands }) {
     wise = null;
     gaia = null;
     const q = `ra=${s.ra.toFixed(5)}&dec=${s.dec.toFixed(5)}&fov=${s.ffov}`;
-    if (s.compare !== 'off') {
+    if (s.compare !== 'off' && s.compare !== 'gaia') {
       wiseLabel.textContent = 'Loading WISE images…';
       fetch(`/api/context/wise?${q}&band=2`)
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
@@ -105,7 +111,8 @@ export function createContext(player, { store, commands }) {
           if (key === fieldKey) wiseLabel.textContent = 'WISE images are not available right now.';
         });
     }
-    if (s.layers.includes('gaia')) {
+    if (s.layers.includes('gaia') || s.compare === 'gaia') {
+      if (s.compare === 'gaia') wiseLabel.textContent = 'Loading Gaia stars…';
       fetch(`/api/context/gaia?${q}`)
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
         .then((d) => {
@@ -113,7 +120,10 @@ export function createContext(player, { store, commands }) {
           gaia = d;
           render();
         })
-        .catch((err) => console.error('[context] Gaia', err));
+        .catch((err) => {
+          console.error('[context] Gaia', err);
+          if (key === fieldKey && store.get().compare === 'gaia') wiseLabel.textContent = 'Gaia stars are not available right now.';
+        });
     }
   }
 
@@ -155,6 +165,30 @@ export function createContext(player, { store, commands }) {
     drawGaia(wiseOverlay, s, frame.mjd, 2.75, size);
   }
 
+  // A picture of the patch drawn from the Gaia catalogue, at the date of the SPHEREx image on screen.
+  function showGaiaPicture(s, mjd) {
+    wiseImg.hidden = true;
+    wiseOverlay.hidden = true;
+    gaiaCanvas.hidden = false;
+    if (!gaia) return;
+    const size = Math.round((s.ffov * 3600) / 2.75) | 1; // same 2.75" grid as WISE
+    const key = `${fieldKey}|${Math.round(mjd)}|${size}`;
+    if (key !== gaiaPicKey) {
+      gaiaPicKey = key;
+      const pic = renderGaia(gaia.sources, { ra0: s.ra, dec0: s.dec, mjd, size, scale: 2.75 });
+      drawGaiaPicture(gaiaCanvas, pic);
+      gaiaCanvas.dataset.drawn = String(pic.drawn);
+    }
+    const when = fmtDate(new Date((mjd - 40587) * 864e5).toISOString());
+    const capped = gaia.sources.length >= 3000 ? ' (the 3,000 brightest)' : '';
+    wiseLabel.textContent = `Gaia DR3 · drawn from the catalogue, not a photograph · visible light 0.33–1.05 µm · ${gaiaCanvas.dataset.drawn} stars${capped} at ${when}`;
+    gaiaCanvas.setAttribute(
+      'aria-label',
+      `Picture of this patch drawn from the Gaia DR3 star catalogue: ${gaiaCanvas.dataset.drawn} stars placed where they were on ${when}, ` +
+        'each painted with its measured brightness and colour. Gaia measures stars; it does not take pictures.',
+    );
+  }
+
   function timelineItems() {
     const seq = player.getSequence();
     const items = (wise?.frames ?? []).map((f) => ({ kind: 'wise', frame: f, mjd: f.mjd, date_iso: f.date_iso }));
@@ -165,8 +199,13 @@ export function createContext(player, { store, commands }) {
   function render() {
     const s = store.get();
     if (s.view !== 'field') return;
-    viewEl.classList.toggle('compare-side', s.compare === 'side');
-    side.hidden = !(s.compare === 'side' || s.compare === 'timeline' || s.compare === 'blink');
+    viewEl.classList.toggle('compare-side', s.compare === 'side' || s.compare === 'gaia');
+    side.hidden = !['side', 'timeline', 'blink', 'gaia'].includes(s.compare);
+    if (s.compare !== 'gaia') {
+      wiseImg.hidden = false;
+      wiseOverlay.hidden = false;
+      gaiaCanvas.hidden = true;
+    }
     timeline.hidden = s.compare !== 'timeline';
     document.querySelectorAll('[data-compare]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.compare === s.compare)));
     document.querySelector('#ctx-gaia').checked = s.layers.includes('gaia');
@@ -177,7 +216,10 @@ export function createContext(player, { store, commands }) {
     const sxMjd = shown?.meta?.mjd ?? GAIA_EPOCH_MJD;
     drawGaia(sxOverlay, s, Number.isFinite(sxMjd) ? sxMjd : GAIA_EPOCH_MJD, SPHEREX_SCALE, sxSize);
 
-    if (s.compare === 'side') {
+    if (s.compare === 'gaia') {
+      canvasWrap.hidden = false;
+      showGaiaPicture(s, Number.isFinite(sxMjd) ? sxMjd : GAIA_EPOCH_MJD);
+    } else if (s.compare === 'side') {
       canvasWrap.hidden = false;
       showWise(wiseFrame(wiseEpoch), s);
     } else if (s.compare === 'timeline') {

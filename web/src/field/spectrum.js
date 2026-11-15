@@ -66,7 +66,7 @@ export function createSpectrum(player, { store, commands }) {
       last = data;
       draw(data);
       statusEl.textContent = data.complete
-        ? `${data.points.length} measurements from ${data.n_frames} images`
+        ? `${data.points.length} measurements from ${data.n_frames} images${data.n_saturated ? ` (${data.n_saturated} too bright to measure)` : ''}`
         : `${data.points.length} measurements so far · loading images ${data.n_done}/${data.n_frames}…`;
       if (data.complete) return;
       maxNew = ROUND_NEW;
@@ -76,7 +76,15 @@ export function createSpectrum(player, { store, commands }) {
   function draw(data) {
     const pts = data.points.filter((p) => Number.isFinite(p.flux_mjy) && Number.isFinite(p.wavelength_um));
     if (!pts.length) {
-      svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="axis">No measurements yet</text>`;
+      const tooBright = data.n_saturated > 0 && data.n_saturated >= data.n_done / 2;
+      svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="axis">${
+        tooBright ? 'Too bright for SPHEREx: saturated in every image' : 'No measurements yet'
+      }</text>`;
+      summaryEl.textContent = tooBright
+        ? `This object saturates the SPHEREx detectors in ${data.n_saturated} of ${data.n_done} images: the centre of its ` +
+          'image is clipped, so its brightness (and its spectrum) cannot be measured. Fainter objects nearby can be: click one.'
+        : '';
+      tableEl.innerHTML = '';
       return;
     }
     const xMin = 0.7, xMax = 5.05;

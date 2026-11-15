@@ -217,3 +217,19 @@ test('ICRS <-> galactic: the Galactic centre and a round trip', () => {
   const [x, y] = galacticToIcrs([266.4168, -29.0078]);
   assert.ok(Math.abs(x - 90.81028) < 1e-4 && Math.abs(y + 57.85165) < 1e-4);
 });
+
+test('shortcuts work on a focused checkbox (Space still ticks it), not in text fields', async () => {
+  const { startKeyboard } = await import('../src/core/keys.js');
+  const ran = [];
+  const commands = { list: () => [{ name: 'step_next', keys: ['.'] }, { name: 'toggle_play', keys: [' '] }], run: (n) => ran.push(n) };
+  const listeners = [];
+  const target = { addEventListener: (t, fn) => listeners.push(fn), removeEventListener() {} };
+  startKeyboard(commands, { target });
+  const press = (key, el) => listeners[0]({ key, target: el, preventDefault() {} });
+  const box = { tagName: 'INPUT', type: 'checkbox', closest: (sel) => (sel.includes('checkbox') ? box : null) };
+  const text = { tagName: 'INPUT', type: 'text', closest: () => null, blur() {} };
+  press('.', box);
+  press(' ', box);
+  press('.', text);
+  assert.deepEqual(ran, ['step_next']);
+});

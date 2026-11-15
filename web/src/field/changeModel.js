@@ -55,17 +55,36 @@ export function measureAround(img, w, h, x, y, r, minPeak = 0.25) {
     }
   }
   if (bx < 0 || best < minPeak) return null;
-  // Weighted centroid, re-centred a few times. Bright stars are clipped flat by the
-  // normalisation, so the box grows with the flat core (else it sticks to the core's edge).
-  let flat = 0;
-  for (let j = Math.max(0, by - 10); j <= Math.min(h - 1, by + 10); j++) {
-    for (let i = Math.max(0, bx - 10); i <= Math.min(w - 1, bx + 10); i++) if (img[j * w + i] >= best * 0.97) flat++;
+  // Bright stars are clipped flat by the normalisation. A flat core of any size: its centre is
+  // the star (a fixed box sticks to the core's edge). Flood-fill the connected flat pixels.
+  const flat = [];
+  const seen = new Set([by * w + bx]);
+  const queue = [[bx, by]];
+  while (queue.length && flat.length < 4000) {
+    const [i, j] = queue.pop();
+    flat.push([i, j]);
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const ni = i + di;
+      const nj = j + dj;
+      const k = nj * w + ni;
+      if (ni < 0 || nj < 0 || ni >= w || nj >= h || seen.has(k)) continue;
+      seen.add(k);
+      if (img[k] >= best * 0.97 && Math.hypot(ni - bx, nj - by) < 60) queue.push([ni, nj]);
+    }
   }
-  const hw = Math.min(10, Math.max(2, Math.ceil(Math.sqrt(flat) / 2) + 1));
-  if (bx < hw || by < hw || bx >= w - hw || by >= h - hw) return null; // cut by the image edge: unreliable
+  if (flat.length >= 6) {
+    const touchesEdge = flat.some(([i, j]) => i === 0 || j === 0 || i === w - 1 || j === h - 1);
+    if (touchesEdge) return null; // cut by the image edge: unreliable
+    const cx = flat.reduce((a, [i]) => a + i, 0) / flat.length;
+    const cy = flat.reduce((a, [, j]) => a + j, 0) / flat.length;
+    return { x: cx, y: cy, peak: best };
+  }
+  // Ordinary star: weighted centroid in a 5x5 box above half the peak, re-centred twice.
+  const hw = 2;
+  if (bx < hw || by < hw || bx >= w - hw || by >= h - hw) return null;
   let cx = bx;
   let cy = by;
-  for (let pass = 0; pass < 4; pass++) {
+  for (let pass = 0; pass < 2; pass++) {
     const ix = Math.min(w - 1 - hw, Math.max(hw, Math.round(cx)));
     const iy = Math.min(h - 1 - hw, Math.max(hw, Math.round(cy)));
     let sw = 0;
@@ -149,15 +168,17 @@ function bilinear(img, w, h, x, y) {
 }
 
 /**
- * How far a mover's light reaches: the radius where its ring-averaged brightness falls to the
- * background, measured on a few of the real images, plus a margin. Bright stars with glare and
- * diffraction spikes get a big radius, faint brown dwarfs a small one.
+ * How far a mover's light reaches in EACH image: the radius where its ring-averaged brightness
+ * falls to the background, plus a margin. Bright stars with glare and diffraction spikes get a big
+ * radius (WISE's saturated glare is much wider than SPHEREx's), faint brown dwarfs a small one.
+ * Per image, so a cut-out never drags along more of that image's background than it needs to.
  */
-export function measureRadius(images, mjds, w, h, at, { floor = 0.08, min = 4, max = 45 } = {}) {
-  const n = images.length;
-  const picks = [...new Set([0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(f * (n - 1))))];
-  const radii = picks.map((k) => {
+export function measureRadii(images, mjds, w, h, at, { floor = 0.08, min = 4, max = 45 } = {}) {
+  return images.map((img, k) => {
     const c = at(mjds[k]);
+    // the outermost ring still above the background: scanning outwards would stop inside the
+    // hollow core WISE gives saturated stars
+    let edge = 0;
     for (let r = 1; r <= max; r++) {
       let sum = 0;
       let n = 0;
@@ -165,16 +186,17 @@ export function measureRadius(images, mjds, w, h, at, { floor = 0.08, min = 4, m
         const x = Math.round(c.x + r * Math.cos((a * Math.PI) / 12));
         const y = Math.round(c.y + r * Math.sin((a * Math.PI) / 12));
         if (x < 0 || y < 0 || x >= w || y >= h) continue; // part of the ring may be off the image
-        sum += images[k][y * w + x];
+        sum += img[y * w + x];
         n++;
       }
-      if (n && sum / n < floor) return r;
+      if (n && sum / n >= floor) edge = r;
     }
-    return max;
+    return Math.min(max, Math.max(min, edge + 2));
   });
-  // the widest it gets on any date (WISE's saturated glare is much wider than SPHEREx's)
-  return Math.min(max, Math.max(min, Math.max(...radii) + 2));
 }
+
+/** The widest a mover gets on any date. */
+export const measureRadius = (...args) => Math.max(...measureRadii(...args));
 
 /**
  * Median over dates, leaving out each date's pixels near a mover (at that date). Without this a
@@ -185,7 +207,7 @@ export function maskedMedian(images, mjds, w, h, tracks) {
     const m = new Uint8Array(w * h);
     for (const t of tracks) {
       const c = t.at(mjds[k]);
-      const r = t.radius + 2;
+      const r = (t.radii?.[k] ?? t.radius) + 2;
       for (let y = Math.max(0, Math.floor(c.y - r)); y <= Math.min(h - 1, Math.ceil(c.y + r)); y++) {
         for (let x = Math.max(0, Math.floor(c.x - r)); x <= Math.min(w - 1, Math.ceil(c.x + r)); x++) {
           if ((x - c.x) ** 2 + (y - c.y) ** 2 <= r * r) m[y * w + x] = 1;
@@ -266,7 +288,7 @@ export function buildModel(frames, movers, grid, epochMjd) {
     const at = useCatalogue ? predict : fit.at;
     const vx = useCatalogue ? (b.x - a.x) / (t1 - t0) : fit.vx;
     const vy = useCatalogue ? (b.y - a.y) / (t1 - t0) : fit.vy;
-    tracks.push({
+    const track = {
       ...fit,
       at,
       vx,
@@ -274,9 +296,11 @@ export function buildModel(frames, movers, grid, epochMjd) {
       path: useCatalogue ? 'catalogue' : 'fitted',
       id: m.id,
       catalog: m.catalog,
-      radius: measureRadius(images, mjds, w, h, at),
+      radii: measureRadii(images, mjds, w, h, at),
       arcsecPerYear: Math.hypot(vx, vy) * 365.25 * grid.scale,
-    });
+    };
+    track.radius = Math.max(...track.radii);
+    tracks.push(track);
   }
   const background = maskedMedian(images, mjds, w, h, tracks);
   const residuals = images.map((img) => img.map((v, i) => v - background[i]));
@@ -293,25 +317,33 @@ export function bracket(mjds, mjd) {
   return { k, u: (mjd - mjds[k]) / (mjds[k + 1] - mjds[k]) };
 }
 
-/** The model image at a date (Float32Array, 0..1, row 0 = south). */
-export function renderAt(model, mjd, out = new Float32Array(model.w * model.h)) {
+/**
+ * The model image at a date (Float32Array, 0..1, row 0 = south).
+ * steady: what doesn't move is the background (all dates averaged), so it stays still instead of
+ * changing with each image's noise, sharpness and scaling; only the movers' own images change.
+ */
+export function renderAt(model, mjd, out = new Float32Array(model.w * model.h), { steady = false } = {}) {
   const { w, h, images, residuals, background: B, mjds, tracks } = model;
   const { k, u } = bracket(mjds, mjd);
   const k1 = Math.min(k + 1, mjds.length - 1);
   const A = images[k];
   const C = images[k1];
-  for (let i = 0; i < out.length; i++) out[i] = A[i] * (1 - u) + C[i] * u;
-  if (u === 0) return out; // a real date: the real image, untouched
+  if (steady) out.set(B);
+  else {
+    for (let i = 0; i < out.length; i++) out[i] = A[i] * (1 - u) + C[i] * u;
+    if (u === 0) return out; // a real date: the real image, untouched
+  }
   for (const t of tracks) {
     const pa = t.at(mjds[k]);
     const pc = t.at(mjds[k1]);
     const pt = t.at(mjd);
-    const r = t.radius;
-    const pad = r + 2;
+    const ra = t.radii[k];
+    const rc = t.radii[k1];
+    const pad = Math.max(ra, rc) + 2;
     // 1. clear the mover from where it was / will be (background there), with soft edges
-    for (const p of [pa, pc]) {
-      for (let y = Math.max(0, Math.floor(p.y - pad)); y <= Math.min(h - 1, Math.ceil(p.y + pad)); y++) {
-        for (let x = Math.max(0, Math.floor(p.x - pad)); x <= Math.min(w - 1, Math.ceil(p.x + pad)); x++) {
+    for (const [p, r] of steady ? [] : [[pa, ra], [pc, rc]]) {
+      for (let y = Math.max(0, Math.floor(p.y - r - 2)); y <= Math.min(h - 1, Math.ceil(p.y + r + 2)); y++) {
+        for (let x = Math.max(0, Math.floor(p.x - r - 2)); x <= Math.min(w - 1, Math.ceil(p.x + r + 2)); x++) {
           const m = taper(Math.hypot(x - p.x, y - p.y), r);
           if (m > 0) out[y * w + x] = out[y * w + x] * (1 - m) + B[y * w + x] * m;
         }
@@ -320,18 +352,21 @@ export function renderAt(model, mjd, out = new Float32Array(model.w * model.h)) 
     // 2. paste its own image from both dates, slid to where the fitted motion puts it now
     for (let y = Math.max(0, Math.floor(pt.y - pad)); y <= Math.min(h - 1, Math.ceil(pt.y + pad)); y++) {
       for (let x = Math.max(0, Math.floor(pt.x - pad)); x <= Math.min(w - 1, Math.ceil(pt.x + pad)); x++) {
-        const m = taper(Math.hypot(x - pt.x, y - pt.y), r);
-        if (!m) continue;
+        const d = Math.hypot(x - pt.x, y - pt.y);
+        // each date's cut-out at its own size
+        const ma = taper(d, ra);
+        const mc = taper(d, rc);
+        if (!ma && !mc) continue;
         const dx = x - pt.x;
         const dy = y - pt.y;
         // near the image edge one date may not have this part of the mover: use the other
-        const sa = bilinear(residuals[k], w, h, pa.x + dx, pa.y + dy);
-        const sc = bilinear(residuals[k1], w, h, pc.x + dx, pc.y + dy);
+        const sa = ma ? bilinear(residuals[k], w, h, pa.x + dx, pa.y + dy) : 0;
+        const sc = mc ? bilinear(residuals[k1], w, h, pc.x + dx, pc.y + dy) : 0;
         const okA = Number.isFinite(sa);
         const okC = Number.isFinite(sc);
         if (!okA && !okC) continue;
-        const s = okA && okC ? (1 - u) * sa + u * sc : okA ? sa : sc;
-        out[y * w + x] += m * s;
+        const s = okA && okC ? (1 - u) * ma * sa + u * mc * sc : okA ? ma * sa : mc * sc;
+        out[y * w + x] += s;
       }
     }
   }

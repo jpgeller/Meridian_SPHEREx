@@ -49,11 +49,15 @@ def round5(v: float) -> float:
 
 
 MAX_PER_VISIT_DETECTOR = 4
+# Single-band mode loads EVERY frame of the band (not one per visit): cache it for the band the app
+# opens with (40, the default) and for 92 (D6, ~4.6 um, like WISE W2: the brown-dwarf band).
+SINGLE_BANDS = (40, 92)
+FOLD = {0: 1, 50: 49, 51: 52}  # blank HiPS frames fold onto neighbours, as displayBand() in web/src/field/frames.js
 
 
 def per_visit_band(frames: list[dict], max_per_group: int = MAX_PER_VISIT_DETECTOR) -> list[dict]:
     """Mirror of web/src/field/sequence.js capPerVisitBand (keep both in sync)."""
-    fold = {0: 1, 50: 49, 51: 52}
+    fold = FOLD
     seen, per_band = set(), []
     for f in sorted(frames, key=lambda f: -f["mjd"]):
         key = (f["visit"], fold.get(f.get("band"), f.get("band")))
@@ -80,8 +84,20 @@ def warm_target(label: str, name: str) -> dict:
     ra, dec = round5(pos["ra"]), round5(pos["dec"])
     print(f"\n== {label}: {name} -> {ra:.5f}, {dec:.5f}", flush=True)
     meta = spherex.frames_with_meta(ra, dec)
-    frames = [f for f in meta["frames"] if f.get("inside") and not f.get("error")]
+    # the same frames the web app can use (sequence.js `usable` / frames.js framesForBand): a frame
+    # without a band would take a slot in the per-detector spread and shift which frames are picked
+    frames = [f for f in meta["frames"] if f.get("inside") and not f.get("error") and f.get("band") is not None]
+    # Pick exactly as the player does for each mode. Neighbouring detectors overlap in wavelength,
+    # so a D5 frame can share a band number with a D6 one: picking over all detectors at once
+    # takes different frames from detector mode, which only looks at its own detector.
     wanted = {f["id"]: f for f in per_visit_band(frames)}
+    for d in range(1, 7):  # detector mode
+        wanted.update({f["id"]: f for f in per_visit_band([f for f in frames if f["detector"] == d])})
+    # the default colour mix (state.js rgb: D6, D4, D2)
+    wanted.update({f["id"]: f for f in per_visit_band([f for f in frames if f["detector"] in (6, 4, 2)])})
+    for f in frames:
+        if FOLD.get(f["band"], f["band"]) in SINGLE_BANDS:
+            wanted[f["id"]] = f
     for f in spectra._select(frames, spectra.PER_BAND):
         wanted[f["id"]] = f
     todo = [f for f in wanted.values() if not cutouts.is_processed(f, ra, dec, FOV)]
@@ -136,8 +152,14 @@ def warm_target(label: str, name: str) -> dict:
     except Exception as err:
         print(f"   ! Gaia: {err}", flush=True)
         n_gaia = 0
+    try:  # moving objects for the change video (Gaia DR3 + CatWISE2020)
+        import movers
+        n_movers = len(movers.field_movers(ra, dec, FOV)["movers"])
+    except Exception as err:
+        print(f"   ! movers: {err}", flush=True)
+        n_movers = 0
     took = time.time() - t0
-    print(f"   done in {took:.0f}s: WISE epochs {n_wise}, Gaia stars {n_gaia}, failed cutouts {failed}", flush=True)
+    print(f"   done in {took:.0f}s: WISE epochs {n_wise}, Gaia stars {n_gaia}, movers {n_movers}, failed cutouts {failed}", flush=True)
     return {"target": label, "ra": ra, "dec": dec, "cutouts": len(wanted), "failed": failed, "wise": n_wise, "gaia": n_gaia}
 
 

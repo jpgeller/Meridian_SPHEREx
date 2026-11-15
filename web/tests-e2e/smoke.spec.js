@@ -148,14 +148,12 @@ test('a cached field opens its time-lapse', async ({ page }) => {
   expect(errors()).toEqual([]);
 });
 
-test('zooming in replaces the blocky all-sky tiles with the full-resolution layer', async ({ page }) => {
-  test.setTimeout(240_000);
-  await page.goto('/?ra=269.44627&dec=4.7682&fov=0.3&band=37');
+test('zooming in keeps the same all-sky images everywhere (full-resolution layer is off)', async ({ page }) => {
+  await page.goto('/?ra=269.44627&dec=4.7682&fov=0.3&band=37&color=grey');
   await ready(page);
-  await expect(page.locator('#status')).toContainText('Full-resolution SPHEREx', { timeout: 200_000 });
-  // zooming back out removes it
-  await page.evaluate(() => meridian.run('set_projection', { proj: 'AIT' }));
-  await expect(page.locator('#status')).not.toContainText('Full-resolution SPHEREx ·', { timeout: 10_000 });
+  await page.waitForTimeout(2000);
+  await expect(page.locator('#status')).not.toContainText('Full-resolution');
+  expect(await page.evaluate(() => meridian.commands.list().some((c) => c.name === 'toggle_native'))).toBe(false);
 });
 
 test('three view types: globe, planetarium and whole sky', async ({ page }) => {
@@ -251,7 +249,9 @@ test('change video: WISE 0855 found and tracked; real dates and model frames are
   const caption = page.locator('#player-caption');
   await expect(caption).toContainText(/Moving: CatWISE2020 object at 8\.\d″\/yr/, { timeout: 180_000 });
   await expect(page.locator('#video-badge')).toBeVisible();
-  await page.keyboard.press(' '); // pause
+  await expect(caption).toContainText('Steady background'); // the default: still stars stay still
+  await page.getByRole('checkbox', { name: 'Steady background' }).uncheck(); // each real image as it is
+  await page.locator('#p-play').click(); // pause (Space on the focused checkbox would tick it again)
   await page.keyboard.press('.'); // next real image
   await expect(caption).toContainText('Real image');
   await expect(page.locator('#video-badge')).toHaveText(/^REAL/);
@@ -794,4 +794,23 @@ test('guide endpoint: the fallback marker or a failed call plays the local scrip
   await page.waitForTimeout(1800);
   await expect(card).toBeHidden(); // the late reply is ignored
   expect(errors().filter((e) => !/HTTP 500 .*\/api\/guide/.test(e))).toEqual([]);
+});
+
+test('side by side with Gaia: a picture drawn from the catalogue, clearly labelled', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?ra=269.44627&dec=4.7682&fov=0.5&band=92&view=field&ffov=0.1&mode=detector');
+  await ready(page);
+  await expect(page.locator('.epoch')).toHaveCount(5, { timeout: 60_000 });
+  await page.getByRole('radio', { name: 'Side by side with Gaia' }).click();
+  await expect(page).toHaveURL(/compare=gaia/);
+  const label = page.locator('#wise-label');
+  await expect(label).toContainText('drawn from the catalogue, not a photograph', { timeout: 60_000 });
+  await expect(label).toContainText(/\d+ stars at .*2025/);
+  await expect(page.locator('#gaia-canvas')).toBeVisible();
+  await expect(page.locator('#wise-img')).toBeHidden();
+  expect(Number(await page.locator('#gaia-canvas').getAttribute('data-drawn'))).toBeGreaterThan(100);
+  await page.getByRole('radio', { name: 'Side by side with WISE' }).click();
+  await expect(page.locator('#wise-img')).toBeVisible();
+  await expect(page.locator('#gaia-canvas')).toBeHidden();
+  expect(errors()).toEqual([]);
 });

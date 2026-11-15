@@ -7,7 +7,7 @@ export const VIEWS = ['sky', 'field'];
 // SIN: 3D globe · STG: planetarium (stereographic, shapes kept as they move) · AIT: whole sky (Gaia style)
 export const PROJECTIONS = ['SIN', 'STG', 'AIT'];
 export const MODES = ['single', 'detector', 'rgb', 'custom'];
-export const COMPARES = ['off', 'side', 'timeline', 'blink'];
+export const COMPARES = ['off', 'side', 'timeline', 'blink', 'gaia'];
 // Operations on SPHEREx frames of different dates (field view)
 export const OPS = ['none', 'blink', 'add', 'subtract', 'trail', 'video'];
 export const LAYERS = ['gaia', 'wise', 'flags', 'simbad'];

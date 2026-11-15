@@ -46,6 +46,7 @@ export const field = createFieldView(document.querySelector('#field-root'), {
   getWavelengths: () => sky.wavelengths,
 });
 const player = createPlayer(field.stage, { store, commands });
+window.meridian.player = player; // debugging and tests
 createContext(player, { store, commands });
 const spectrum = createSpectrum(player, { store, commands });
 window.guide = createGuide({ store, commands, sky, player, spectrum, gaze: gazeParam }); // UI plan: registry (U2), overlay, pop-up, runner, attention…

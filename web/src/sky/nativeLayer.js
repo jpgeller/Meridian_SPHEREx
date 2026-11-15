@@ -14,6 +14,11 @@ import { mixBands, tintColormap } from './colorViews.js';
 
 export { CELL };
 
+// Switched OFF (15 Nov 2026): only the patches near where you zoom are sharp, so they look different
+// from the rest of the map (e.g. Barnard's Star in grey). Turn on again when the whole sky can be
+// served at this quality (see BUILD_PLAN, Optional: sharp tile level for the whole sky).
+export const NATIVE_LAYER_ENABLED = false;
+
 export const NATIVE_SHOW_FOV = 1.5; // degrees: below this the full-resolution layer is shown
 const MAX_CELLS = 9;
 const PARALLEL = 2; // patches built at once (each downloads several images)

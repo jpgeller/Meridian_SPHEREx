@@ -9,7 +9,7 @@ import A from 'aladin-lite';
 import { parseCoordinates } from '../core/coords.js';
 import { SPHEREX_HIPS, loadWavelengths, waitForLayer, showBand } from './spherexCube.js';
 import { PRESETS, presetById, presetForText } from './presets.js';
-import { createNativeLayer } from './nativeLayer.js';
+import { createNativeLayer, NATIVE_LAYER_ENABLED } from './nativeLayer.js';
 import { createColorViews } from './colorViews.js';
 import { createLevels } from './levels.js';
 import { createSkyCoords } from './skyCoords.js';
@@ -150,7 +150,8 @@ export async function createSky(container, { store, commands, onStatus = () => {
   sky.levels = createLevels(aladin, { store });
 
   // Sharper than the all-sky tiles when zoomed in (see nativeLayer.js)
-  sky.native = createNativeLayer(aladin, { store, commands, onStatus });
+  // Off for now (NATIVE_LAYER_ENABLED): it only sharpens the patch you zoom into.
+  sky.native = NATIVE_LAYER_ENABLED ? createNativeLayer(aladin, { store, commands, onStatus }) : null;
 
   return sky;
 }
