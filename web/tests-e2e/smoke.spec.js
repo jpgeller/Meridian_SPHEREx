@@ -300,3 +300,44 @@ test('overlays: world2pix / pix2world in every view, in the page and through the
   await page.mouse.up();
   await expect.poll(() => page.evaluate(() => meridian.store.get().dec)).toBeGreaterThan(-45); // was -57.9 (wrong frame)
 });
+
+test('guide registry: controls and sky objects have screen positions, null when off screen', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?ra=269.45&dec=4.74&fov=20');
+  await ready(page);
+  // a detector button: its real box
+  const d6 = await page.evaluate(() => {
+    const b = document.querySelector('[data-guide="band-d6"]').getBoundingClientRect();
+    return { r: guide.resolve('band-d6'), b: { x: b.left, y: b.top, w: b.width, h: b.height } };
+  });
+  expect(d6.r.rect).toEqual(d6.b);
+  expect(await page.evaluate(() => guide.targetAt(guide.resolve('band-d6').x, guide.resolve('band-d6').y))).toBe('band-d6');
+  expect(await page.evaluate(() => guide.resolve('face-panel'))).toBeNull(); // hidden until U8
+  expect(await page.evaluate(() => guide.resolve('colour:D6'))).not.toBeNull();
+  // Barnard's Star near the middle of the view (the name lookup runs in the background)
+  await expect.poll(() => page.evaluate(() => guide.resolve('sky:barnard')), { timeout: 15000 }).not.toBeNull();
+  const b = await page.evaluate(() => ({ p: guide.resolve('sky:barnard'), w: innerWidth, h: innerHeight }));
+  expect(Math.abs(b.p.x - b.w / 2)).toBeLessThan(60);
+  expect(Math.abs(b.p.y - b.h / 2)).toBeLessThan(60);
+  expect(await page.evaluate(({ x, y }) => guide.targetAt(x, y, 48), b.p)).toBe('sky:barnard');
+  // the other side of the sky: Barnard's Star is not on screen
+  await page.evaluate(() => meridian.run('fly_to', { target: '89.45 -4.74', fov: 20 }).value);
+  await expect.poll(() => page.evaluate(() => guide.resolve('sky:barnard'))).toBeNull();
+  expect(await page.evaluate(() => guide.resolve('sky:target'))).not.toBeNull();
+  expect(errors()).toEqual([]);
+});
+
+test('guide registry: in the field view the target sits in the middle of the image', async ({ page }) => {
+  await page.goto('/?ra=133.7578&dec=-7.242&fov=0.5&band=92&view=field&ffov=0.1&mode=detector');
+  await ready(page);
+  await expect(page.locator('#player-caption')).toContainText('Detector D6', { timeout: 60_000 });
+  const r = await page.evaluate(() => {
+    const b = document.querySelector('#frame-canvas').getBoundingClientRect();
+    return { t: guide.resolve('field:target'), cx: b.left + b.width / 2, cy: b.top + b.height / 2, player: guide.resolve('time-player') };
+  });
+  expect(Math.abs(r.t.x - r.cx)).toBeLessThan(1);
+  expect(Math.abs(r.t.y - r.cy)).toBeLessThan(1);
+  expect(r.player).not.toBeNull();
+  expect(await page.evaluate(({ x, y }) => guide.targetAt(x, y), r.t)).toBe('field:target');
+  expect(await page.evaluate(() => guide.resolve('band-d6'))).toBeNull(); // the sky controls are hidden here
+});

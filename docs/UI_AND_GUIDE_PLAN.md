@@ -113,7 +113,7 @@ At 1280×800 the tools column scrolls (brightness is below the fold); at 1440×9
 
 ---
 
-## Step U2 — Target registry  `[ ]`  P0
+## Step U2 — Target registry  `[x]`  P0
 **Files:** `web/src/guide/registry.js` (new), `web/tests/registry.test.js`, tiny hooks in `sky/sky.js` and `field/player.js`
 
 `resolve(id) → { x, y, r } | { rect } | null` in viewport pixels, and `targetAt(x, y) → id | null`.
@@ -132,6 +132,19 @@ Rules: resolve every frame (the sky moves); return `null` instead of throwing; n
 
 **Done when:** unit tests cover DOM ids and the pixel maths; in the console, `guide.resolve('band-d6')` and
 `guide.resolve('sky:barnard')` return sensible positions, and `null` when Barnard's Star is off screen.
+
+Progress (Nov 14): `guide/registry.js` (pure, everything injected) + `guide/index.js` (`window.guide = { resolve, targetAt, list }`,
+set up in `main.js`). Answers are viewport px: points `{x, y, r}`, elements `{x, y, rect}` (the centre is included so the
+pointer can aim at either). Ids: every `data-guide`, `sky:<preset id>`, `sky:target`, `field:target`, `field:mover:<n>`,
+`colour:D1…D6`, `colour:<band>` (the ribbon tick), `colour:trail`. Sky positions use `sky.coords.world2pix` (the existing
+wrapper; Aladin's own is broken in 3.8.2). Name presets are looked up once through `/api/resolve`; every successful `fly_to`
+also teaches the registry (the target is the view centre right after it), so it works with the API down. A sky object
+behind a panel counts as off screen (`elementFromPoint`). In the field view `sky:*` resolve onto the image, but `list()` and
+`targetAt` name those spots `field:*` (no duplicates on one spot). `targetAt`: a point's circle beats the box under it,
+then the smallest box, then the nearest within the pad (the 48 px catch radius of U6). Hooks in `field/player.js`:
+`data-guide="time-player"` / `"trail-legend"`, `getGeometry()` (shown frame's centre, ″/px, date) and `getMovers()`.
+No hook in `sky/sky.js` was needed. `npm test` 52/52 (10 new), `test:e2e` 15/15 (2 new). The first full e2e run had one
+failure in "a cached field opens its time-lapse" that did not come back in 8 more runs (probably the known cold-start race).
 
 ---
 

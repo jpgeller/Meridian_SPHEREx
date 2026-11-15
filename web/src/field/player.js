@@ -31,7 +31,7 @@ const shortDate = (iso) =>
 
 export function createPlayer(stage, { store, commands }) {
   stage.innerHTML = `
-    <div class="player">
+    <div class="player" data-guide="time-player">
       <div class="player-view">
         <div class="canvas-wrap">
           <canvas id="frame-canvas" role="img" aria-label="No frame loaded"></canvas>
@@ -44,7 +44,7 @@ export function createPlayer(stage, { store, commands }) {
       <div class="video-line" id="video-line" hidden aria-hidden="true">
         <span id="video-from"></span><div class="video-track" id="video-track"><div class="video-head" id="video-head"></div></div><span id="video-to"></span>
       </div>
-      <div class="trail-legend" id="trail-legend" hidden aria-hidden="true">
+      <div class="trail-legend" id="trail-legend" data-guide="trail-legend" hidden aria-hidden="true">
         <span id="trail-from"></span><div class="trail-bar" id="trail-bar"></div><span id="trail-to"></span>
       </div>
       <div class="player-bar" role="group" aria-label="Compare dates">
@@ -678,6 +678,17 @@ export function createPlayer(stage, { store, commands }) {
     getStretch: () => stretch,
     getShownFrame: () => shownFrame,
     onShow: (fn) => showListeners.push(fn),
+    // For the guide's target registry (guide/registry.js): where the shown image sits on the sky.
+    // Aligned frames (trail, video with WISE) cover the same patch on finer pixels, hence the ratio.
+    getGeometry: () => {
+      if (!shownFrame || !seq.length) return null;
+      const s = store.get();
+      const iso = shownFrame.meta?.date_iso;
+      const mjd = iso ? Date.parse(iso) / 864e5 + 40587 : shownFrame.meta?.mjd;
+      const scale = SPHEREX_PIXEL_ARCSEC * (seq[0].w / (shownFrame.w || seq[0].w));
+      return { ra0: s.ra, dec0: s.dec, scale, w: shownFrame.w, h: shownFrame.h, mjd };
+    },
+    getMovers: () => movers.list, // { movers: [{ id, ra, dec, pmra, pmdec, ... }], epoch_mjd } or null
     elements: {
       view: stage.querySelector('.player-view'),
       canvasWrap: stage.querySelector('.canvas-wrap'),

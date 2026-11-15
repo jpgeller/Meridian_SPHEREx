@@ -8,6 +8,7 @@ import { createFieldView } from './field/fieldView.js';
 import { createPlayer } from './field/player.js';
 import { createContext } from './field/context.js';
 import { createSpectrum } from './field/spectrum.js';
+import { createGuide } from './guide/index.js';
 
 const statusEl = document.querySelector('#status');
 const { name: urlName } = startCore();
@@ -43,6 +44,7 @@ export const field = createFieldView(document.querySelector('#field-root'), {
 const player = createPlayer(field.stage, { store, commands });
 createContext(player, { store, commands });
 createSpectrum(player, { store, commands });
+window.guide = createGuide({ store, sky, player }); // UI plan: registry (U2), overlay, pop-up…
 store.subscribe(() => renderStatus());
 
 if (urlName) run('fly_to', { target: urlName, fov: store.get().fov < 5 ? store.get().fov : undefined }, 'url');
