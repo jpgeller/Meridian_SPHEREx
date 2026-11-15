@@ -179,7 +179,7 @@ shapes. `npm test` 62/62 (10 new), `test:e2e` 18/18 (3 new).
 
 ---
 
-## Step U4 — Pop-up card  `[ ]`  P0
+## Step U4 — Pop-up card  `[x]`  P0
 **Files:** `web/src/guide/popup.js` (new), CSS
 
 One small card at the top right (Siri-like). Two kinds:
@@ -192,6 +192,26 @@ One small card at the top right (Siri-like). Two kinds:
 - Offers are **local**: no API call until the person says yes.
 
 **Done when:** `guide.offer({ text, onYes })` and `guide.say(step)` render and dismiss correctly, and Tab/Esc work.
+
+Progress (Nov 14): `guide/popup.js` (pure helpers exported and unit-tested, DOM card below them); `window.guide` gains
+`offer / say / dismiss` and `guide.popup` (`isOpen()`, `kind()`, `setAutoHide(bool)` for gaze mode, `cooldown` with
+`isCooling(key) / remaining / mark / clear`, `element`). **`offer({ text, onYes, onNo?, target?, key? })` returns a promise**:
+`'yes' | 'no' | 'timeout' | 'dismissed'` (Esc) `| 'replaced'`, or, without showing anything, `'cooling'` (same key inside 60 s)
+or `'busy'` (a card is already open: offers never push a step away). Cool-down key = `target`, else `key`, else the text; it
+starts on **every** outcome, Yes included (so a person still looking at the star after the explanation is not asked again).
+**`say(step)`**, step = text or `{ say, answers?, target? }`, returns a promise of the answer id: `answers` take ids or labels
+(`got_it` "Got it", `more` "Show me more", `close` "Close", or any label → its slug), 1 to 3, default "Got it"; Esc → `'close'`;
+a newer `say` resolves the old one with `'replaced'` (the U5 runner just awaits each step). Text cut at 45 words with "…".
+Steps never auto-hide; offers hide after 12 s, paused while the mouse or the keyboard focus is on the card. **Shrink rule:**
+a step whose full card would touch the sky's centre (a disc of 10% of the short side; in the field view, around
+`field:target`) or its `target` (24 px pad) goes to the offer form: one line with an ellipsis (full text in `title` and
+in the live region), re-checked every 250 ms. For that check only, the registry looks through the card (a star behind it
+is otherwise "covered", as in U2). Place: fixed top right, `z-index: 50`, width `--popup-w` 340 px; in the field view 72 px
+down so the "Back to sky" button stays free. The card is the first element in `<body>` (first Tab stop when open); focus is
+not stolen when it appears, but an answer given from the keyboard keeps the focus in the card for the next step, and it
+returns to where it was when the card closes. Esc is caught in the capture phase, so it closes the card and not the field
+view. Words go to a separate always-present `role="status"` live region ("Guide: …"). Answer buttons are 64 px high.
+Reduced motion: no slide/fade. No API call anywhere in the card. `npm test` 68/68 (6 new), `test:e2e` 21/21 (3 new).
 
 ---
 

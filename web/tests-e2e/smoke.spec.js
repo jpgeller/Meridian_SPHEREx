@@ -427,3 +427,126 @@ test('guide overlay: reduced motion jumps straight to the target', async ({ page
   expect(Math.abs(tip.x - s.x)).toBeLessThan(1); // on the bottom edge: the search box is at the top
   expect(tip.y).toBeGreaterThan(s.rect.y + s.rect.h - 12);
 });
+
+test('guide pop-up: an offer is first in the Tab order, Esc dismisses it, the same target waits 60 s', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?ra=269.45&dec=4.74&fov=20');
+  await ready(page);
+  const card = page.locator('[data-guide="guide-popup"]');
+  await expect(card).toBeHidden();
+  await page.evaluate(() => {
+    window.__offer = guide.offer({ text: 'Want help identifying this?', target: 'sky:barnard', onNo: (r) => (window.__no = r) });
+  });
+  await expect(card).toBeVisible();
+  await expect(card).toContainText('Want help identifying this?');
+  await expect(page.locator('[role="status"][aria-live="polite"]').filter({ hasText: 'Guide:' })).toHaveText('Guide: Want help identifying this?');
+  expect(await page.evaluate(() => [guide.popup.isOpen(), guide.popup.kind()])).toEqual([true, 'offer']);
+  // top right, above the overlay
+  const b = await card.boundingBox();
+  expect(b.x + b.width).toBeGreaterThan(1200);
+  expect(b.y).toBeLessThan(40);
+  expect(await card.evaluate((el) => +getComputedStyle(el).zIndex)).toBeGreaterThanOrEqual(50);
+  // Tab from the page reaches Yes, then No thanks (real buttons)
+  await page.keyboard.press('Tab');
+  expect(await page.evaluate(() => document.activeElement.dataset.answer)).toBe('yes');
+  await page.keyboard.press('Tab');
+  expect(await page.evaluate(() => [document.activeElement.tagName, document.activeElement.textContent])).toEqual(['BUTTON', 'No thanks']);
+  // Esc closes the card (a decline) and gives the focus back
+  await page.keyboard.press('Escape');
+  await expect(card).toBeHidden();
+  expect(await page.evaluate(() => window.__offer)).toBe('dismissed');
+  expect(await page.evaluate(() => window.__no)).toBe('dismissed');
+  expect(await page.evaluate(() => document.activeElement.closest('[data-guide="guide-popup"]'))).toBeNull();
+  // the same target is not offered again inside the cool-down; another one is
+  expect(await page.evaluate(() => guide.offer({ text: 'Again?', target: 'sky:barnard' }))).toBe('cooling');
+  await expect(card).toBeHidden();
+  await page.evaluate(() => {
+    window.__second = guide.offer({ text: 'Wondering about these colours?', target: 'band-ribbon' });
+  });
+  await expect(card).toContainText('colours');
+  // while one card is open, a new offer is refused
+  expect(await page.evaluate(() => guide.offer({ text: 'Third', target: 'search' }))).toBe('busy');
+  await card.getByRole('button', { name: 'No thanks' }).click();
+  expect(await page.evaluate(() => window.__second)).toBe('no');
+  expect(errors()).toEqual([]);
+});
+
+test('guide pop-up: Yes opens a step, answers resolve say(), a step over its target shrinks, Esc beats "back to sky"', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?ra=269.45&dec=4.74&fov=20');
+  await ready(page);
+  const card = page.locator('[data-guide="guide-popup"]');
+  await page.evaluate(() => {
+    window.__answer = null;
+    guide.offer({
+      text: 'Want help identifying this?',
+      target: 'sky:barnard',
+      onYes: () =>
+        guide.say({ say: "Barnard's Star is a red dwarf about six light-years away.", answers: ['got_it', 'more', 'close'] }).then((a) => (window.__answer = a)),
+    });
+  });
+  // keyboard only: Tab, Enter on Yes -> the step keeps the focus on its first answer
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  await expect(card).toContainText('red dwarf');
+  await expect(card.locator('button')).toHaveText(['Got it', 'Show me more', 'Close']);
+  expect(await page.evaluate(() => guide.popup.kind())).toBe('step');
+  await expect.poll(() => page.evaluate(() => document.activeElement.dataset.answer)).toBe('got_it');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  await expect(card).toBeHidden();
+  expect(await page.evaluate(() => window.__answer)).toBe('more');
+
+  // a step whose target sits under the card shrinks to one line; one elsewhere stays full
+  await page.evaluate(() => {
+    const el = document.createElement('div');
+    el.dataset.guide = 'test-under-card';
+    el.style.cssText = 'position:fixed; top:60px; right:40px; width:60px; height:40px;';
+    document.body.append(el);
+  });
+  const long = 'SPHEREx takes one picture of each spot at a time, and over months it builds a spectrum in 102 colours.';
+  page.evaluate((say) => guide.say({ say, target: 'band-d1' }), long);
+  await expect(card).toBeVisible();
+  await expect(card).not.toHaveClass(/is-compact/);
+  const full = (await card.boundingBox()).height;
+  page.evaluate((say) => guide.say({ say, target: 'test-under-card' }), long);
+  await expect(card).toHaveClass(/is-compact/);
+  expect((await card.boundingBox()).height).toBeLessThan(full - 20);
+  await expect(card.locator('.gp-text')).toHaveAttribute('title', long);
+  await page.evaluate(() => guide.dismiss());
+  await expect(card).toBeHidden();
+
+  // in the field view, Esc closes the card first; the next Esc goes back to the sky
+  await page.evaluate(() => meridian.run('go_preset', { id: 'wise_0855' }).value);
+  await page.evaluate(() => meridian.run('set_field_fov', { fov: 0.1 }));
+  await page.evaluate(() => meridian.store.set({ view: 'field' }, 'test'));
+  await expect(page.locator('#field')).toBeVisible();
+  await page.evaluate(() => {
+    window.__fieldAnswer = guide.say('This is the time-lapse.');
+  });
+  await expect(card).toBeVisible();
+  // it does not hide the field view's "Back to sky" button
+  const close = await page.locator('#field-close').boundingBox();
+  const cb = await card.boundingBox();
+  expect(cb.y).toBeGreaterThan(close.y + close.height);
+  await page.keyboard.press('Escape');
+  await expect(card).toBeHidden();
+  expect(await page.evaluate(() => window.__fieldAnswer)).toBe('close');
+  await expect(page.locator('#field')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#field')).toBeHidden();
+  expect(errors()).toEqual([]);
+});
+
+test('guide pop-up: a step about a star under the card shrinks; the registry still sees the star for it', async ({ page }) => {
+  // Barnard's Star lands under the top-right card at this view
+  await page.goto('/?ra=276.7&dec=0.3&fov=20');
+  await ready(page);
+  await expect.poll(() => page.evaluate(() => guide.resolve('sky:barnard')), { timeout: 15000 }).not.toBeNull();
+  await page.evaluate(() => {
+    guide.say({ say: 'Barnard’s Star moves across the sky faster than any other star: about the width of the full Moon every 180 years.', target: 'sky:barnard' });
+  });
+  await expect(page.locator('[data-guide="guide-popup"]')).toHaveClass(/is-compact/);
+  // for everyone else (gaze, overlay) a star behind the card is covered, as before
+  expect(await page.evaluate(() => guide.resolve('sky:barnard'))).toBeNull();
+});
