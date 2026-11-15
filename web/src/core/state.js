@@ -13,6 +13,8 @@ export const OPS = ['none', 'blink', 'add', 'subtract', 'trail', 'video'];
 export const LAYERS = ['gaia', 'wise', 'flags', 'simbad'];
 // Colour views of the full map: one band in grey or tinted, or a false-colour mix of three bands
 export const COLORS = ['grey', 'tint', 'ir', 'dust', 'ice', 'custom'];
+// Input modes (UI plan U9): mouse/keyboard only, gaze helps the guide, full gaze control (dwell presses buttons)
+export const INPUTS = ['mouse', 'assist', 'gaze'];
 
 export const FOV_MIN = 0.01; // degrees
 export const FOV_MAX = 360;
@@ -42,6 +44,7 @@ export const DEFAULTS = Object.freeze({
   op: 'none',
   t: [], // selected epochs (frame indexes) for blink/add/subtract
   layers: [],
+  input: 'mouse', // INPUTS; how eye tracking is used (web/src/input/)
 });
 
 // Positions are kept to 5 decimals (0.04″): the API caches by 5-decimal keys, so a shared URL
@@ -66,6 +69,7 @@ export function sanitize(patch, current = DEFAULTS) {
       case 'compare': COMPARES.includes(v) ? (out.compare = v) : warn(k, v); break;
       case 'op': OPS.includes(v) ? (out.op = v) : warn(k, v); break;
       case 'color': COLORS.includes(v) ? (out.color = v) : warn(k, v); break;
+      case 'input': INPUTS.includes(v) ? (out.input = v) : warn(k, v); break;
       case 'mix': {
         // three real bands (blank frames 0, 50, 51 have no all-sky tiles)
         const ok = Array.isArray(v) && v.length === 3 && v.every((b) => Number.isInteger(b) && b >= 1 && b <= 101 && b !== 50 && b !== 51);
