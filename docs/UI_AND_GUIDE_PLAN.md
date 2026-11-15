@@ -187,7 +187,7 @@ One small card at the top right (Siri-like). Two kinds:
   if ignored (not in gaze mode, see U9), and does not come back for the same target for 60 s.
 - **Step:** the explanation text (max about 40 words), plus 1 to 3 answer buttons ("Got it", "Show me more", "Close").
 - No text input, no history, no repeat button, no voice (for now).
-- Must not cover the centre of the sky or the thing being explained: if it would, shrink to the offer form.
+- Must not cover the centre of the sky or the thing being explained: if it would, move to another spot (never shrink).
 - `role="status"`/`aria-live="polite"`, every button reachable with Tab, Esc dismisses.
 - Offers are **local**: no API call until the person says yes.
 
@@ -212,6 +212,12 @@ not stolen when it appears, but an answer given from the keyboard keeps the focu
 returns to where it was when the card closes. Esc is caught in the capture phase, so it closes the card and not the field
 view. Words go to a separate always-present `role="status"` live region ("Guide: …"). Answer buttons are 64 px high.
 Reduced motion: no slide/fade. No API call anywhere in the card. `npm test` 68/68 (6 new), `test:e2e` 21/21 (3 new).
+**Update (Nov 14): the card moves instead of shrinking** (sighted users kept losing the text). Pure `spotRects()` +
+`chooseSpot(candidates, avoid, current)`: first clear spot of top right → top left (x 12, y `--left-top`, over the places
+column, clear of Aladin's buttons and the search bar) → above the dock right (left of the tools column) → above the dock left;
+field view: top right (72 px down) → right / left of the image. Avoids the centre zone, the target (24 px pad) and, at a
+quarter weight, the hand-off button; least overlap when nothing is clear. It stays put while its spot is clear (no jitter),
+slides 0.25 s (jumps with reduced motion), and `guide.popup.spot()` says where it is; the overlay's label also avoids the card.
 
 ---
 

@@ -34,18 +34,25 @@ export function createGuide({ store, commands, sky, player }) {
     events: window,
   });
   const overlay = createOverlay({ locate: registry.locate, doc: document, events: window });
+  // the pop-up asks "would I cover this?": for that question it looks through itself
+  const throughCard = (fn) => {
+    throughPopup = true;
+    try {
+      return fn();
+    } finally {
+      throughPopup = false;
+    }
+  };
   popup = createPopup({
     doc: document,
-    resolve: (id) => {
-      throughPopup = true;
-      try {
-        return registry.resolve(id);
-      } finally {
-        throughPopup = false;
-      }
-    },
+    resolve: (id) => throughCard(() => registry.resolve(id)),
     // the middle of the sky: in the field view, the target in the middle of the image
-    getCentre: () => (store.get().view === 'field' ? registry.resolve('field:target') : null),
+    getCentre: () => (store.get().view === 'field' ? throughCard(() => registry.resolve('field:target')) : null),
+    // the zoomed-in hand-off button: better not covered, but less important than the target
+    getAvoid: () => {
+      const b = document.querySelector('.handoff')?.getBoundingClientRect();
+      return b?.width > 0 ? [{ rect: { x: b.left, y: b.top, w: b.width, h: b.height }, weight: 0.25 }] : [];
+    },
   });
   const runner = createRunner({
     say: popup.say,

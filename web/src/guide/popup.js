@@ -9,9 +9,13 @@
 //        The explanation (about 40 words) + 1 to 3 answer buttons. answers: ids or labels, e.g.
 //        ['got_it', 'more', 'close'] -> "Got it" / "Show me more" / "Close" (default: ['got_it']).
 //        Resolves with the id pressed, 'close' for Esc, 'replaced' when a newer card takes its place.
-//        Steps never auto-hide. If the full card would cover the sky's centre or `target`, it shrinks
-//        to the offer form (one line + the buttons; screen readers still get the whole text).
-//   dismiss(reason?)  isOpen()  kind() -> 'offer'|'step'|null  setAutoHide(bool)  cooldown
+//        Steps never auto-hide.
+//   dismiss(reason?)  isOpen()  kind() -> 'offer'|'step'|null  spot()  setAutoHide(bool)  cooldown
+//
+// Placement: the card sits top right, and moves (it never shrinks) when it would cover the sky's
+// centre, its `target` or the hand-off button: to the first clear spot of top right, top left,
+// above the dock on the right, above the dock on the left (never the bottom-right corner: Aladin's
+// logo). Re-checked every 250 ms; it moves only when its own spot becomes blocked (no jitter).
 //
 // Every button is a real <button>; Tab reaches them (the card is the first thing in the page),
 // Esc closes the card before anything else hears the key. The words go through an aria-live region.
@@ -24,7 +28,8 @@ export const MAX_WORDS = 45; // "about 40": longer steps are cut with an ellipsi
 export const MAX_ANSWERS = 3;
 export const ANSWERS = { got_it: 'Got it', more: 'Show me more', close: 'Close' };
 const LEAVE_MS = 160;
-const CHECK_MS = 250; // how often an open step re-checks what it covers
+const CHECK_MS = 250; // how often an open card re-checks what it covers
+export const TARGET_PAD = 24; // px around a point target (the pointer and ring sit there too)
 
 // --- pure helpers (unit-tested) --------------------------------------------------------
 
@@ -63,16 +68,68 @@ export function centreZone(viewport, centre) {
   return { x: c.x, y: c.y, r: Math.min(viewport.w, viewport.h) * 0.1 };
 }
 
+/** Area of `rect` that a shape's box (a circle's bounding square) covers. */
+function overlapArea(rect, s) {
+  const b = s.rect ?? { x: s.x - (s.r ?? 0), y: s.y - (s.r ?? 0), w: 2 * (s.r ?? 0), h: 2 * (s.r ?? 0) };
+  const ix = Math.max(0, Math.min(rect.x + rect.w, b.x + b.w) - Math.max(rect.x, b.x));
+  const iy = Math.max(0, Math.min(rect.y + rect.h, b.y + b.h) - Math.max(rect.y, b.y));
+  return ix * iy;
+}
+
 /**
- * Would a card at `rect` hide something that matters? `shapes`: registry answers ({x, y, r} or
- * {rect}) or null. A point target gets `pad` px around it (the pointer and ring sit there too).
+ * Where the card may go, in order of preference. -> [{ id, rect }]
+ * Sky: top right (default), top left (below Aladin's buttons, over the places column, clear of the
+ * search bar), above the dock on its right (left of the tools column) and on its left. Never the
+ * bottom-right corner (Aladin's logo). Field view: top right 72 px down (below "Back to sky"),
+ * then the right and left sides of the image, half way down.
+ * @param {Object} o  { viewport: {w, h}, size: {w, h}, field: bool, layout: { edge, leftTop, leftW,
+ *                    toolsW, dockTop, dockLeft, dockRight } }
  */
-export function wouldCover(rect, shapes, pad = 24) {
-  return shapes.some((s) => {
-    if (!s) return false;
-    if (s.rect) return hits(rect, s);
-    return hits(rect, { x: s.x, y: s.y, r: (s.r ?? 0) + pad });
-  });
+export function spotRects({ viewport, size, field = false, layout = {} }) {
+  const { w: vw, h: vh } = viewport;
+  const { w, h } = size;
+  const L = { edge: 12, leftTop: 116, leftW: 264, toolsW: 284, ...layout };
+  const e = L.edge;
+  const dockTop = L.dockTop ?? vh - e - 132;
+  const dockLeft = L.dockLeft ?? 2 * e + L.leftW;
+  const dockRight = L.dockRight ?? vw - 112;
+  const clampX = (x) => Math.max(e, Math.min(vw - e - w, x));
+  const clampY = (y) => Math.max(e, Math.min(vh - e - h, y));
+  const at = (id, x, y) => ({ id, rect: { x: clampX(x), y: clampY(y), w, h } });
+  if (field) {
+    const mid = (vh - h) / 2;
+    return [at('top-right', vw - 28 - w, 72), at('right', vw - 28 - w, mid), at('left', 28, mid)];
+  }
+  const aboveDock = dockTop - e - h;
+  return [
+    at('top-right', vw - e - w, e),
+    at('top-left', e, L.leftTop),
+    at('bottom-right', Math.min(dockRight, vw - 2 * e - L.toolsW) - w, aboveDock),
+    at('bottom-left', dockLeft, aboveDock),
+  ];
+}
+
+/**
+ * Pick the card's spot. `avoid`: shapes ({x, y, r} or {rect}, pads already added, optional
+ * `weight`). Keeps `current` while it is clear (hysteresis: no hopping to a "better" spot), else
+ * the first clear candidate, else the one with the least (weighted) overlap, preferring `current`
+ * on a tie. -> spot id, or null with no candidates.
+ */
+export function chooseSpot(candidates, avoid = [], current = null) {
+  const shapes = avoid.filter(Boolean);
+  const blocked = (c) => shapes.some((s) => hits(c.rect, s));
+  const cur = candidates.find((c) => c.id === current);
+  if (cur && !blocked(cur)) return cur.id;
+  const clear = candidates.find((c) => !blocked(c));
+  if (clear) return clear.id;
+  const score = (c) => shapes.reduce((t, s) => t + (s.weight ?? 1) * overlapArea(c.rect, s), 0);
+  let best = null;
+  for (const c of candidates) {
+    const sc = score(c);
+    if (!best || sc < best.sc) best = { id: c.id, sc };
+  }
+  if (cur && best && score(cur) <= best.sc) return cur.id;
+  return best?.id ?? null;
 }
 
 /**
@@ -145,8 +202,10 @@ export function createTimer(ms, onFire, { setTimer = setTimeout, clearTimer = cl
  * @param {Document} [o.doc]
  * @param {Function} [o.resolve]    id -> registry answer | null (to see what a step would cover)
  * @param {Function} [o.getCentre]  () -> {x, y} | null: the middle of the sky (default: the viewport's)
+ * @param {Function} [o.getAvoid]   () -> shapes the card should rather not cover (e.g. the hand-off
+ *                                  button), each with a `weight` (less than the target's 1)
  */
-export function createPopup({ doc = document, resolve = () => null, getCentre = () => null } = {}) {
+export function createPopup({ doc = document, resolve = () => null, getCentre = () => null, getAvoid = () => [] } = {}) {
   const win = doc.defaultView;
   const reduced = () => !!win.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   const cooldown = createCooldown();
@@ -168,7 +227,8 @@ export function createPopup({ doc = document, resolve = () => null, getCentre = 
   doc.body.prepend(live);
   doc.body.prepend(card);
 
-  let open = null; // { kind, resolve, key?, onYes?, onNo?, target?, fullH? }
+  let open = null; // { kind, resolve, key?, onYes?, onNo?, target? }
+  let spot = null; // where the card is: a spotRects id
   let autoHide = true;
   let leaveTimer = 0;
   let checkTimer = 0;
@@ -180,10 +240,11 @@ export function createPopup({ doc = document, resolve = () => null, getCentre = 
     win.clearTimeout(leaveTimer);
     const focusWasInside = handoff || card.contains(doc.activeElement);
     if (!open && !focusWasInside) returnFocus = doc.activeElement;
+    const fresh = card.hidden || card.classList.contains('is-leaving');
     card.hidden = false;
-    card.className = `guide-popup is-${kind}`;
+    // is-placed turns on the slide between spots; a card that was gone jumps into its first spot
+    card.className = `guide-popup is-${kind}${fresh ? '' : ' is-placed'}`;
     textEl.textContent = text;
-    textEl.title = '';
     answersEl.replaceChildren(
       ...answers.map((a, i) => {
         const b = doc.createElement('button');
@@ -200,29 +261,51 @@ export function createPopup({ doc = document, resolve = () => null, getCentre = 
     // the person was already answering the card: keep the keyboard in it
     if (focusWasInside) answersEl.querySelector('button')?.focus();
     win.clearInterval(checkTimer);
-    if (kind === 'step') {
-      open.fullH = card.getBoundingClientRect().height;
-      checkCover();
-      checkTimer = win.setInterval(checkCover, CHECK_MS);
+    if (fresh) spot = null; // a card that was gone starts again from the top right
+    place();
+    if (fresh) {
+      void card.offsetWidth; // commit the first spot before the slide transition is on
+      card.classList.add('is-placed');
     }
+    checkTimer = win.setInterval(place, CHECK_MS);
   }
 
-  /** A step that would hide the centre of the sky or its own target shrinks to the offer form. */
-  function checkCover() {
-    if (open?.kind !== 'step') return;
-    const b = card.getBoundingClientRect();
-    if (!(b.width > 0)) return;
-    const full = { x: b.left, y: b.top, w: b.width, h: open.fullH || b.height };
+  /** The page's layout, from the shell's CSS tokens and the dock's real box. */
+  function layout(vw, vh) {
+    const cs = win.getComputedStyle(doc.documentElement);
+    const v = (name, d) => parseFloat(cs.getPropertyValue(name)) || d;
+    const edge = v('--edge', 12);
+    const out = { edge, leftTop: v('--left-top', 116), leftW: v('--left-w', 264), toolsW: v('--tools-w', 284) };
+    const dock = doc.querySelector('[data-region="dock"]')?.getBoundingClientRect();
+    if (dock?.width > 0) Object.assign(out, { dockTop: dock.top, dockLeft: dock.left, dockRight: dock.right });
+    else Object.assign(out, { dockTop: vh - edge - v('--dock-h', 132), dockRight: vw - v('--logo-clear', 112) });
+    return out;
+  }
+
+  /** Move the card off the centre of the sky, its own target and the hand-off button (see chooseSpot). */
+  function place() {
+    if (!open) return;
+    const size = { w: card.offsetWidth, h: card.offsetHeight };
+    if (!(size.w > 0)) return;
     const viewport = { w: win.innerWidth, h: win.innerHeight };
-    let target = null;
-    try {
-      target = open.target ? resolve(open.target) : null;
-    } catch {
-      target = null;
-    }
-    const compact = wouldCover(full, [centreZone(viewport, getCentre()), target]);
-    card.classList.toggle('is-compact', compact);
-    textEl.title = compact ? textEl.textContent : '';
+    const safe = (fn) => {
+      try {
+        return fn();
+      } catch {
+        return null;
+      }
+    };
+    const target = open.target ? safe(() => resolve(open.target)) : null;
+    const pad = (s) => (s && !s.rect ? { x: s.x, y: s.y, r: (s.r ?? 0) + TARGET_PAD } : s);
+    const avoid = [centreZone(viewport, safe(getCentre)), pad(target), ...(safe(getAvoid) ?? [])];
+    const field = doc.body.classList.contains('field-open');
+    const spots = spotRects({ viewport, size, field, layout: layout(viewport.w, viewport.h) });
+    spot = chooseSpot(spots, avoid, spots.some((c) => c.id === spot) ? spot : null);
+    const r = spots.find((c) => c.id === spot)?.rect;
+    if (!r) return;
+    card.style.left = `${r.x}px`;
+    card.style.top = `${r.y}px`;
+    card.dataset.spot = spot;
   }
 
   function close(outcome) {
@@ -337,6 +420,7 @@ export function createPopup({ doc = document, resolve = () => null, getCentre = 
     dismiss: (reason = 'close') => close(reason),
     isOpen: () => !!open,
     kind: () => open?.kind ?? null,
+    spot: () => (open ? spot : null),
     setAutoHide,
     autoHide: () => autoHide,
     cooldown,

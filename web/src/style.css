@@ -988,8 +988,8 @@ body.field-open .handoff {
 }
 
 /* --- guide pop-up card (U4): top right, above the overlay. Offer = one line + Yes / No thanks;
-   step = the explanation + 1 to 3 answers. Shrinks to one line (is-compact) when it would cover
-   the middle of the sky or the thing being explained. --- */
+   step = the explanation + 1 to 3 answers. popup.js moves it (inline left/top) to another spot
+   when it would cover the middle of the sky or the thing being explained; is-placed slides it. --- */
 .guide-popup {
   position: fixed;
   z-index: 50; /* above the guide overlay (40) */
@@ -1007,11 +1007,16 @@ body.field-open .handoff {
   color: var(--text);
   animation: gp-in 0.22s ease-out both;
 }
+.guide-popup.is-placed {
+  transition:
+    left 0.25s ease,
+    top 0.25s ease; /* reduced motion: the global rule turns this off, so it jumps */
+}
 .guide-popup[hidden] {
   display: none;
 }
 body.field-open .guide-popup {
-  /* below the field view's "Back to sky" button, over the empty right side of its tool rows */
+  /* until popup.js places it: below the field view's "Back to sky" button */
   top: 72px;
   right: 28px;
 }
@@ -1034,8 +1039,7 @@ body.field-open .guide-popup {
   font-size: var(--fs-l);
   line-height: 1.4;
 }
-.guide-popup.is-offer .gp-text,
-.guide-popup.is-compact .gp-text {
+.guide-popup.is-offer .gp-text {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

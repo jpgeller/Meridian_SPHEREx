@@ -471,7 +471,7 @@ test('guide pop-up: an offer is first in the Tab order, Esc dismisses it, the sa
   expect(errors()).toEqual([]);
 });
 
-test('guide pop-up: Yes opens a step, answers resolve say(), a step over its target shrinks, Esc beats "back to sky"', async ({ page }) => {
+test('guide pop-up: Yes opens a step, answers resolve say(), a step over its target moves away, Esc beats "back to sky"', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto('/?ra=269.45&dec=4.74&fov=20');
   await ready(page);
@@ -497,7 +497,7 @@ test('guide pop-up: Yes opens a step, answers resolve say(), a step over its tar
   await expect(card).toBeHidden();
   expect(await page.evaluate(() => window.__answer)).toBe('more');
 
-  // a step whose target sits under the card shrinks to one line; one elsewhere stays full
+  // a step whose target sits under the card moves (full text) to the top left; one elsewhere stays
   await page.evaluate(() => {
     const el = document.createElement('div');
     el.dataset.guide = 'test-under-card';
@@ -507,12 +507,19 @@ test('guide pop-up: Yes opens a step, answers resolve say(), a step over its tar
   const long = 'SPHEREx takes one picture of each spot at a time, and over months it builds a spectrum in 102 colours.';
   page.evaluate((say) => guide.say({ say, target: 'band-d1' }), long);
   await expect(card).toBeVisible();
-  await expect(card).not.toHaveClass(/is-compact/);
+  expect(await page.evaluate(() => guide.popup.spot())).toBe('top-right');
   const full = (await card.boundingBox()).height;
   page.evaluate((say) => guide.say({ say, target: 'test-under-card' }), long);
-  await expect(card).toHaveClass(/is-compact/);
-  expect((await card.boundingBox()).height).toBeLessThan(full - 20);
-  await expect(card.locator('.gp-text')).toHaveAttribute('title', long);
+  await expect.poll(() => page.evaluate(() => guide.popup.spot())).toBe('top-left');
+  await expect(card.locator('.gp-text')).toHaveText(long);
+  // after the slide: clear of the target and the search bar, same height (nothing cut)
+  await expect.poll(async () => (await card.boundingBox()).x).toBeLessThan(20);
+  const moved = await card.boundingBox();
+  const under = await page.locator('[data-guide="test-under-card"]').boundingBox();
+  expect(moved.x + moved.width).toBeLessThan(under.x);
+  expect(moved.height).toBe(full);
+  const search = await page.locator('#search').boundingBox();
+  expect(moved.y).toBeGreaterThan(search.y + search.height);
   await page.evaluate(() => guide.dismiss());
   await expect(card).toBeHidden();
 
@@ -538,17 +545,35 @@ test('guide pop-up: Yes opens a step, answers resolve say(), a step over its tar
   expect(errors()).toEqual([]);
 });
 
-test('guide pop-up: a step about a star under the card shrinks; the registry still sees the star for it', async ({ page }) => {
+test('guide pop-up: a step about a star under the top-right corner moves the card off the star', async ({ page }) => {
   // Barnard's Star lands under the top-right card at this view
   await page.goto('/?ra=276.7&dec=0.3&fov=20');
   await ready(page);
   await expect.poll(() => page.evaluate(() => guide.resolve('sky:barnard')), { timeout: 15000 }).not.toBeNull();
-  await page.evaluate(() => {
-    guide.say({ say: 'Barnard’s Star moves across the sky faster than any other star: about the width of the full Moon every 180 years.', target: 'sky:barnard' });
+  const star = await page.evaluate(() => guide.resolve('sky:barnard'));
+  expect(star.x).toBeGreaterThan(928); // where the default card would be
+  expect(star.y).toBeLessThan(226);
+  const say = 'Barnard’s Star moves across the sky faster than any other star: about the width of the full Moon every 180 years.';
+  await page.evaluate((s) => {
+    guide.say({ say: s, target: 'sky:barnard' });
+  }, say);
+  const card = page.locator('[data-guide="guide-popup"]');
+  await expect(card.locator('.gp-text')).toHaveText(say); // the whole text, nothing cut
+  await expect.poll(() => page.evaluate(() => guide.popup.spot())).not.toBe('top-right');
+  // once it has slid away the star is visible to everyone again (gaze, overlay), and not under the card
+  await expect.poll(() => page.evaluate(() => guide.resolve('sky:barnard'))).not.toBeNull();
+  const b = await card.boundingBox();
+  const p = await page.evaluate(() => guide.resolve('sky:barnard'));
+  const pad = 24 + (p.r ?? 0);
+  const inside = p.x > b.x - pad && p.x < b.x + b.width + pad && p.y > b.y - pad && p.y < b.y + b.height + pad;
+  expect(inside).toBe(false);
+  // the guide's pointer flies from the card's new place
+  await page.evaluate(() => guide.pointAt('sky:barnard'));
+  const from = await page.evaluate(() => {
+    const m = document.querySelector('#guide-overlay .go-pointer').style.transform.match(/translate\(([-\d.]+)px, ([-\d.]+)px/);
+    return { x: +m[1], y: +m[2] };
   });
-  await expect(page.locator('[data-guide="guide-popup"]')).toHaveClass(/is-compact/);
-  // for everyone else (gaze, overlay) a star behind the card is covered, as before
-  expect(await page.evaluate(() => guide.resolve('sky:barnard'))).toBeNull();
+  expect(Math.abs(from.x - (b.x + b.width / 2))).toBeLessThan(60);
 });
 
 // --- guide script runner (U5) ---

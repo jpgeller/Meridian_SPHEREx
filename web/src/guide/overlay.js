@@ -174,12 +174,17 @@ export function createOverlay({ locate, doc = document, events = window, getOrig
   const win = doc.defaultView;
   const viewport = () => ({ w: win.innerWidth, h: win.innerHeight });
   const reduced = () => !!win.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  // the pop-up card (U4), wherever it has moved to; null when hidden
+  const cardBox = () => {
+    const card = doc.querySelector('[data-guide="guide-popup"]');
+    const b = card && !card.closest('[hidden]') ? card.getBoundingClientRect() : null;
+    return b && b.width > 0 ? b : null;
+  };
   const origin =
     getOrigin ??
     (() => {
-      const card = doc.querySelector('[data-guide="guide-popup"]');
-      const b = card && !card.closest('[hidden]') ? card.getBoundingClientRect() : null;
-      return b && b.width > 0 ? { x: b.left + b.width / 2, y: b.bottom } : { x: win.innerWidth - 180, y: 96 };
+      const b = cardBox();
+      return b ? { x: b.left + b.width / 2, y: b.bottom } : { x: win.innerWidth - 180, y: 96 };
     });
 
   const root = doc.createElement('div');
@@ -347,6 +352,8 @@ export function createOverlay({ locate, doc = document, events = window, getOrig
           p.labelSize = { w: b.width || 120, h: b.height || 28 };
         }
         const avoid = [...(at && !off ? [ringFor(at, 6)] : []), { x: pos.x + Math.cos(angle + Math.PI) * 16, y: pos.y + Math.sin(angle + Math.PI) * 16, r: 20 }];
+        const cb = cardBox(); // the card sits above the overlay: a label under it is unreadable
+        if (cb) avoid.push({ rect: { x: cb.left, y: cb.top, w: cb.width, h: cb.height } });
         try {
           avoid.push(...(avoidFn() ?? []));
         } catch {
