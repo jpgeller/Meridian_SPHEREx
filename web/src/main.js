@@ -16,7 +16,8 @@ import { createInputModeButton } from './ui/inputModeButton.js';
 import { startGazeSocket } from './input/gazeSocket.js';
 
 const statusEl = document.querySelector('#status');
-// ?gaze=mouse: the guide's attention follows the mouse in input mode A (UI plan U6/U9). Read before the URL sync rewrites the URL.
+// The guide's attention follows the mouse in input mode A (a 5 s rest = interest); ?gaze=off turns that off.
+// Read before the URL sync rewrites the URL.
 const gazeParam = new URLSearchParams(window.location.search).get('gaze');
 const { name: urlName } = startCore();
 
@@ -58,7 +59,7 @@ createContext(player, { store, commands });
 const spectrum = createSpectrum(player, { store, commands });
 window.guide = createGuide({ store, commands, sky, player, spectrum, gaze: gazeParam }); // UI plan: registry (U2), overlay, pop-up, runner, attention…
 // Eye tracking (U9): gaze messages -> the face panel's dot, the guide (mode B) and dwell-to-press (mode C).
-window.meridian.gaze = startGaze({ store, commands, guide: window.guide, mouseParam: gazeParam === 'mouse', face: () => window.meridian.face });
+window.meridian.gaze = startGaze({ store, commands, guide: window.guide, mouseParam: gazeParam !== 'off', face: () => window.meridian.face });
 createInputModeButton({ store, commands });
 // ?gaze_ws=8765: a native eye tracker on this machine streams gaze over a WebSocket (docs/EYE_TRACKING.md)
 window.meridian.gazeSocket = startGazeSocket(new URLSearchParams(window.location.search).get('gaze_ws'), {

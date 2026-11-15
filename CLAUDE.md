@@ -53,6 +53,10 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   "every control is at least 64 x 64 px and reachable" checks the sky view and every 2D mode.
 - UI and guide live in `web/src/ui/` and `web/src/guide/` (plan: docs/UI_AND_GUIDE_PLAN.md). They only call `run(...)`
   and read `store`. `ANTHROPIC_API_KEY` stays in `api/.env` (git-ignored; see `api/.env.example`), never in the browser.
+- The guide is proactive but cheap: `guide/interest.js` notices patterns, `guide/nudge.js` asks `/api/guide/nudge` (Claude
+  Haiku, low effort, cached system block) for one offer with buttons. Budget: one call per 45 s and 15 per visit in the
+  browser, `GUIDE_DAILY_MAX` (400) per day on the server; spend at `GET /api/guide/usage`. The 7 places keep local tours
+  (`guide/tours.js`, zero tokens). The mouse counts as attention after a 5 s rest (`?gaze=off` turns it off).
 
 ## Verified data facts (Nov 2026). Do not re-derive these.
 - SPHEREx HiPS cube: `https://irsa.ipac.caltech.edu/data/hips/SPHEREx/spherex_allsky_cube`. 102 frames, PNG tiles,
