@@ -101,7 +101,7 @@ test('main controls are reachable with the keyboard', async ({ page }) => {
     });
     seen.add(id);
   }
-  for (const want of ['search-input', 'band', 'wise_0855', 'barnard', 'SIN', 'AIT']) {
+  for (const want of ['search-input', 'band', 'wise_0855', 'barnard', 'SIN', 'STG']) {
     expect([...seen], `reach ${want} by Tab`).toContain(want);
   }
 });
@@ -129,10 +129,21 @@ test('shell: Tab reaches every control, detector buttons set the band, tools fol
   await page.getByRole('button', { name: /Detector D6/ }).click();
   await expect(page).toHaveURL(/band=93/);
   await expect(page.locator('[data-detector="6"]')).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('button', { name: 'Sky tools' }).click();
+  // one side panel holds every setting; its gaze-sized button folds it away
+  await expect(page.getByRole('button', { name: 'Whole sky' })).toHaveCount(0);
+  const toggle = page.getByRole('button', { name: 'Controls' });
+  expect(await toggle.evaluate((el) => el.offsetHeight)).toBeGreaterThanOrEqual(64);
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
   await expect(page.getByRole('button', { name: 'Planetarium' })).toBeHidden();
-  await page.evaluate(() => meridian.run('toggle_tools'));
+  await expect(page.locator('[data-preset]').first()).toBeHidden();
+  await page.evaluate(() => meridian.run('toggle_panel'));
   await expect(page.getByRole('button', { name: 'Planetarium' })).toBeVisible();
+  // panel buttons are medium-sized for gaze
+  const thin = await page.evaluate(() =>
+    [...document.querySelectorAll('#side-panel button.big')].filter((el) => el.offsetHeight < 56).length,
+  );
+  expect(thin).toBe(0);
 });
 
 test('a cached field opens its time-lapse', async ({ page }) => {
@@ -156,14 +167,14 @@ test('zooming in keeps the same all-sky images everywhere (full-resolution layer
   expect(await page.evaluate(() => meridian.commands.list().some((c) => c.name === 'toggle_native'))).toBe(false);
 });
 
-test('three view types: globe, planetarium and whole sky', async ({ page }) => {
+test('view types: globe and planetarium buttons (whole sky only by URL / command)', async ({ page }) => {
   await page.goto('/');
   await ready(page);
   await page.getByRole('button', { name: 'Planetarium' }).click();
   await expect.poll(() => page.evaluate(() => aladin.getProjectionName())).toBe('STG');
   await expect(page).toHaveURL(/proj=STG/);
   expect(await page.evaluate(() => meridian.store.get().fov)).toBeLessThanOrEqual(160);
-  await page.getByRole('button', { name: 'Whole sky' }).click();
+  await page.evaluate(() => meridian.run('set_projection', { proj: 'AIT' }));
   await expect.poll(() => page.evaluate(() => aladin.getProjectionName())).toBe('AIT');
   await page.getByRole('button', { name: '3D sphere' }).click();
   await expect.poll(() => page.evaluate(() => aladin.getProjectionName())).toBe('SIN');
@@ -195,19 +206,19 @@ test('colour views: tinted band follows the detector; presets and custom mixes s
   await expect.poll(cmap).toBe('grey');
 });
 
-test('brightness: buttons, keys and the right-drag gesture all show in the panel and reset', async ({ page }) => {
+test('brightness: no panel section; keys and the right-drag gesture still work and reset', async ({ page }) => {
   await page.goto('/');
   await ready(page);
   const cuts = () => page.evaluate(() => aladin.getBaseImageLayer()?.getCuts?.());
   await expect.poll(cuts, { timeout: 20_000 }).toEqual([0, 255]);
-  await page.getByRole('button', { name: 'Brighter' }).click();
+  await expect(page.getByRole('button', { name: 'Brighter' })).toHaveCount(0);
+  await page.keyboard.press('>');
   await page.keyboard.press('>');
   await expect(page).toHaveURL(/level=2,0/);
-  await expect(page.locator('#level-label')).toContainText('brightness +2');
   expect((await cuts())[1]).toBeLessThan(255);
+  await page.keyboard.press('\\');
+  await expect.poll(cuts).toEqual([0, 255]);
   // Aladin's own gesture: right-button drag sideways on the sky
-  await page.getByRole('button', { name: /Reset/ }).click();
-  await expect(page.locator('#level-label')).toContainText('as served');
   const box = await page.locator('#sky').boundingBox();
   const x = box.x + box.width * 0.6;
   const y = box.y + box.height / 2;
@@ -215,11 +226,36 @@ test('brightness: buttons, keys and the right-drag gesture all show in the panel
   await page.mouse.down({ button: 'right' });
   await page.mouse.move(x + 250, y, { steps: 8 });
   await page.mouse.up({ button: 'right' });
-  await page.keyboard.press('Escape'); // close Aladin's context menu if it opened
-  await expect(page.locator('#level-label')).toContainText('(changed)');
+  await expect(page).toHaveURL(/level=/);
   await page.keyboard.press('\\');
-  await expect(page.locator('#level-label')).toContainText('as served');
   await expect.poll(cuts).toEqual([0, 255]);
+});
+
+test('only our controls on the sky: no Aladin widgets or logo; RA / Dec / field readout bottom right', async ({ page }) => {
+  await page.goto('/?ra=266.4168&dec=-29.0078&fov=60');
+  await ready(page);
+  const shown = await page.evaluate(() =>
+    [...document.querySelectorAll('#sky button, #sky select, #sky .aladin-logo, #sky .aladin-location')].filter((el) => el.offsetParent !== null).length,
+  );
+  expect(shown).toBe(0);
+  const ro = page.locator('[data-region="readout"]');
+  await expect(ro).toContainText('17h 45m 40.0s');
+  await expect(ro).toContainText('−29° 00′ 28″');
+  await expect(ro).toContainText('60°');
+  const b = await ro.boundingBox();
+  const vp = page.viewportSize();
+  expect(vp.width - (b.x + b.width)).toBeLessThan(20);
+  expect(vp.height - (b.y + b.height)).toBeLessThan(20);
+  await page.evaluate(() => meridian.run('fly_to', { target: '133.79513 -7.24515', fov: 0.5 }).value);
+  await expect(ro).toContainText('08h 55m 10.8s');
+  await expect(ro).toContainText('30′');
+  // the side panel fits without scrolling (gaze cannot scroll easily) and leaves the gaze rest zone free
+  const p = await page.evaluate(() => {
+    const el = document.querySelector('#side-panel');
+    return { scroll: el.scrollHeight - el.clientHeight, bottom: el.getBoundingClientRect().bottom, h: innerHeight };
+  });
+  expect(p.scroll).toBeLessThanOrEqual(1);
+  expect(p.h - p.bottom).toBeGreaterThanOrEqual(40);
 });
 
 test('motion trail: WISE 0855 leaves a rainbow streak over 2010–2026', async ({ page }) => {

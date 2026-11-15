@@ -28,10 +28,22 @@ export async function createSky(container, { store, commands, onStatus = () => {
     fov: s0.fov,
     target: `${s0.ra} ${s0.dec}`,
     showReticle: true,
+    // None of Aladin's own widgets: the app is about reaching SPHEREx images, and every control is
+    // ours (commands, gaze-sized). Coordinates show in our bottom-right readout (ui/readout.js).
+    // The logo is hidden in style.css; the credit for Aladin Lite (CDS) must be given elsewhere.
     showFullscreenControl: false,
-    showCooGridControl: true,
+    showCooGridControl: false,
     showProjectionControl: false, // projection goes through our command (state + URL)
-    showFrame: true,
+    showFrame: false,
+    showCooLocation: false,
+    showLayersControl: false,
+    showZoomControl: false,
+    showFov: false,
+    showSettingsControl: false,
+    showShareControl: false,
+    showSimbadPointerControl: false,
+    showStatusBar: false,
+    showContextMenu: false,
   });
 
   const sky = { aladin, wavelengths: null, layer: null, ready: false };

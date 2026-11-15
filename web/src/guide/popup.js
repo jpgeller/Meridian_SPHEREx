@@ -279,7 +279,9 @@ export function createPopup({ doc = document, resolve = () => null, getCentre = 
     const cs = win.getComputedStyle(doc.documentElement);
     const v = (name, d) => parseFloat(cs.getPropertyValue(name)) || d;
     const edge = v('--edge', 12);
-    const out = { edge, leftTop: v('--left-top', 116), leftW: v('--left-w', 264), toolsW: v('--tools-w', 284) };
+    // top-left spot: below the side panel's "Controls" button (and clear of the search bar)
+    const leftTop = v('--left-top', 12) + v('--toggle-h', 64) + v('--space-2', 8);
+    const out = { edge, leftTop, leftW: v('--left-w', 264), toolsW: v('--tools-w', 284) };
     const dock = doc.querySelector('[data-region="dock"]')?.getBoundingClientRect();
     if (dock?.width > 0) Object.assign(out, { dockTop: dock.top, dockLeft: dock.left, dockRight: dock.right });
     else Object.assign(out, { dockTop: vh - edge - v('--dock-h', 132), dockRight: vw - v('--logo-clear', 112) });

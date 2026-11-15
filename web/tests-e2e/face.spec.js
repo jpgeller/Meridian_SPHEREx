@@ -17,6 +17,9 @@ test('face panel: simulated by default, live from recorded messages, back to sim
   await ready(page);
   const panel = page.locator('[data-guide="face-panel"]');
   await expect(panel).toBeVisible();
+  // folded by default in the side panel; open it
+  await expect(panel.locator('#face-toggle')).toHaveAttribute('aria-expanded', 'false');
+  await page.evaluate(() => meridian.run('toggle_face_panel', { open: true }));
   await expect(panel.locator('#face-mode')).toHaveText('Simulated');
   await expect(panel).toContainText('Video stays on this computer.');
   // the guide's registry (U2) now finds the panel
@@ -60,6 +63,7 @@ test('face panel: gaze dot, forced demo and collapse are commands behind 64 px b
   const sizes = await panel.locator('button').evaluateAll((bs) => bs.map((b) => b.offsetHeight));
   expect(sizes.length).toBe(2);
   for (const h of sizes) expect(h).toBeGreaterThanOrEqual(64);
+  await page.evaluate(() => meridian.run('toggle_face_panel', { open: true })); // folded by default
 
   // gaze from the tracker (U9 will call this)
   await page.evaluate(() => {

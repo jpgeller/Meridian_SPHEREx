@@ -37,15 +37,18 @@
   --focus-ring: 3px solid var(--accent);
   /* layout */
   --edge: 12px;
-  --left-top: 116px; /* below Aladin's own top-left buttons (frame, layers, grid) */
-  --left-w: 264px;
-  --tools-top: 148px; /* the top-right corner above this is the guide pop-up's (U4) */
-  --tools-w: 284px;
+  --left-top: var(--edge); /* Aladin's own widgets are off: the panel starts at the top */
+  --left-w: 360px; /* the side panel: every setting, in one column */
+  --toggle-h: 64px; /* the panel's open / close button (gaze-sized) */
+  --panel-btn-h: 56px; /* medium buttons in the panel: thick enough for gaze */
+  --tools-w: 1px; /* no right column any more (the guide pop-up reads this) */
   --popup-w: 340px; /* guide pop-up card, top right */
-  --aladin-tl: 296px; /* Aladin's top-left frame menu and coordinate readout end here */
+  --aladin-tl: 160px; /* the "Controls" button ends here (the search bar stays right of it) */
   --dock-w: 820px;
   --dock-h: 132px; /* approximate height, so the tools column and hand-off button stay above it */
-  --logo-clear: 112px; /* bottom-right corner: Aladin logo (licence) */
+  --rest-h: 52px; /* bottom-left corner: the gaze rest zone (gazeCore, 160 × 40) stays clear */
+  --readout-w: 196px; /* bottom-right corner: RA / Dec / field readout */
+  --logo-clear: calc(var(--readout-w) + 2 * var(--edge)); /* the dock stays left of the readout */
 }
 
 html,
@@ -110,50 +113,88 @@ body {
   gap: var(--space-2);
   min-width: 0;
 }
-.shell-left {
+.shell-toggle {
   top: var(--left-top);
   left: var(--edge);
-  width: var(--left-w);
-  max-height: calc(100vh - var(--left-top) - 72px);
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
+}
+.shell button.panel-toggle {
+  min-height: var(--toggle-h);
+  min-width: var(--toggle-h);
+  display: inline-flex;
+  align-items: center;
   gap: var(--space-3);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow);
+  font-size: var(--fs-m);
+  font-weight: 600;
 }
-.shell-tools {
-  top: var(--tools-top);
-  right: var(--edge);
-  width: var(--tools-w);
-  max-height: calc(100vh - var(--tools-top) - var(--dock-h) - 3 * var(--edge));
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+.pt-icon {
+  font-size: 22px;
+  line-height: 1;
 }
-.tools-body {
+.pt-icon::before {
+  content: '«'; /* open: fold it away */
+}
+.panel-toggle[aria-expanded='false'] .pt-icon::before {
+  content: '☰'; /* closed: open it */
+}
+.shell-left {
+  top: calc(var(--left-top) + var(--toggle-h) + var(--space-2));
+  left: var(--edge);
+  width: var(--left-w);
+  box-sizing: border-box;
+  max-height: calc(100vh - var(--left-top) - var(--toggle-h) - var(--space-2) - var(--rest-h));
   overflow: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow);
 }
-.tools-body .row.wrap {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-1);
-}
-.tools-body .row.wrap button {
-  padding: var(--space-1);
-  line-height: 1.15;
-}
-.tools-body .card {
-  padding: var(--space-2) var(--space-3) var(--space-3);
-}
-.tools-body[hidden] {
+.shell-left[hidden] {
   display: none;
+}
+/* inside the one panel, sections are flat (no card within a card) */
+.shell-left > .card,
+.shell-left > #face-slot > .card {
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: none;
+  box-shadow: none;
+}
+.grid-2,
+.grid-3,
+.grid-4 {
+  display: grid;
+  gap: var(--space-2);
+}
+.grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+.grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+.grid-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+.shell-left .card-title {
+  margin-bottom: var(--space-2);
 }
 .shell-dock {
   bottom: var(--edge);
   left: calc(2 * var(--edge) + var(--left-w));
   right: var(--logo-clear);
+  transition: left 0.2s ease;
   max-width: var(--dock-w);
   margin: 0 auto;
   padding: var(--space-2) var(--space-3) var(--space-3);
@@ -238,30 +279,20 @@ body {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
-.preset-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-2);
-}
 .shell button.big {
-  min-height: var(--target);
-  padding: var(--space-2);
+  min-height: var(--panel-btn-h);
+  padding: var(--space-1) var(--space-2);
   font-size: var(--fs-m);
   line-height: 1.2;
 }
-.tools-toggle {
-  align-self: flex-end;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  background: var(--surface) !important;
-  backdrop-filter: blur(8px);
+.shell .preset-grid button.big {
+  min-height: var(--target); /* places: the largest targets */
 }
 .chev::before {
   content: '▾';
 }
-.tools-toggle[aria-expanded='false'] .chev::before {
-  content: '◂';
+body.panel-closed .shell-dock {
+  left: calc(2 * var(--edge) + var(--toggle-h));
 }
 .mix-form {
   margin-top: var(--space-2);
@@ -279,9 +310,6 @@ body {
 .mix-form input {
   width: 56px;
   padding: 0 var(--space-2);
-}
-#level-label.changed {
-  color: var(--accent);
 }
 
 /* --- band dock: six detectors (short = blue to long = rose), 17 channels each --- */
@@ -366,24 +394,62 @@ body {
   opacity: 0.4;
 }
 
-/* status line: bottom left, above Aladin's field-of-view readout */
+/* bottom right: the readout (view centre) with the status line just above it */
+.shell-readout {
+  right: var(--edge);
+  bottom: var(--edge);
+  width: var(--readout-w);
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow);
+}
+.readout-grid {
+  margin: 0;
+  display: grid;
+  gap: 2px;
+  font: 13px/1.35 var(--font-mono);
+}
+.readout-grid > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.readout-grid dt {
+  color: var(--muted);
+  font: var(--font);
+  font-size: var(--fs-s);
+}
+.readout-grid dd {
+  margin: 0;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
 #status {
   position: absolute;
-  left: var(--edge);
-  bottom: 40px;
+  right: var(--edge);
+  bottom: calc(var(--edge) + 82px); /* above the readout */
   z-index: 20;
-  max-width: 260px;
+  max-width: var(--readout-w);
+  box-sizing: border-box;
   padding: 6px 10px;
   border-radius: 8px;
   background: var(--surface);
   color: var(--muted);
   font-size: var(--fs-s);
+  text-align: right;
 }
-
-/* field view open: the shell hides; keep the status line visible, right of Aladin's zoom readout */
+/* field view open: the shell (and readout) hides; the status line drops to the corner */
 body.field-open #status {
-  left: 172px;
   bottom: var(--edge);
+  max-width: 420px;
+}
+/* Aladin's logo is hidden: the credit for Aladin Lite (CDS, Strasbourg) is to be given elsewhere */
+#sky .aladin-logo {
+  display: none !important;
 }
 
 kbd {

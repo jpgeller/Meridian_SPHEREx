@@ -100,9 +100,15 @@ test('mode B: a replay of recorded-like samples drives the dwell ring and the co
   expect(await page.evaluate(() => guide.popup.autoHide())).toBe(false); // offers wait for an answer
   await page.evaluate(() => guide.attention.configure({ ringDelayMs: 300, dwellMs: 3000 }));
   const ring = page.locator('#guide-attention');
+  // the fixture fixates where D6 sat in an older layout (~1062, 715): move the saccade and fixation
+  // onto D6's centre today, so the test follows the layout instead of pinning it
+  const d6 = await page.locator('[data-guide="band-d6"]').boundingBox();
+  const dx = d6.x + d6.width / 2 - 1062;
+  const dy = d6.y + d6.height / 2 - 715;
+  const moved = { ...SAMPLES, samples: SAMPLES.samples.map((p) => (p.x > 700 ? { ...p, x: p.x + dx, y: p.y + dy } : p)) };
   await page.evaluate((data) => {
     window.__replay = meridian.gaze.replay(data);
-  }, SAMPLES);
+  }, moved);
   await expect(ring).toHaveClass(/is-on/, { timeout: 4000 });
   await expect(ring).toHaveAttribute('data-target', 'band-d6');
   await expect(page.locator('.gaze-dot')).toBeVisible();
@@ -163,10 +169,10 @@ test('mode C: sky edges pan (panels do not), a colour button presses and still a
   const pos = () => page.evaluate(() => [meridian.store.get().ra, meridian.store.get().dec]);
   await quiet(page);
   const before = await pos();
-  await page.evaluate(() => __gaze(1265, 700, 2000)); // right edge, over the sky
+  await page.evaluate(() => __gaze(1265, 450, 2000)); // right edge, over the sky (the readout has the bottom right)
   const after = await pos();
   expect(after[0]).toBeLessThan(before[0]); // pan right = towards smaller RA
-  await page.evaluate(() => __gaze(20, 300, 2000)); // left edge, but over the places panel
+  await page.evaluate(() => __gaze(1265, 750, 2000)); // right edge, but over the readout panel (the left edge is all buttons now)
   expect(await pos()).toEqual(after);
   // a colour control is a button: pressed at 0.8 s, and the guide's dwell keeps counting -> colours offer
   await page.evaluate(() => guide.attention.configure({ ringDelayMs: 300, dwellMs: 2500 }));
