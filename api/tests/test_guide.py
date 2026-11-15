@@ -218,3 +218,15 @@ def test_allow_list_matches_the_browser_commands():
         assert name in blocks, f"{name} is no longer a command in web/src"
         for arg in args:
             assert any(re.search(rf"\b{arg}\s*:", b) for b in blocks[name]), f"{name}: arg {arg} not in its spec"
+
+
+def test_click_actions_only_press_buttons_on_this_page():
+    ids = {"band-d6", "op-video", "sky:barnard"}
+    assert guide.convert_action({"type": "click", "id": "band-d6"}, {}, ids) == ({"click": "band-d6"}, "")
+    assert guide.convert_action({"type": "click", "id": "sky:barnard"}, {}, ids)[0] is None  # a sky object has no button
+    assert guide.convert_action({"type": "click", "id": "not-here"}, {}, ids)[0] is None
+
+
+def test_step_titles_are_kept():
+    steps = guide.parse_reply(json.dumps({"steps": [{"title": "D6", "say": "Longest.", "actions": []}, {"title": "", "say": "Two.", "actions": []}]}))
+    assert steps[0]["title"] == "D6" and "title" not in steps[1]

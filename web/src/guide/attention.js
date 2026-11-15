@@ -1,7 +1,7 @@
 // Attention detector (UI plan, U6): what is the person lingering on? Turns a stream of gaze (or
 // mouse) samples and the app's own events into the guide's three offers:
 //   object  – dwell on a sky object, the field target or a mover        "Want help identifying this?"
-//   colours – dwell on the band ribbon, a colour view, the trail legend "Wondering about these colours?"
+//   colours – dwell on the band ribbon, a colour view "Wondering about these colours?"
 //   change  – the same frames replayed over and over (see REPLAYS)      "Want to see what changed?"
 //
 // The top part is pure logic (no DOM, no timers, clock injected) so it is unit-tested with fake
@@ -50,9 +50,15 @@ export const DEFAULTS = Object.freeze({
 });
 
 export const TEXTS = Object.freeze({
-  object: 'Want help identifying this?',
-  change: 'Want to see what changed?',
+  object: 'Want to know what this is?',
+  change: 'Trying to spot what changed?',
   colours: 'Wondering about these colours?',
+});
+// the muted second line of an offer (wireframe v4): why the guide is asking now
+export const SUBS = Object.freeze({
+  object: (s) => `You have been looking at it for ${s} seconds.`,
+  colours: (s) => `You have been looking at the colours for ${s} seconds.`,
+  change: () => 'You have replayed these pictures a few times.',
 });
 
 // a fly_to started by the person (or a preset): the sky is about to move
@@ -64,7 +70,7 @@ const NEW_SEQUENCE = ['ra', 'dec', 'ffov', 'band', 'mode', 'rgb', 'formula', 'vi
 export function classifyTarget(id) {
   if (typeof id !== 'string') return null;
   if (/^(sky|field):/.test(id)) return 'object';
-  if (/^colou?r:/.test(id) || /^band-(ribbon|d[1-6])$/.test(id) || id === 'colour-views') return 'colours';
+  if (/^colou?r:/.test(id) || /^band-(ribbon|d[1-6])$/.test(id) || /^colour-view/.test(id)) return 'colours';
   return null;
 }
 
@@ -300,6 +306,7 @@ const TICK_MS = 100;
  */
 export function startAttention({ guide, startGuide, store, sky, player, mouse = false, doc = document, win = window }) {
   let dragging = false;
+  let dwellMs = DEFAULTS.dwellMs; // for the offer's "looking at it for 7 seconds"
   const quietHook = () => {
     if (doc.hidden) return 'page hidden';
     if (dragging) return 'dragging';
@@ -348,13 +355,20 @@ export function startAttention({ guide, startGuide, store, sky, player, mouse = 
 
   // ---- offers ----
   async function onTrigger({ trigger, target, key }) {
+    // the pointer goes first: it flies to the thing and circles it, so the question needs no explaining
+    const mark = trigger === 'change' ? 'time-player' : target ?? 'band-ribbon';
+    guide.overlay.circle(mark);
+    guide.overlay.pointAt(mark);
+    const secs = Math.round(dwellMs / 1000);
     const res = await guide.offer({
       text: TEXTS[trigger],
+      sub: SUBS[trigger]?.(secs),
       key,
       // the card keeps clear of an object; colours and change share one cool-down key each
       target: trigger === 'object' ? target : undefined,
     });
     if (res === 'yes') startGuide(trigger, trigger === 'object' ? { id: target } : undefined);
+    else guide.overlay.clear();
   }
 
   const attention = createAttention({
@@ -397,7 +411,10 @@ export function startAttention({ guide, startGuide, store, sky, player, mouse = 
   return {
     feed: attention.feed, // U9: gaze samples { x, y, t, confidence }
     lose: attention.lose,
-    configure: attention.configure,
+    configure: (o = {}) => {
+      if (Number.isFinite(o.dwellMs)) dwellMs = o.dwellMs;
+      return attention.configure(o);
+    },
     snapshot: attention.snapshot,
     reset: attention.reset,
     /** 'mouse' (?gaze=mouse in mode A), 'gaze' (modes B and C) or 'none' */

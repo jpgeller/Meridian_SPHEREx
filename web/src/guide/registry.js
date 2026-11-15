@@ -18,6 +18,10 @@
 //   field:mover:<n>     a catalogue mover in the time-lapse, at the date of the frame on screen
 //   colour:D1…D6        a detector block on the ribbon
 //   colour:<band>       a band's tick on the ribbon (1-101)
+//   preset:<id> proj:<P> color:<view>   the place, view-type and colour-view buttons, by the same ids the
+//                       gaze layer sends to the eye tracker (input/targets.js buttonId), so both agree
+//
+//   control(id)          -> the pressable element for a button id (data-guide or a gaze id above), or null
 //
 // Pure: everything outside (DOM, Aladin, the player) is passed in, so node tests can drive it.
 import { parseCoordinates } from '../core/coords.js';
@@ -177,11 +181,22 @@ export function createRegistry({
 
   // --- resolvers ---
 
-  function element(name) {
-    const el = root?.querySelector?.(`[data-guide="${name}"]`);
+  const SAFE = /^[A-Za-z0-9_.-]+$/;
+  const GAZE_KINDS = { preset: 'preset', proj: 'proj', color: 'color' }; // id prefix -> data-* (targets.js)
+  /** The element behind a button id: [data-guide="id"], or preset:/proj:/color: as the gaze layer names them. */
+  function control(id) {
+    if (typeof id !== 'string' || !id) return null;
+    const i = id.indexOf(':');
+    if (i < 0) return SAFE.test(id) ? (root?.querySelector?.(`[data-guide="${id}"]`) ?? null) : null;
+    const key = GAZE_KINDS[id.slice(0, i)];
+    const rest = id.slice(i + 1);
+    return key && SAFE.test(rest) ? (root?.querySelector?.(`[data-${key}="${rest}"]`) ?? null) : null;
+  }
+  function boxOf(el) {
     if (!el || el.closest?.('[hidden]')) return null;
     return rectResult(el.getBoundingClientRect(), viewport());
   }
+  const element = (name) => (SAFE.test(name) ? boxOf(root?.querySelector?.(`[data-guide="${name}"]`)) : null);
 
   function fieldBox() {
     const box = field?.canvas?.getBoundingClientRect?.();
@@ -227,6 +242,7 @@ export function createRegistry({
     const d = /^D([1-6])$/i.exec(rest);
     if (d) return element(`band-d${d[1]}`);
     const band = Number(rest);
+    if (!/^\d+$/.test(rest)) return boxOf(control(`color:${rest}`)); // a colour-view button (color:grey…)
     if (!Number.isInteger(band) || band < BAND_MIN || band > BAND_MAX) return null;
     const { detector, channel } = detectorOf(band);
     const det = root?.querySelector?.(`[data-guide="band-d${detector}"]`);
@@ -248,6 +264,7 @@ export function createRegistry({
       }
       if (kind === 'field') return fieldObject(rest);
       if (kind === 'colour' || kind === 'color') return colour(rest);
+      if (kind === 'preset' || kind === 'proj') return boxOf(control(id));
       return null;
     } catch (err) {
       console.warn('[guide] resolve failed', id, err);
@@ -259,6 +276,12 @@ export function createRegistry({
   function ids() {
     const out = [];
     root?.querySelectorAll?.('[data-guide]')?.forEach?.((el) => out.push(el.dataset?.guide ?? el.getAttribute('data-guide')));
+    for (const [prefix, key] of Object.entries(GAZE_KINDS)) {
+      root?.querySelectorAll?.(`[data-${key}]`)?.forEach?.((el) => {
+        const v = el.getAttribute?.(`data-${key}`);
+        if (v && SAFE.test(v) && !el.hasAttribute?.('data-guide')) out.push(`${prefix}:${v}`);
+      });
+    }
     if (getState().view !== 'field') out.push(...places.keys());
     else {
       // sky:* still resolve here (onto the image), but field:target / field:mover:<n> name these spots
@@ -372,5 +395,5 @@ export function createRegistry({
   }
 
   lookUpPresets();
-  return { resolve, locate, targetAt, list, learnFlyTo };
+  return { resolve, locate, targetAt, list, learnFlyTo, control };
 }

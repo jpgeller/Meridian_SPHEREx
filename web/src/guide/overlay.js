@@ -7,7 +7,10 @@
 //   circle(id)            a ring drawn around the target
 //   highlight(id)         a soft glow on the target (a box for controls, a disc for sky objects)
 //   trail(idFrom, idTo)   a dashed arrow from one target to another
-//   clear()               everything fades out
+//   press()               the pointer gives one short push (the runner's `click`; no-op without a pointer)
+//   clear()               the marks fade out; the pointer flies home (beside the pill) when there is one
+//   park()                the pointer flies home and waits there (idle). Home = getHome(): left of the
+//                         "AI Guide" pill, or of the card while it is open (wireframe v4)
 //
 // Each call returns a handle { remove() }. Every frame each annotation follows registry.locate(id):
 // it moves with the sky, fades out when the target is hidden or covered, and when the target is known
@@ -17,6 +20,7 @@
 
 export const FLY_MS = 600;
 export const GLIDE_MS = 250; // on screen <-> edge
+export const PRESS_ANIM_MS = 250;
 export const EDGE_MARGIN = 36;
 const FADE_MS = 220;
 const ARROW_REST = Math.atan2(-1, -1); // the cursor shape points up-left
@@ -51,6 +55,7 @@ export function flyPoint(a, b, t) {
  */
 export function aimFor(target, viewport) {
   if (!target) return null;
+  if (target.home) return { tip: { x: target.x, y: target.y }, angle: Math.atan2(-0.35, 1) }; // parked: aims at the pill
   if (target.rect) {
     const { y, h } = target.rect;
     const inset = Math.min(8, h / 4);
@@ -170,7 +175,12 @@ const ARROW_PATH = 'M0,0 L0,26 L6.5,19.5 L11,29.5 L15.5,27.5 L11,18 L19.5,18 Z';
  * @param {EventTarget} [o.events]       where `meridian:command` arrives
  * @param {Function} [o.getOrigin]       () -> {x, y}: where the pointer starts (the pop-up card)
  */
-export function createOverlay({ locate, doc = document, events = window, getOrigin } = {}) {
+export function createOverlay({ locate: locateTarget, doc = document, events = window, getOrigin, getHome = null } = {}) {
+  const locate = (id) => {
+    if (id !== 'home') return locateTarget(id);
+    const h = getHome?.();
+    return h ? { x: h.x, y: h.y, home: true } : null;
+  };
   const win = doc.defaultView;
   const viewport = () => ({ w: win.innerWidth, h: win.innerHeight });
   const reduced = () => !!win.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -421,19 +431,35 @@ export function createOverlay({ locate, doc = document, events = window, getOrig
   const highlight = (id) => (typeof id === 'string' && id ? add(`highlight:${id}`, () => makeRing(id, 'highlight')) : null);
   const trail = (a, b) => (typeof a === 'string' && typeof b === 'string' && a && b ? add(`trail:${a}>${b}`, () => makeTrail(a, b)) : null);
   function clear() {
-    [...items.keys()].forEach((k) => drop(k));
+    const p = items.get('pointer');
+    [...items.keys()].forEach((k) => (k === 'pointer' && getHome ? null : drop(k)));
+    if (p && getHome && p.id !== 'home') p.aim('home');
+    if (p) wake();
+  }
+  function park() {
+    if (!getHome) return null;
+    return pointAt('home');
+  }
+  function press() {
+    const el = items.get('pointer')?.els[0];
+    if (!el || reduced()) return;
+    el.classList.remove('is-pressing');
+    void el.offsetWidth; // restart the animation
+    el.classList.add('is-pressing');
+    win.setTimeout(() => el.classList.remove('is-pressing'), PRESS_ANIM_MS);
   }
   /** Shapes the pointer's label must not cover, e.g. the dwell ring (U6): () => [{x, y, r}]. */
   function setAvoid(fn) {
     avoidFn = typeof fn === 'function' ? fn : () => [];
   }
-  const active = () => [...items.keys()];
+  // what the guide is showing now (a pointer parked at home shows nothing)
+  const active = () => [...items.keys()].filter((k) => !(k === 'pointer' && items.get(k).id === 'home'));
 
   // the person did something: the guide's marks belong to a view that is gone
   events?.addEventListener?.('meridian:command', (e) => {
     const d = e.detail;
-    if (d?.ok && !QUIET_SOURCES.has(d.source) && items.size) clear();
+    if (d?.ok && !QUIET_SOURCES.has(d.source) && active().length) clear();
   });
 
-  return { pointAt, circle, highlight, trail, clear, setAvoid, active, element: root };
+  return { pointAt, circle, highlight, trail, press, clear, park, setAvoid, active, element: root };
 }

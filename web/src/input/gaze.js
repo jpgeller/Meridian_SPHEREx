@@ -18,7 +18,7 @@ import { modeBehaviour, nextMode, parseMode, INPUTS } from './inputMode.js';
 import { buildTargets, buttonId, createTargetSender } from './targets.js';
 import './gaze.css';
 
-// Pressable in full gaze mode: Meridian's own buttons, the guide pop-up's answers, the input-mode
+// Pressable in full gaze mode: Meridian's own buttons, the guide pop-up's answers and pill, the input-mode
 // button, anything marked [data-gaze]. Text fields, sliders and Aladin's own widgets are left to
 // keyboard / commands.
 export const TARGET_SELECTOR = [
@@ -26,6 +26,7 @@ export const TARGET_SELECTOR = [
   '#handoff button',
   '#field-root button',
   '[data-guide="guide-popup"] button',
+  '[data-guide="guide-pill"]',
   '.input-mode',
   '[data-gaze]',
 ].join(',');

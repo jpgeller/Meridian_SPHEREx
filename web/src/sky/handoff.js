@@ -4,7 +4,7 @@ import { FIELD_OPEN_MAX_FOV } from '../core/defaultCommands.js';
 
 export function createHandoff(root, { store, commands }) {
   root.innerHTML = `
-    <button type="button" id="open-field" class="handoff" hidden>
+    <button type="button" id="open-field" class="handoff" data-guide="open-field" hidden>
       Open time-lapse here <kbd>Enter</kbd>
     </button>`;
   const btn = root.querySelector('#open-field');

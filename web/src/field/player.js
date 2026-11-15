@@ -52,11 +52,11 @@ export function createPlayer(stage, { store, commands }) {
       </div>
       <div class="player-right">
       <div class="player-bar" role="radiogroup" aria-label="What to show" data-guide="show-modes">
-        <button type="button" role="radio" data-show="timelapse">Time-lapse <kbd>t</kbd></button>
-        <button type="button" role="radio" data-show="video">Change video <kbd>v</kbd></button>
-        <button type="button" role="radio" data-show="blink">Blink two dates <kbd>b</kbd></button>
-        <button type="button" role="radio" data-show="wise">Side by side with WISE <kbd>w</kbd></button>
-        <button type="button" role="radio" data-show="gaia">Side by side with Gaia</button>
+        <button type="button" role="radio" data-show="timelapse" data-guide="op-none">Time-lapse <kbd>t</kbd></button>
+        <button type="button" role="radio" data-show="video" data-guide="op-video">Change video <kbd>v</kbd></button>
+        <button type="button" role="radio" data-show="blink" data-guide="op-blink">Blink two dates <kbd>b</kbd></button>
+        <button type="button" role="radio" data-show="wise" data-guide="op-wise">Side by side with WISE <kbd>w</kbd></button>
+        <button type="button" role="radio" data-show="gaia" data-guide="op-gaia">Side by side with Gaia</button>
       </div>
       <div class="player-bar video-options" role="group" aria-label="Change video options">
         <span class="row wrap" id="video-marks-wrap" hidden>
@@ -67,13 +67,13 @@ export function createPlayer(stage, { store, commands }) {
         <span id="trail-wise-wrap" hidden><button type="button" role="switch" aria-checked="true" id="trail-wise">Include WISE 2010–2024</button></span>
         <span class="muted hint" id="op-hint"></span>
       </div>
-      <div class="epochs" id="epochs" role="group" aria-label="Dates (select two to compare)"></div>
+      <div class="epochs" id="epochs" data-guide="dates" role="group" aria-label="Dates (select two to compare)"></div>
       <div class="player-bar">
-        <button type="button" id="p-prev" aria-label="Previous frame">◀︎ <kbd>,</kbd></button>
-        <button type="button" id="p-play" aria-keyshortcuts="Space">Play <kbd>Space</kbd></button>
-        <button type="button" id="p-next" aria-label="Next frame"><kbd>.</kbd> ▶︎</button>
+        <button type="button" id="p-prev" data-guide="frame-prev" aria-label="Previous frame">◀︎ <kbd>,</kbd></button>
+        <button type="button" id="p-play" data-guide="play" aria-keyshortcuts="Space">Play <kbd>Space</kbd></button>
+        <button type="button" id="p-next" data-guide="frame-next" aria-label="Next frame"><kbd>.</kbd> ▶︎</button>
         <button type="button" id="p-more" aria-expanded="false" aria-controls="p-more-row">Display options</button>
-        <input type="range" id="p-scrub" min="0" max="0" value="0" aria-label="Frame" />
+        <input type="range" id="p-scrub" data-guide="frame-slider" min="0" max="0" value="0" aria-label="Frame" />
       </div>
       <div class="player-bar" id="p-more-row" hidden role="group" aria-label="Display options">
         <button type="button" id="p-speed" title="Press to change">Speed: 2 fps</button>

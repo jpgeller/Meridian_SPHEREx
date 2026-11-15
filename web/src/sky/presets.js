@@ -30,3 +30,17 @@ export function presetForText(text) {
   const t = norm(text);
   return PRESETS.find((p) => [p.label, p.id, ...(p.aliases ?? [])].some((a) => norm(a) === t)) ?? null;
 }
+
+/**
+ * A resolver label fit to show (AI guide spec 1, P1-5): Sesame calls proper names "NAME Barnard's star".
+ * A known place shows its own label; else a leading "NAME " goes and each word of that name starts
+ * with a capital ("Barnard's Star"). Catalogue designations ("RW Aur", "WISEA J0855…") stay as they are.
+ */
+export function displayName(label, target) {
+  const preset = typeof target === 'string' ? (PRESETS.find((p) => p.target === target) ?? presetForText(target)) : null;
+  if (preset) return preset.label;
+  const text = String(label ?? target ?? '').trim();
+  const m = /^NAME\s+(.+)$/i.exec(text);
+  if (!m) return text;
+  return m[1].replace(/(^|[\s-])([a-z])/g, (_, sep, c) => sep + c.toUpperCase());
+}

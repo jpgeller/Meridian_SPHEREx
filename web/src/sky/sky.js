@@ -8,7 +8,7 @@
 import A from 'aladin-lite';
 import { parseCoordinates } from '../core/coords.js';
 import { SPHEREX_HIPS, loadWavelengths, waitForLayer, showBand } from './spherexCube.js';
-import { PRESETS, presetById, presetForText } from './presets.js';
+import { PRESETS, presetById, presetForText, displayName } from './presets.js';
 import { createNativeLayer, NATIVE_LAYER_ENABLED } from './nativeLayer.js';
 import { createColorViews } from './colorViews.js';
 import { createLevels } from './levels.js';
@@ -155,7 +155,7 @@ export async function createSky(container, { store, commands, onStatus = () => {
       const where = coords ?? (await resolveName(target.trim()));
       if (store.get().proj === 'AIT') store.set({ proj: 'SIN' }, 'command');
       store.set({ ra: where.ra, dec: where.dec, fov: fov ?? DEFAULT_FIELD_FOV }, 'command');
-      onStatus(`Showing ${where.label ?? target}`);
+      onStatus(`Showing ${displayName(where.label, target)}`);
       return where;
     },
     { label: 'Fly to', args: { target: 'name or coordinates', fov: 'optional, degrees' } },
