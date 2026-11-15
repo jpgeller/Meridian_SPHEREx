@@ -47,8 +47,7 @@ export function createContext(player, { store, commands }) {
        <button type="button" role="radio" data-compare="timeline">Timeline 2010→2026</button>
        <button type="button" role="radio" data-compare="blink">Blink WISE / SPHEREx</button>
        <button type="button" role="radio" data-compare="gaia">Side by side with Gaia</button>
-     </div>
-     <label class="inline"><input type="checkbox" id="ctx-gaia" /> Gaia stars</label>`,
+     </div>`,
   );
   const side = document.createElement('div');
   side.className = 'canvas-wrap ctx-wrap';
@@ -208,7 +207,6 @@ export function createContext(player, { store, commands }) {
     }
     timeline.hidden = s.compare !== 'timeline';
     document.querySelectorAll('[data-compare]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.compare === s.compare)));
-    document.querySelector('#ctx-gaia').checked = s.layers.includes('gaia');
 
     const seq = player.getSequence();
     const shown = player.getShownFrame();
@@ -272,7 +270,6 @@ export function createContext(player, { store, commands }) {
   document.querySelectorAll('[data-compare]').forEach((b) =>
     b.addEventListener('click', () => commands.run('set_compare', { compare: b.dataset.compare }, 'ui')),
   );
-  document.querySelector('#ctx-gaia').addEventListener('change', () => commands.run('toggle_layer', { layer: 'gaia' }, 'ui'));
   scrubEl.addEventListener('input', () => {
     tlIndex = Number(scrubEl.value);
     render();

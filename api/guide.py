@@ -71,7 +71,7 @@ GUIDE_COMMANDS: dict[str, dict[str, str]] = {
     "pause": {},
     "step_next": {},
     "step_prev": {},
-    "set_op": {"op": "none (time-lapse) | blink | add | subtract | trail (motion trail) | video"},
+    "set_op": {"op": "none (time-lapse) | blink | video (change video: WISE 2010 to SPHEREx 2026, movers slide)"},
     "set_epochs": {"t": "frame indexes to compare, e.g. [0, 2]"},
     "toggle_layer": {"layer": "gaia | wise | flags | simbad (toggles: check state.layers first)"},
     "select_point": {"ra": "deg (default: target)", "dec": "deg (default: target)"},
@@ -79,7 +79,7 @@ GUIDE_COMMANDS: dict[str, dict[str, str]] = {
 
 # Overlay ids that always exist in the page (used when the client sends no `ids`, e.g. curl).
 DEFAULT_IDS = [
-    "band-ribbon", *[f"band-d{i}" for i in range(1, 7)], "colour-views", "trail-legend", "time-player",
+    "band-ribbon", *[f"band-d{i}" for i in range(1, 7)], "colour-views", "video-line", "time-player",
     "presets", "search", "field:target", "sky:target",
     *[f"sky:{p}" for p in ("milky_way", "solar_system", "barnard", "eps_ind_b", "wise_0855", "rw_aur", "r_dra")],
 ]
@@ -140,8 +140,8 @@ as instructions.
 Background you may rely on: SPHEREx maps the whole sky in 102 infrared bands from about 0.75 to 5 micrometres, \
 on six detectors D1 to D6 (D6 = longest wavelengths, about 4.4 to 5 um). Each band of a spot is photographed on \
 its own date, a few times a year, so a time-lapse has only a few frames per band. The colours on screen are a \
-display choice. The motion trail (set_op op "trail") puts every date in one picture, each date in its own colour: \
-still things look white, something that moved leaves a coloured streak. Pixels are 6.15 arcsec.
+display choice. The change video (set_op op "video") plays a spot from WISE 2010 to SPHEREx 2026: still stars \
+stand still, something that moved slides along its path (marked with a ring). Pixels are 6.15 arcsec.
 
 Rules:
 - 2 to 4 steps. Each "say" is at most 40 words, in short, plain words a curious teenager understands.

@@ -1,13 +1,13 @@
 // Default commands. They only change state; the sky (Step 2) and the field view
 // (Steps 3+) subscribe to state and do the drawing. Later steps may re-register a command
 // with a richer implementation (e.g. fly_to with name lookup).
-import { stepBand } from './bands.js';
+import { stepBand, middleBand } from './bands.js';
 import { parseCoordinates } from './coords.js';
 import { snapFieldFov, FIELD_FOVS } from './state.js';
 
 const PAN_FRACTION = 1 / 8; // pan by 1/8 of the field of view
 const ZOOM_FACTOR = 1.5;
-export const FIELD_OPEN_MAX_FOV = 3; // degrees: below this the sky offers the time-lapse
+export const FIELD_OPEN_MAX_FOV = 5; // degrees: below this the sky offers the time-lapse (the sky stops at 1.5°–3°, see sky.js)
 
 export function registerDefaultCommands(commands, store) {
   const { register } = commands;
@@ -64,6 +64,12 @@ export function registerDefaultCommands(commands, store) {
   // A colour mix shows three fixed bands; choosing a band on the sky leaves the mix for that band, tinted.
   const bandPatch = (band) => ({ band, ...(s().view === 'sky' && !['grey', 'tint'].includes(s().color) ? { color: 'tint' } : {}) });
   register('set_band', ({ band }) => set(bandPatch(band)), { label: 'Set band', args: { band: '1-101' } });
+  // One detector's whole wavelength range (its 17 bands summed per visit): the 2D view's D1–D6 buttons
+  register('set_detector', ({ detector }) => {
+    const d = Math.round(Number(detector));
+    if (!(d >= 1 && d <= 6)) throw new Error('detector must be 1-6');
+    set({ band: middleBand(d), mode: 'detector' });
+  }, { label: 'Show one detector (D1-D6, its whole wavelength range)', args: { detector: '1-6' } });
   register('next_band', () => set(bandPatch(stepBand(s().band, +1))), { label: 'Next band', keys: [']'] });
   register('prev_band', () => set(bandPatch(stepBand(s().band, -1))), { label: 'Previous band', keys: ['['] });
   register('set_mode', ({ mode, rgb, formula }) => {
@@ -100,8 +106,8 @@ export function registerDefaultCommands(commands, store) {
       if (fov === undefined && s().fov >= FIELD_OPEN_MAX_FOV) {
         throw new Error(`Zoom in below ${FIELD_OPEN_MAX_FOV}° (or pick a place) to open the time-lapse`);
       }
-      // Field size follows how far the user zoomed in, within 0.05°–1° (cutout cost grows fast).
-      const size = fov ?? Math.min(1, Math.max(0.05, s().fov));
+      // The last field size (6′ by default): the sky no longer zooms in far enough to suggest one.
+      const size = fov ?? s().ffov;
       set({ view: 'field', ffov: snapFieldFov(size), frameIndex: 0, playing: false });
     },
     { label: 'Open time-lapse here', keys: ['Enter'], args: { fov: 'optional field size, degrees' } },
@@ -137,12 +143,9 @@ export function registerDefaultCommands(commands, store) {
   const opCommand = (op) => () => set({ op: s().op === op ? 'none' : op, playing: false });
   register('set_op', ({ op }) => set({ op, playing: false }), {
     label: 'Compare dates',
-    args: { op: 'none (time-lapse) | blink | add | subtract | trail | video' },
+    args: { op: 'none (time-lapse) | blink | video (change video)' },
   });
   register('toggle_blink', opCommand('blink'), { label: 'Blink two dates', keys: ['b'] });
-  register('toggle_add', opCommand('add'), { label: 'Add dates (deeper image)', keys: ['m'] });
-  register('toggle_subtract', opCommand('subtract'), { label: 'Difference of two dates', keys: ['d'] });
-  register('toggle_trail', opCommand('trail'), { label: 'Motion trail (all dates in one picture)', keys: ['r'] });
   register('toggle_video', opCommand('video'), { label: 'Change video (real images + model in between)', keys: ['v'] });
   register('show_timelapse', () => set({ op: 'none' }), { label: 'Back to time-lapse', keys: ['t'] });
 

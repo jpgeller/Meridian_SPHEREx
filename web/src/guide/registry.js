@@ -11,14 +11,13 @@
 //
 // Ids (the gaze layer and the guide use the same ones):
 //   <data-guide>        any element with data-guide="…" (search, presets, band-ribbon, band-d1…d6,
-//                       colour-views, face-panel, time-player, trail-legend)
+//                       colour-views, face-panel, time-player, video-line)
 //   sky:<preset id>     a preset place (sky:barnard, sky:wise_0855, …)
 //   sky:target          the last place flown to (search box, preset, URL, guide)
 //   field:target        the target in the middle of the time-lapse image
 //   field:mover:<n>     a catalogue mover in the time-lapse, at the date of the frame on screen
 //   colour:D1…D6        a detector block on the ribbon
 //   colour:<band>       a band's tick on the ribbon (1-101)
-//   colour:trail        the motion-trail colour legend (field view, trail op)
 //
 // Pure: everything outside (DOM, Aladin, the player) is passed in, so node tests can drive it.
 import { parseCoordinates } from '../core/coords.js';
@@ -227,7 +226,6 @@ export function createRegistry({
   function colour(rest) {
     const d = /^D([1-6])$/i.exec(rest);
     if (d) return element(`band-d${d[1]}`);
-    if (rest === 'trail') return element('trail-legend');
     const band = Number(rest);
     if (!Number.isInteger(band) || band < BAND_MIN || band > BAND_MAX) return null;
     const { detector, channel } = detectorOf(band);

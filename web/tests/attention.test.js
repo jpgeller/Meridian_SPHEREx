@@ -52,7 +52,7 @@ function setup({ quiet = null } = {}) {
 
 test('classifyTarget: objects, colour controls, and nothing for plain controls', () => {
   for (const id of ['sky:barnard', 'sky:target', 'field:target', 'field:mover:2']) assert.equal(classifyTarget(id), 'object', id);
-  for (const id of ['band-ribbon', 'band-d1', 'band-d6', 'colour-views', 'trail-legend', 'colour:D3', 'colour:40', 'colour:trail'])
+  for (const id of ['band-ribbon', 'band-d1', 'band-d6', 'colour-views', 'colour:D3', 'colour:40'])
     assert.equal(classifyTarget(id), 'colours', id);
   for (const id of ['presets', 'search', 'time-player', 'face-panel', 'guide-popup', null, undefined]) assert.equal(classifyTarget(id), null, String(id));
   // our keys are the pop-up's own: object -> target id, others -> a fixed key

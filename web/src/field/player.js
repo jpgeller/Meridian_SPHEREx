@@ -1,22 +1,22 @@
-// Time-lapse player: the SPHEREx frames of the current patch, in date order, plus the
-// date operations (blink, add, subtract). Two stages:
+// Time-lapse player: the SPHEREx frames of the current patch, in date order, plus two other ways
+// to look at them. Two stages:
 //   1. sequence  – which images make up the time-lapse (built in sequence.js; Step 8 adds band modes)
-//   2. operation – state.op: none (time-lapse) | blink | add | subtract, on dates chosen in state.t
+//   2. operation – state.op: none (time-lapse) | blink (two dates, flicking) | video (change video,
+//      WISE 2010 -> SPHEREx 2026). Add, Difference and Motion trail were removed on 16 Nov 2026 to keep
+//      the 2D view simple (Difference confused people; the video shows motion better than the trail).
 // Every control is a command, so keyboard, external controllers and the guide drive it the same way.
 import { loadFrameList, bandsWithData } from './frames.js';
 import { buildSequence, sequenceKey } from './sequence.js';
 import { drawFrame, drawRGB, sharedStretch, rgbStretches } from './render.js';
-import { addFrames, differenceSignificance, pickPair, pickForAdd } from './compare.js';
-import { motionTrail, resampleToGrid } from './trail.js';
+import { pickPair } from './compare.js';
+import { resampleToGrid } from './trail.js';
 import { buildModel, renderAt, bracket } from './changeModel.js';
 import { loadWiseFrames, WISE_PIXEL_ARCSEC } from './wiseFrames.js';
 import { groupByVisit } from './sequence.js';
 
 const SPEEDS = [1, 2, 4, 6, 10]; // frames per second
 const BLINK_HZ = 2;
-const DIFF_RANGE_SIGMA = 5; // difference images span ±5σ
 const SPHEREX_PIXEL_ARCSEC = 6.15;
-const TRAIL_STRETCH = [0, 1, 2].map(() => ({ vmin: 0, vmax: 1, kind: 'linear' }));
 const VIDEO_SECONDS = 12; // the whole time line, 2010 → 2026, plays in this many seconds
 const VIDEO_HOLD = 0.45; // seconds to hold on each real image (optional: "Pause on real images")
 const VIDEO_END_HOLD = 1; // seconds on the last image before the video loops
@@ -24,7 +24,6 @@ const VIDEO_STRETCH = { vmin: 0, vmax: 1, kind: 'linear' };
 const mjdToIso = (mjd) => new Date((mjd - 40587) * 864e5).toISOString();
 const monthYear = (mjd) => new Date((mjd - 40587) * 864e5).toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
 const year = (mjd) => new Date((mjd - 40587) * 864e5).getUTCFullYear();
-const cssColour = (c) => `rgb(${c.map((v) => Math.round(v * 255)).join(',')})`;
 const fmtDate = (iso) =>
   iso ? new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 const shortDate = (iso) =>
@@ -42,18 +41,12 @@ export function createPlayer(stage, { store, commands }) {
         </div>
         <p id="player-msg" class="player-msg" role="status" aria-live="polite"></p>
       </div>
-      <div class="video-line" id="video-line" hidden aria-hidden="true">
+      <div class="video-line" id="video-line" data-guide="video-line" hidden aria-hidden="true">
         <span id="video-from"></span><div class="video-track" id="video-track"><div class="video-head" id="video-head"></div></div><span id="video-to"></span>
-      </div>
-      <div class="trail-legend" id="trail-legend" data-guide="trail-legend" hidden aria-hidden="true">
-        <span id="trail-from"></span><div class="trail-bar" id="trail-bar"></div><span id="trail-to"></span>
       </div>
       <div class="player-bar" role="group" aria-label="Compare dates">
         <button type="button" data-op="none">Time-lapse <kbd>t</kbd></button>
         <button type="button" data-op="blink">Blink <kbd>b</kbd></button>
-        <button type="button" data-op="add">Add <kbd>m</kbd></button>
-        <button type="button" data-op="subtract">Difference <kbd>d</kbd></button>
-        <button type="button" data-op="trail">Motion trail <kbd>r</kbd></button>
         <button type="button" data-op="video">Change video <kbd>v</kbd></button>
         <span class="row wrap" id="video-marks-wrap" hidden>
           <label class="inline"><input type="checkbox" id="video-marks-on" checked /> Mark moving objects</label>
@@ -100,9 +93,9 @@ export function createPlayer(stage, { store, commands }) {
   let playTimer = null;
   let blinkTimer = null;
   let blinkPhase = 0;
-  const derived = new Map(); // memoised add/subtract results for the current sequence
+  const derived = new Map(); // memoised results (change-video models) for the current sequence
   let shownFrame = null; // what is on the canvas now (for overlays)
-  const wise = { key: '', frames: null, error: '', loading: false }; // WISE epochs for the trail and video
+  const wise = { key: '', frames: null, error: '', loading: false }; // WISE epochs for the change video
   const movers = { key: '', list: null, error: '', loading: false }; // catalogue movers for the video
   const vid = { mjd: null, hold: 0, raf: 0, last: 0, out: null }; // change-video playhead
   const showListeners = [];
@@ -247,49 +240,12 @@ export function createPlayer(stage, { store, commands }) {
       const k = blinkPhase ? b : a;
       return { frame: seq[k], stretch, cmap: local.colormap, label: `Blink: ${blinkPhase ? 'B' : 'A'} · `, index: k };
     }
-    if (s.op === 'add' && n >= 2) {
-      const idx = pickForAdd(seq, s.t);
-      const key = `add:${idx.join(',')}`;
-      if (!derived.has(key)) {
-        if (kind === 'rgb') {
-          const channels = [0, 1, 2].map((c) => {
-            const fs = idx.map((j) => seq[j].rgb[c]).filter(Boolean);
-            return fs.length ? addFrames(fs) : null;
-          });
-          const sum = { ...seq[idx[0]], id: `add:${key}`, rgb: channels, meta: { ...seq[idx[0]].meta, date_end_iso: seq[idx.at(-1)].meta.date_end_iso } };
-          derived.set(key, { frame: sum, stretch: rgbStretches([sum]) });
-        } else {
-          const sum = addFrames(idx.map((j) => seq[j]));
-          derived.set(key, { frame: sum, stretch: sharedStretch([sum]) });
-        }
-      }
-      const d = derived.get(key);
-      return { ...d, cmap: local.colormap, label: `Added ${idx.length} dates · `, index: null };
-    }
-    if (s.op === 'subtract' && n >= 2 && kind !== 'rgb') {
-      const [a, b] = pickPair(seq, s.t);
-      const key = `sub:${a},${b}`;
-      if (!derived.has(key)) {
-        // later minus earlier: new/brighter = positive; offset removed, in units of noise
-        // brightness-matched, in units of noise + 15% of local brightness (see compare.js)
-        const diff = differenceSignificance(seq[a], seq[b]);
-        derived.set(key, {
-          frame: diff,
-          stretch: { vmin: -DIFF_RANGE_SIGMA, vmax: DIFF_RANGE_SIGMA, kind: 'linear' },
-          pair: [a, b],
-        });
-      }
-      const d = derived.get(key);
-      return { ...d, cmap: 'diverging', label: '', index: null };
-    }
-    if (s.op === 'trail' && n >= 2 && kind !== 'rgb') return trailView(s);
     if (s.op === 'video' && n >= 2 && kind !== 'rgb') return videoView(s);
     return { frame: seq[i], stretch, cmap: local.colormap, label: '', index: i };
   }
 
-  // Motion trail: one picture of every date, oldest blue → newest red (trail.js). With WISE on,
-  // the SPHEREx visits are resampled onto WISE's finer 2.75" grid and the 2010–2024 WISE epochs
-  // come first, so the time line spans ~16 years and nearby stars visibly streak.
+  // The change video's WISE part: the 2010–2024 WISE epochs, resampled with the SPHEREx visits onto
+  // WISE's finer 2.75" grid, so the time line spans ~16 years and nearby stars visibly move.
   function wantWise(s) {
     const key = `${s.ra.toFixed(5)},${s.dec.toFixed(5)}|${s.ffov}`;
     if (wise.key !== key) Object.assign(wise, { key, frames: null, error: '', loading: false });
@@ -303,7 +259,7 @@ export function createPlayer(stage, { store, commands }) {
           wise.loading = false;
           derived.clear();
           const st = store.get();
-          if (st.op === 'trail' || st.op === 'video') show(st);
+          if (st.op === 'video') show(st);
         });
     }
     return wise.frames;
@@ -495,61 +451,16 @@ export function createPlayer(stage, { store, commands }) {
     vid.raf = requestAnimationFrame(videoTick);
   }
 
-  function trailView(s) {
-    const { frames, visits, wiseFrames } = alignedFrames(s);
-    const key = `trail:${wiseFrames ? 'wise' : 'spherex'}:${seq.length}`;
-    if (!derived.has(key)) {
-      const t = motionTrail(frames);
-      const frame = {
-        id: key,
-        w: t.w,
-        h: t.h,
-        rgb: [{ data: t.r }, { data: t.g }, { data: t.b }],
-        meta: { ...visits[0].meta, mode: 'trail' },
-        trail: { ...t, nWise: wiseFrames?.length ?? 0, nSpherex: visits.length },
-      };
-      derived.set(key, { frame, stretch: TRAIL_STRETCH });
-    }
-    return { ...derived.get(key), label: '', index: null };
-  }
-
-  function describeTrail(view) {
-    const t = view.frame.trail;
-    const parts = [];
-    if (t.nWise) parts.push(`${t.nWise} WISE 4.6 µm images`);
-    parts.push(`${t.nSpherex} SPHEREx visits`);
-    let wiseNote = '';
-    if (local.trailWise && !t.nWise) {
-      wiseNote = wise.loading ? ' · Loading WISE 2010–2024…' : wise.error ? ` · WISE not available here (${wise.error}).` : '';
-    }
-    return (
-      `Motion trail: ${parts.join(' + ')}, ${year(t.t0)}–${year(t.t1)}, each tinted by date (oldest blue → newest red) and stacked. ` +
-      'Things that stay put come out white; a moving object leaves a rainbow streak from blue to red; ' +
-      'a star that changes brightness gets a coloured fringe. Each image is scaled on its own, so compare positions, not brightness.' +
-      wiseNote
-    );
-  }
-
   function describe(s, view) {
     const m = view.frame.meta;
-    if (view.frame.trail) return describeTrail(view);
     if (view.frame.video) return describeVideo(view);
-    if (s.op === 'subtract' && view.pair) {
-      const [a, b] = view.pair;
-      return (
-        `Difference: ${fmtDate(seq[b].meta.date_iso)} minus ${fmtDate(seq[a].meta.date_iso)}, brightness-matched, ±${DIFF_RANGE_SIGMA}σ ` +
-        '(noise plus 15% of each star’s brightness, so small blur differences are ignored). ' +
-        'Orange = brighter on the later date, blue = brighter on the earlier date. A moving object shows as a blue–orange pair.'
-      );
-    }
     const when = m.n_combined
       ? `${fmtDate(m.date_iso)} – ${fmtDate(m.date_end_iso)} (${m.n_combined} images)`
       : fmtDate(m.date_iso);
     const pos0 = view.index != null ? `Frame ${view.index + 1} of ${seq.length} · ` : '';
     if (m.mode === 'rgb') {
       const ch = (m.channels ?? []).map((c, k) => `${['red', 'green', 'blue'][k]} = ${c.label}${c.present ? '' : ' (no image this visit)'}`);
-      const subNote = s.op === 'subtract' ? ' · Difference works on single-colour views; showing the colour image.' : '';
-      return `${view.label}${pos0}${when} · Colour mix: ${ch.join(', ')}${subNote}`;
+      return `${view.label}${pos0}${when} · Colour mix: ${ch.join(', ')}`;
     }
     if (m.mode === 'custom') return `${view.label}${pos0}${when} · Formula: ${m.formula}`;
     if (m.mode === 'detector' && Number.isFinite(m.wl_min)) {
@@ -594,21 +505,8 @@ export function createPlayer(stage, { store, commands }) {
     epochsEl.querySelectorAll('[data-epoch]').forEach((b) =>
       b.classList.toggle('current', Number(b.dataset.epoch) === (view.index ?? -1)),
     );
-    renderTrailLegend(view.frame.trail);
     renderVideoLine(view.frame.video);
     for (const fn of showListeners) fn(view);
-  }
-
-  function renderTrailLegend(t) {
-    const legend = $('#trail-legend');
-    legend.hidden = !t;
-    if (!t) return;
-    $('#trail-from').textContent = String(year(t.t0));
-    $('#trail-to').textContent = String(year(t.t1));
-    // one stop per date, placed by time, so the bar shows where the dates bunch up
-    const span = t.t1 - t.t0 || 1;
-    const stops = t.mjds.map((m, k) => `${cssColour(t.colours[k])} ${(((m - t.t0) / span) * 100).toFixed(1)}%`);
-    $('#trail-bar').style.background = `linear-gradient(to right, ${stops.join(', ')})`;
   }
 
   function renderEpochs(s) {
@@ -634,19 +532,13 @@ export function createPlayer(stage, { store, commands }) {
     scrub.disabled = !many || !timelapse;
     stage.querySelectorAll('[data-op]').forEach((b) => {
       b.setAttribute('aria-pressed', String(b.dataset.op === s.op));
-      b.disabled = (b.dataset.op !== 'none' && !many) || (['subtract', 'trail', 'video'].includes(b.dataset.op) && kind === 'rgb');
+      b.disabled = (b.dataset.op !== 'none' && !many) || (b.dataset.op === 'video' && kind === 'rgb');
     });
-    $('#trail-wise-wrap').hidden = !['trail', 'video'].includes(s.op);
+    $('#trail-wise-wrap').hidden = s.op !== 'video';
     $('#video-marks-wrap').hidden = s.op !== 'video';
     $('#p-visit').disabled = s.mode !== 'single'; // other modes are already one per visit
     $('#op-hint').textContent =
-      s.op === 'none'
-        ? ''
-        : s.op === 'add'
-          ? 'Select 2+ dates below, or all are added.'
-          : s.op === 'trail' || s.op === 'video'
-            ? 'Uses every date.'
-            : 'Select two dates below, or the first and last are used.';
+      s.op === 'none' ? '' : s.op === 'video' ? 'Uses every date.' : 'Select two dates below, or the first and last are used.';
     epochsEl.querySelectorAll('[data-epoch]').forEach((b) =>
       b.setAttribute('aria-pressed', String(s.t.includes(Number(b.dataset.epoch)))),
     );
@@ -712,7 +604,7 @@ export function createPlayer(stage, { store, commands }) {
     getVideoModel: () => vid.model ?? null, // tests and debugging
     onShow: (fn) => showListeners.push(fn),
     // For the guide's target registry (guide/registry.js): where the shown image sits on the sky.
-    // Aligned frames (trail, video with WISE) cover the same patch on finer pixels, hence the ratio.
+    // Aligned frames (the change video with WISE) cover the same patch on finer pixels, hence the ratio.
     getGeometry: () => {
       if (!shownFrame || !seq.length) return null;
       const s = store.get();

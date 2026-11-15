@@ -68,3 +68,43 @@ export function formatSexagesimal(ra, dec) {
   const p = (n, w = 2) => String(n).padStart(w, '0');
   return `${p(hh)}h${p(mm)}m${ss.toFixed(1).padStart(4, '0')}s ${sign}${p(dd)}°${p(dm)}′${ds.toFixed(0).padStart(2, '0')}″`;
 }
+
+// --- readable coordinates in the URL: ra=17h57m47.105s & dec=4d46m06.05s (or -29d00m28.08s) ---
+// No '+' (a URL turns it into a space). Precision keeps the 5-decimal degrees the state and the
+// API cache use: 1 ms of RA time and 0.01" of Dec are both below 5e-6 degrees, so a round trip
+// gives back exactly the same 5-decimal value.
+const pad2 = (n) => String(n).padStart(2, '0');
+
+/** RA degrees -> '17h57m47.105s' */
+export function raToUrl(ra) {
+  const ms = Math.round((((ra % 360) + 360) % 360) / 15 * 3600 * 1000) % (24 * 3600 * 1000);
+  const h = Math.floor(ms / 3.6e6);
+  const m = Math.floor((ms % 3.6e6) / 6e4);
+  const sec = (ms % 6e4) / 1000;
+  return `${pad2(h)}h${pad2(m)}m${sec.toFixed(3).padStart(6, '0')}s`;
+}
+
+/** Dec degrees -> '4d46m06.05s' or '-29d00m28.08s' */
+export function decToUrl(dec) {
+  const cas = Math.round(Math.abs(dec) * 3600 * 100); // centi-arcseconds
+  const d = Math.floor(cas / 360000);
+  const m = Math.floor((cas % 360000) / 6000);
+  const sec = (cas % 6000) / 100;
+  return `${dec < 0 && cas > 0 ? '-' : ''}${d}d${pad2(m)}m${sec.toFixed(2).padStart(5, '0')}s`;
+}
+
+/** URL value -> RA degrees: '17h57m47.105s' or plain degrees '269.44627'. NaN if neither. */
+export function raFromUrl(text) {
+  const t = String(text ?? '').trim();
+  const m = /^(\d{1,2})h(\d{1,2})m(\d{1,2}(?:\.\d+)?)s?$/i.exec(t);
+  if (m) return ((Number(m[1]) + Number(m[2]) / 60 + Number(m[3]) / 3600) * 15) % 360;
+  return t === '' ? NaN : Number(t);
+}
+
+/** URL value -> Dec degrees: '-29d00m28.08s', '+4d46m06s' (a '+' may arrive as a space) or plain degrees. */
+export function decFromUrl(text) {
+  const t = String(text ?? '').trim();
+  const m = /^([+-]?)(\d{1,2})d(\d{1,2})m(\d{1,2}(?:\.\d+)?)s?$/i.exec(t);
+  if (m) return (m[1] === '-' ? -1 : 1) * (Number(m[2]) + Number(m[3]) / 60 + Number(m[4]) / 3600);
+  return t === '' ? NaN : Number(t);
+}

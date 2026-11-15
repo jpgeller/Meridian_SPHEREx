@@ -31,6 +31,11 @@ export function normalizeBand(band, dir = 1) {
   return b;
 }
 
+/** The middle band of detector d (1-6): what a detector button shows. */
+export function middleBand(d) {
+  return normalizeBand((d - 1) * CHANNELS_PER_DETECTOR + Math.floor(CHANNELS_PER_DETECTOR / 2));
+}
+
 /** Next valid band from `band` in direction `dir`, staying put at the ends. */
 export function stepBand(band, dir) {
   const target = band + (dir < 0 ? -1 : 1);

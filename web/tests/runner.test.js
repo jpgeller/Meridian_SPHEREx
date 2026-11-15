@@ -79,10 +79,10 @@ test('validateAction: overlay shapes, whitelisted commands, args checked by the 
     assert.deepEqual(validateAction({ circle: 'sky:barnard' }, c).action, { circle: 'sky:barnard' });
     assert.deepEqual(validateAction({ trail: ['a', 'b'] }, c).action, { trail: ['a', 'b'] });
     assert.deepEqual(validateAction({ cmd: 'set_band', args: { band: 93 } }, c).action, { cmd: 'set_band', args: { band: 93 } });
-    assert.deepEqual(validateAction({ cmd: 'toggle_trail' }, c).action, { cmd: 'toggle_trail', args: {} });
+    assert.deepEqual(validateAction({ cmd: 'toggle_video' }, c).action, { cmd: 'toggle_video', args: {} });
     assert.ok(validateAction({ cmd: 'fly_to', args: { target: "Barnard's Star", fov: 0.5 } }, c).ok);
     assert.ok(validateAction({ cmd: 'toggle_layer', args: { layer: 'gaia' } }, c).ok);
-    assert.ok(validateAction({ cmd: 'set_op', args: { op: 'trail' } }, c).ok);
+    assert.ok(validateAction({ cmd: 'set_op', args: { op: 'video' } }, c).ok);
 
     const bad = [
       { cmd: 'delete_everything' }, // not on the whitelist
@@ -224,16 +224,16 @@ test('fallback scripts: 2-4 steps with text, only whitelisted commands and valid
   }
   assert.match(fallbackScript('object', 'sky:barnard')[0].say, /Barnard's Star/);
   assert.deepEqual(fallbackScript('object', 'sky:barnard')[0].actions, [{ circle: 'sky:barnard' }]);
-  assert.ok(fallbackScript('change', null, { view: 'field' }).some((s) => s.actions.some((a) => a.cmd === 'set_op' && a.args.op === 'trail')));
+  assert.ok(fallbackScript('change', null, { view: 'field' }).some((s) => s.actions.some((a) => a.cmd === 'set_op' && a.args.op === 'video')));
   assert.ok(fallbackScript('colours').some((s) => s.actions.some((a) => a.circle === 'band-d6')));
 });
 
-test('fallback: the change script turns the motion trail on in the field view', async () => {
+test('fallback: the change script turns the change video on in the field view', async () => {
   const t = setup();
   t.store.set({ view: 'field' }, 'test');
   const done = t.runner.runScript(fallbackScript('change', null, t.store.get()));
   await t.answer('more');
-  assert.equal(t.store.get().op, 'trail');
+  assert.equal(t.store.get().op, 'video');
   await t.answer('more');
   await t.answer('got_it');
   assert.equal(await done, 'done');

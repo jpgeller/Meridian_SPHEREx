@@ -46,8 +46,8 @@ const changeScript = (target, state) => {
       actions: inField ? [{ point: 'time-player' }] : [],
     },
     {
-      say: 'The motion trail puts every date into one picture, each date in its own colour. Things that stay put come out white; something that moved leaves a coloured streak.',
-      actions: inField ? [{ cmd: 'set_op', args: { op: 'trail' } }, { point: 'trail-legend' }] : [],
+      say: 'The change video plays this spot from 2010 to 2026, WISE first, then SPHEREx. Stars that stay put stand still; something that moved slides along, marked with a ring.',
+      actions: inField ? [{ cmd: 'set_op', args: { op: 'video' } }, { point: 'video-line' }] : [],
     },
     {
       say: 'A streak is a hint, not proof. Noise, a passing asteroid or a star that changed brightness can look similar. Check the Gaia and WISE layers before trusting it.',

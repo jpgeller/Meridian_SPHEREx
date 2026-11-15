@@ -476,6 +476,24 @@ in `player.js`; command `toggle_trail` (key `r`, URL `op=trail`). Background: `d
 - Tests: the edge rule in the sky view and all six 2D modes at 1280×800 and 1920×1080; the friend's gaze and guide tests
   updated to the new positions (the recorded gaze is shifted onto D6 wherever the layout puts it).
 
+## Step 19 — A simpler 2D view, a sharp-zoom limit, readable URLs  `[x]`
+Decided with the team on 16 Nov 2026.
+- **Removed from the 2D view:** Add (deep sum; "Whole detector" already gives depth), Difference (later minus earlier image:
+  confusing because SPHEREx sees each star at a slightly different wavelength and sharpness every visit, so most stars left
+  pairs), Motion trail (the change video shows motion better) and the Gaia stars checkbox (Side by side with Gaia replaces
+  it; `toggle_layer gaia` still works for the guide). Ops are now: Time-lapse, Blink, Change video. The guide's "what changed"
+  explanation now plays the change video and points at its time line (`video-line`).
+- **D1–D6 buttons** replace "Shorter λ / Longer λ": `set_detector {detector}` shows that detector's whole range (its bands
+  summed per visit). Single bands, colour mixes and formulas are under "More band options".
+- **Sky zoom stops where the all-sky map is still sharp**: IRSA's tiles are 12.9″/px, so the limit is 2× magnification,
+  1.5°–3° wide by screen width (`skyMinFov` in `sky/sky.js`, also Aladin's `setFoVRange` for the wheel). There the sky says so
+  and offers the 2D view, which opens at the last field size (6′ by default). The hand-off shows below 5°.
+- **Readable coordinates in the URL**: `?ra=17h57m47.105s&dec=4d46m05.52s` (no '+': URLs turn it into a space). 1 ms of RA
+  and 0.01″ of Dec keep the exact 5-decimal degrees the API caches by (unit test: 20,000 random round trips). Plain degrees
+  in old links still work.
+- Gaia is not on the "Timeline 2010→2026": the timeline steps through real images (WISE, SPHEREx); Gaia has none. The drawn
+  Gaia picture is in "Side by side with Gaia".
+
 ## Optional (final version): repair the black blotches in the all-sky map  `[ ]`
 IRSA's all-sky tiles mask pixels in the bright, crowded Galactic centre (black blotches); SPHEREx has hundreds of images there
 and the full-resolution layer below 1.5° shows them. A fix: proxy the tiles of that region through the API and fill masked

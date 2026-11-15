@@ -98,12 +98,12 @@ test('resolve: data-guide elements, hidden -> null, unknown -> null, never throw
     dom: [
       { id: 'band-d6', rect: box(700, 820, 100, 64) },
       { id: 'face-panel', rect: box(16, 100, 200, 0), hidden: true },
-      { id: 'trail-legend', rect: box(100, 600, 300, 20), hidden: true },
+      { id: 'video-line', rect: box(100, 600, 300, 20), hidden: true },
     ],
   });
   assert.deepEqual(reg.resolve('band-d6'), { x: 750, y: 852, rect: { x: 700, y: 820, w: 100, h: 64 } });
   assert.equal(reg.resolve('face-panel'), null);
-  assert.equal(reg.resolve('trail-legend'), null);
+  assert.equal(reg.resolve('video-line'), null);
   assert.equal(reg.resolve('nope'), null);
   assert.equal(reg.resolve('sky:nope'), null);
   assert.equal(reg.resolve('weird:thing'), null);
@@ -118,7 +118,6 @@ test('resolve: colour ids map to detector blocks and band ticks', () => {
     dom: [
       { id: 'band-d3', rect: box(200, 820, 100, 64), ticks },
       { id: 'band-d6', rect: box(700, 820, 100, 64) },
-      { id: 'trail-legend', rect: box(100, 600, 300, 20) },
     ],
   });
   assert.deepEqual(reg.resolve('colour:D6'), reg.resolve('band-d6'));
@@ -130,7 +129,7 @@ test('resolve: colour ids map to detector blocks and band ticks', () => {
   assert.equal(reg.resolve('colour:0'), null);
   assert.equal(reg.resolve('colour:102'), null);
   assert.equal(reg.resolve('colour:D7'), null);
-  assert.deepEqual(reg.resolve('colour:trail'), reg.resolve('trail-legend'));
+  assert.equal(reg.resolve('colour:trail'), null); // the motion trail is gone
 });
 
 // --- registry: sky objects ---

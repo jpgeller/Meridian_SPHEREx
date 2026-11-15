@@ -64,6 +64,7 @@ test('every registered command runs once', async ({ page }) => {
       toggle_layer: { layer: 'gaia' },
       set_field_fov: { fov: 0.1 },
       set_op: { op: 'none' },
+      set_detector: { detector: 6 },
     };
     // Field-only commands need the field view.
     const fieldOnly = new Set(['select_point']);
@@ -220,22 +221,6 @@ test('brightness: buttons, keys and the right-drag gesture all show in the panel
   await page.keyboard.press('\\');
   await expect(page.locator('#level-label')).toContainText('as served');
   await expect.poll(cuts).toEqual([0, 255]);
-});
-
-test('motion trail: WISE 0855 leaves a rainbow streak over 2010–2026', async ({ page }) => {
-  test.setTimeout(240_000);
-  const errors = collectErrors(page);
-  await page.goto('/?ra=133.7578&dec=-7.242&fov=0.5&band=92&view=field&ffov=0.1&mode=detector');
-  await ready(page);
-  await expect(page.locator('.epoch')).toHaveCount(4, { timeout: 60_000 });
-  await page.keyboard.press('r');
-  await expect(page).toHaveURL(/op=trail/);
-  const caption = page.locator('#player-caption');
-  await expect(caption).toContainText(/WISE 4\.6 µm images \+ 4 SPHEREx visits, 2010–2026/, { timeout: 180_000 });
-  await expect(page.locator('#trail-legend')).toBeVisible();
-  await page.getByLabel('Include WISE 2010–2024').uncheck();
-  await expect(caption).toContainText('Motion trail: 4 SPHEREx visits, 2025–2026');
-  expect(errors()).toEqual([]);
 });
 
 test('change video: WISE 0855 found and tracked; real dates and model frames are labelled', async ({ page }) => {
@@ -854,7 +839,7 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     await page.goto('/?ra=269.44627&dec=4.7682&fov=0.5&band=92&view=field&ffov=0.1&mode=detector');
     await ready(page);
     await expect(page.locator('.epoch').first()).toBeVisible({ timeout: 60_000 });
-    for (const op of ['none', 'blink', 'add', 'subtract', 'trail', 'video']) {
+    for (const op of ['none', 'blink', 'video']) {
       await page.evaluate((op) => meridian.run('set_op', { op }), op);
       await page.waitForTimeout(300);
       expect(await controlsNearEdges(page), `field view, ${op}`).toEqual([]);

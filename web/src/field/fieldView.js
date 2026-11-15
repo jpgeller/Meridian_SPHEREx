@@ -2,7 +2,8 @@
 // shell: position, size control, open/close and focus handling. The player (Step 6),
 // compare modes (7), band tools (8), context (9) and spectra (10) render into #field-stage.
 import { FIELD_FOVS } from '../core/state.js';
-import { detectorOf } from '../core/bands.js';
+import { detectorOf, CHANNELS_PER_DETECTOR } from '../core/bands.js';
+import { DETECTOR_COLOURS } from '../sky/colorViews.js';
 import { formatSexagesimal } from '../core/coords.js';
 
 const fmt = (v, d) => Number(v).toFixed(d);
@@ -21,10 +22,21 @@ export function createFieldView(root, { store, commands, getWavelengths = () => 
             (f) => `<button type="button" role="radio" data-ffov="${f}">${f < 1 ? `${f * 60}′` : `${f}°`}</button>`,
           ).join('')}
         </div>
-        <div class="row wrap" role="group" aria-label="Infrared band">
-          <button type="button" id="field-band-prev" aria-label="Shorter λ: previous band" aria-keyshortcuts="["><kbd>[</kbd> Shorter λ</button>
+        <div class="row field-band-row">
+          <div class="field-dets" role="radiogroup" aria-label="Wavelength range: detectors D1 (shortest) to D6 (longest)">
+            ${[1, 2, 3, 4, 5, 6]
+              .map(
+                (d) => `<button type="button" role="radio" class="det" data-fdet="${d}" style="--det: ${DETECTOR_COLOURS[d - 1]}">
+                  <span class="det-name"><span class="sr-only">Detector </span>D${d}</span><span class="det-range" data-frange="${d}"></span></button>`,
+              )
+              .join('')}
+          </div>
+          <button type="button" id="band-more-toggle" class="band-more-toggle" aria-expanded="false" aria-controls="band-more">More band options</button>
+        </div>
+        <div class="row wrap" id="band-more" hidden role="group" aria-label="More band options">
+          <button type="button" id="field-band-prev" aria-keyshortcuts="["><kbd>[</kbd> Previous band</button>
           <span id="field-band" class="band-readout"></span>
-          <button type="button" id="field-band-next" aria-label="Longer λ: next band" aria-keyshortcuts="]">Longer λ <kbd>]</kbd></button>
+          <button type="button" id="field-band-next" aria-keyshortcuts="]">Next band <kbd>]</kbd></button>
           <span class="sep" aria-hidden="true"></span>
           <div role="radiogroup" aria-label="Band mode" class="row wrap" id="band-modes">
             <button type="button" role="radio" data-mode="single" title="One of the 102 bands">One band</button>
@@ -69,6 +81,17 @@ export function createFieldView(root, { store, commands, getWavelengths = () => 
     e.preventDefault();
     commands.run('set_mode', { mode: 'custom', formula: root.querySelector('#formula-input').value.trim() }, 'ui');
   });
+  root.querySelectorAll('[data-fdet]').forEach((b) =>
+    b.addEventListener('click', () => commands.run('set_detector', { detector: Number(b.dataset.fdet) }, 'ui')),
+  );
+  // the 102 single bands, colour mixes and formulas: folded away (most people only need D1–D6)
+  const more = root.querySelector('#band-more');
+  const moreToggle = root.querySelector('#band-more-toggle');
+  moreToggle.addEventListener('click', () => {
+    more.hidden = !more.hidden;
+    moreToggle.setAttribute('aria-expanded', String(!more.hidden));
+    moreToggle.textContent = more.hidden ? 'More band options' : 'Fewer band options';
+  });
   root.querySelector('#field-band-prev').addEventListener('click', () => commands.run('prev_band', {}, 'ui'));
   root.querySelector('#field-band-next').addEventListener('click', () => commands.run('next_band', {}, 'ui'));
   root.querySelectorAll('[data-ffov]').forEach((b) =>
@@ -100,6 +123,19 @@ export function createFieldView(root, { store, commands, getWavelengths = () => 
     const w = getWavelengths();
     root.querySelector('#field-band').textContent =
       `Band ${state.band} · D${detector} ch${channel}${w ? ` · ${w[state.band].toFixed(3)} µm` : ''}`;
+    root.querySelectorAll('[data-fdet]').forEach((b) => b.setAttribute('aria-checked', String(Number(b.dataset.fdet) === detector)));
+    root.querySelectorAll('[data-frange]').forEach((el) => {
+      const d = Number(el.dataset.frange);
+      const lo = w?.[(d - 1) * CHANNELS_PER_DETECTOR];
+      const hi = w?.[d * CHANNELS_PER_DETECTOR - 1];
+      el.textContent = lo && hi ? `${lo.toFixed(2)}–${hi.toFixed(2)} µm` : '';
+    });
+    // a colour mix or formula is chosen in "More band options": keep it open while one is on
+    if (state.mode === 'rgb' || state.mode === 'custom') {
+      root.querySelector('#band-more').hidden = false;
+      root.querySelector('#band-more-toggle').setAttribute('aria-expanded', 'true');
+      root.querySelector('#band-more-toggle').textContent = 'Fewer band options';
+    }
     // Focus: into the panel when it opens, back to the page when it closes,
     // so keyboard and screen-reader users always know where they are.
     if (open && !wasOpen) title.focus();

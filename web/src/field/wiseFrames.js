@@ -1,6 +1,6 @@
 // WISE W2 (4.6 µm) images of a field, 2010–2024, as float frames on a north-up grid
 // centred on the target at 2.75"/px (served by /api/context/wise/frame; see api/context.py).
-// Used by the motion trail to extend the time line back to 2010.
+// Used by the change video to extend the time line back to 2010.
 
 export const WISE_PIXEL_ARCSEC = 2.75;
 const cache = new Map();

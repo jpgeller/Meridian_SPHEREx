@@ -1,7 +1,7 @@
 // Sky controls, laid out in the shell's regions (ui/shell.js). Every control only calls a
 // command and reads state, so the look can change without touching the logic.
 import { PRESETS } from '../sky/presets.js';
-import { detectorOf, BAND_MIN, BAND_MAX, DETECTORS, CHANNELS_PER_DETECTOR } from '../core/bands.js';
+import { detectorOf, BAND_MIN, BAND_MAX, DETECTORS, CHANNELS_PER_DETECTOR, middleBand } from '../core/bands.js';
 import { COLOR_PRESETS, DETECTOR_COLOURS, mixBands } from '../sky/colorViews.js';
 import { describeLevel } from '../sky/levels.js';
 import { createShell } from './shell.js';
@@ -10,7 +10,6 @@ import { createFacePanel } from './facePanel.js';
 const html = String.raw;
 const DETECTOR_IDS = Array.from({ length: DETECTORS }, (_, i) => i + 1);
 // Middle channel of a detector (never one of the blank frames 0, 50, 51).
-const middleBand = (d) => (d - 1) * CHANNELS_PER_DETECTOR + Math.floor(CHANNELS_PER_DETECTOR / 2);
 
 export function createControls(root, { store, commands, getWavelengths }) {
   const shell = createShell(root);

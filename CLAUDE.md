@@ -92,4 +92,5 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   exactly like the player (per detector; single bands 40 and 92): neighbouring detectors share band numbers.
 - Names: `GET /api/resolve?name=` (Sesame + proper motion to a fixed epoch 2026.0, so cache keys don't drift).
   WISE 0855's resolvable name is `WISEA J085510.74-071442.5`, about 2′ from the challenge's (older) coordinates.
-  RA/Dec are kept to 5 decimals everywhere (state, URL, API cache keys).
+  RA/Dec are kept to 5 decimals everywhere (state, API cache keys). The URL writes them readably
+  (`ra=17h57m47.105s&dec=4d46m05.52s`, exact to those 5 decimals; plain degrees are read too).

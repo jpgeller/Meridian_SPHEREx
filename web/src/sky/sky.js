@@ -17,6 +17,11 @@ import { createSkyCoords } from './skyCoords.js';
 const DEFAULT_FIELD_FOV = 0.5; // degrees, after flying to a named object
 const SPHERE_FOV_AFTER_ALLSKY = 60;
 const PLANETARIUM_MAX_FOV = 160; // stereographic stretches a lot beyond this
+// Sharpest zoom: IRSA's all-sky tiles stop at 12.9"/px (HiPS order 5). Past 2x magnification Aladin
+// draws them as blocks, so the sky stops there (1.5°–3° wide, by screen width) and offers the 2D view,
+// which shows the real images at full quality.
+const SKY_TILE_ARCSEC = 12.9;
+export const skyMinFov = (widthPx) => Math.min(3, Math.max(1.5, (widthPx * SKY_TILE_ARCSEC) / 2 / 3600));
 
 export async function createSky(container, { store, commands, onStatus = () => {} }) {
   await A.init;
@@ -63,6 +68,27 @@ export async function createSky(container, { store, commands, onStatus = () => {
     aladin.setProjection(proj);
     aladin.setFrame(proj === 'AIT' ? 'galactic' : 'icrs');
   }
+
+  // --- sharpest zoom ---------------------------------------------------------------
+  const skyEl = typeof container === 'string' ? document.querySelector(container) : container;
+  let minFov = skyMinFov(skyEl?.clientWidth || window.innerWidth);
+  const applyMinFov = () => {
+    minFov = skyMinFov(skyEl?.clientWidth || window.innerWidth);
+    aladin.setFoVRange(minFov, 360); // mouse wheel and pinch stop here too
+  };
+  applyMinFov();
+  window.addEventListener('resize', applyMinFov);
+  let atLimitNote = false;
+  store.subscribe((state, changed) => {
+    if (atLimitNote && (changed.includes('view') || (changed.includes('fov') && state.fov > minFov * 1.05))) {
+      atLimitNote = false;
+      onStatus(''); // zoomed back out, or opened the 2D view
+    }
+    if (state.view !== 'sky' || !changed.includes('fov') || state.fov >= minFov - 1e-6) return;
+    store.set({ fov: minFov }, 'sky');
+    atLimitNote = true;
+    onStatus('This is the sharpest the all-sky map gets. For the real images at full quality, open the time-lapse (Enter).');
+  });
 
   store.subscribe((state, changed, source) => {
     if (source === 'sky') return; // our own echo

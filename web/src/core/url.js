@@ -1,11 +1,13 @@
 // State <-> URL. parseQuery/toQuery are pure (unit-tested); startUrlSync wires them to
 // the browser. URL format (all optional):
-//   ?ra=133.7951&dec=-7.2451&fov=2&band=72&proj=AIT&view=field&mode=rgb&rgb=88,72,40
+//   ?ra=08h55m10.82s&dec=-7d14m42.4s&fov=2&band=72&proj=AIT&view=field&mode=rgb&rgb=88,72,40
+//   (ra/dec are written as sky coordinates; plain degrees, ra=133.7951&dec=-7.2451, are read too)
 //    &formula=b88-b40&compare=side&op=subtract&t=0,3&layers=gaia,wise&ffov=0.25&input=assist&name=WISE%200855
 // `name` is not state: it is returned separately so the app can fly_to it after start-up.
 import { DEFAULTS } from './state.js';
+import { raToUrl, decToUrl, raFromUrl, decFromUrl } from './coords.js';
 
-const NUMBER_KEYS = ['ra', 'dec', 'fov', 'band', 'ffov'];
+const NUMBER_KEYS = ['fov', 'band', 'ffov'];
 const STRING_KEYS = ['view', 'proj', 'mode', 'compare', 'op', 'formula', 'color', 'input'];
 
 const round = (v, d) => Number(v.toFixed(d));
@@ -14,6 +16,8 @@ const round = (v, d) => Number(v.toFixed(d));
 export function parseQuery(query) {
   const q = new URLSearchParams(query);
   const patch = {};
+  if (q.has('ra')) patch.ra = raFromUrl(q.get('ra'));
+  if (q.has('dec')) patch.dec = decFromUrl(q.get('dec'));
   for (const k of NUMBER_KEYS) {
     if (q.has(k)) patch[k] = Number(q.get(k));
   }
@@ -31,8 +35,8 @@ export function parseQuery(query) {
 /** state -> query string. Position is always written; everything else only when not default. */
 export function toQuery(state) {
   const q = new URLSearchParams();
-  q.set('ra', String(round(state.ra, 5)));
-  q.set('dec', String(round(state.dec, 5)));
+  q.set('ra', raToUrl(state.ra));
+  q.set('dec', decToUrl(state.dec));
   q.set('fov', String(round(state.fov, state.fov < 1 ? 4 : 2)));
   q.set('band', String(state.band));
   for (const k of STRING_KEYS) {

@@ -64,7 +64,7 @@ const NEW_SEQUENCE = ['ra', 'dec', 'ffov', 'band', 'mode', 'rgb', 'formula', 'vi
 export function classifyTarget(id) {
   if (typeof id !== 'string') return null;
   if (/^(sky|field):/.test(id)) return 'object';
-  if (/^colou?r:/.test(id) || /^band-(ribbon|d[1-6])$/.test(id) || id === 'colour-views' || id === 'trail-legend') return 'colours';
+  if (/^colou?r:/.test(id) || /^band-(ribbon|d[1-6])$/.test(id) || id === 'colour-views') return 'colours';
   return null;
 }
 
