@@ -264,7 +264,7 @@ preset's `note` when the id is a preset; **change** points at the player and, in
 
 ---
 
-## Step U6 — Attention detector (the triggers)  `[ ]`  P0
+## Step U6 — Attention detector (the triggers)  `[x]`  P0
 **Files:** `web/src/guide/attention.js` (new), `web/tests/attention.test.js`
 
 Input: a stream of `{x, y, t, confidence}` samples from the gaze contract (U9), or from the mouse (`?gaze=mouse`, for development and for people without a tracker).
@@ -280,6 +280,27 @@ Rules (tune with real users):
 - Pure logic, no DOM, so it can be unit-tested with fake time (like the earlier `gazeCore.js`).
 
 **Done when:** unit tests with fake samples fire each trigger once, never during busy states, and never again inside the cool-down; with `?gaze=mouse`, hovering Barnard's Star for 7 s shows the offer.
+
+Progress (Nov 14): `guide/attention.js`: pure `createAttention({ now, targetAt, isQuiet, isCooling, onTrigger, onRing })` (unit-tested
+with fake time) + `startAttention()` DOM wiring below it; `window.guide` gains **`attention`** (`feed({x, y, t, confidence})` for U9,
+`lose()`, `configure({ringDelayMs, dwellMs, graceMs, …})`, `snapshot()` → `{dwell, ring, replays, quiet}`, `source`) and
+**`startGuide(trigger, target)`**, the one function an accepted offer calls (today the fallback script; U7 swaps in the client).
+Dwell: `targetAt` with the 48 px pad; `sky:*`/`field:*` → **object**, `band-ribbon`, `band-d1…6`, `colour-views`, `trail-legend`,
+`colour:*` → **colours**, anything else (plain controls, `time-player`) → nothing. Ring after 1.2 s, offer at 7 s, once per dwell;
+a glance away under 0.6 s keeps the dwell, longer resets it (a new target's clock runs from when it was first seen). Samples
+below 0.5 confidence or older than 0.5 s count as no gaze; the clock is the page's (the sample's `t` is ignored). **Change rule**
+(field view only, 3 replays within 30 s): a *wrap* = the frame index drops by itself (play loops, or ▶ past the last frame); a *turn* =
+a manual step opposite to the previous one (keys, ▶/◀, slider); *blink* = one replay per 2 s it runs. New patch/band/mode/view
+resets the count; the change video and the guide's own commands do not count. **Quiet** = `fly_to`/`go_preset` pending, dragging
+(pointer down), `sky.ready` false, field frames loading, pop-up open, a script running, page hidden: the dwell resets (busy time does
+not count) and replays are ignored. Cool-down keys are the pop-up's: object → target id, colours → `'colours'` (one key for all
+colour controls), change → `'change'`; a cooling key shows no ring. Ring = `#guide-attention` (z 45, `pointer-events: none`), on the
+object for sky/field points, at the pointer for controls; `overlay.setAvoid` keeps the pointer's label off it. **Default:** the
+change trigger always runs (it needs no gaze, so keyboard users get it); dwell needs a source: the mouse only with `?gaze=mouse`
+(read in `main.js` before the URL sync drops it), or gaze samples through `guide.attention.feed`. Two tiny hooks (own commit):
+`commands.js` emits `meridian:command-start` when an async command begins, `player.isLoading()`. `npm test` 92/92 (16 new),
+`test:e2e` 26/26 (3 new: the real 7 s mouse dwell on Barnard's Star → Yes → script; mouse ignored without the param, gaze feed on
+D6 → colours offer, presets → none; back-and-forth stepping → "what changed").
 
 ---
 

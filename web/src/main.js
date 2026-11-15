@@ -11,6 +11,8 @@ import { createSpectrum } from './field/spectrum.js';
 import { createGuide } from './guide/index.js';
 
 const statusEl = document.querySelector('#status');
+// ?gaze=mouse: the guide's attention follows the mouse (UI plan U6/U9). Read before the URL sync rewrites the URL.
+const gazeParam = new URLSearchParams(window.location.search).get('gaze');
 const { name: urlName } = startCore();
 
 let apiOk = null;
@@ -44,7 +46,7 @@ export const field = createFieldView(document.querySelector('#field-root'), {
 const player = createPlayer(field.stage, { store, commands });
 createContext(player, { store, commands });
 createSpectrum(player, { store, commands });
-window.guide = createGuide({ store, commands, sky, player }); // UI plan: registry (U2), overlay, pop-up, runner…
+window.guide = createGuide({ store, commands, sky, player, gaze: gazeParam }); // UI plan: registry (U2), overlay, pop-up, runner, attention…
 store.subscribe(() => renderStatus());
 
 if (urlName) run('fly_to', { target: urlName, fov: store.get().fov < 5 ? store.get().fov : undefined }, 'url');

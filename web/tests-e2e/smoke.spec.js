@@ -638,3 +638,82 @@ test('guide runner: the fallback scripts play with the API unreachable; Close en
   await expect(card).toBeHidden();
   expect(errors().filter((e) => !/\/api\//.test(e))).toEqual([]);
 });
+
+// --- guide attention (U6) ---
+
+test('guide attention: with ?gaze=mouse, resting the mouse on Barnard\'s Star for 7 s shows the offer; Yes starts the guide', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?ra=269.45&dec=4.74&fov=20&gaze=mouse');
+  await ready(page);
+  expect(await page.evaluate(() => guide.attention.source)).toBe('mouse');
+  await expect.poll(() => page.evaluate(() => guide.resolve('sky:barnard')), { timeout: 15000 }).not.toBeNull();
+  await expect.poll(() => page.evaluate(() => guide.attention.snapshot().quiet), { timeout: 30000 }).toBeNull();
+  const star = await page.evaluate(() => guide.resolve('sky:barnard'));
+  const card = page.locator('[data-guide="guide-popup"]');
+  const ring = page.locator('#guide-attention');
+  await page.mouse.move(star.x + 20, star.y + 10); // inside the 48 px catch radius
+  const t0 = Date.now();
+  await expect(ring).toHaveClass(/is-on/, { timeout: 4000 });
+  await expect(ring).toHaveAttribute('data-target', 'sky:barnard');
+  expect(Date.now() - t0).toBeGreaterThan(1000); // not before 1.2 s
+  await expect(card).toContainText('Want help identifying this?', { timeout: 10000 });
+  expect(Date.now() - t0).toBeGreaterThan(6500); // about 7 s
+  await expect(ring).not.toHaveClass(/is-on/);
+  await card.getByRole('button', { name: 'Yes' }).click();
+  await expect(card).toContainText("Barnard's Star");
+  expect(await page.evaluate(() => guide.runner.isRunning())).toBe(true);
+  await card.getByRole('button', { name: 'Close' }).click();
+  await expect(card).toBeHidden();
+  // still on the star, but inside the 60 s cool-down: no ring, no offer
+  await page.mouse.move(star.x + 15, star.y);
+  await page.waitForTimeout(1600);
+  await expect(ring).not.toHaveClass(/is-on/);
+  expect(errors()).toEqual([]);
+});
+
+test('guide attention: without ?gaze=mouse the mouse is ignored; gaze samples (U9 feed) ask about the colours', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?fov=60');
+  await ready(page);
+  await expect.poll(() => page.evaluate(() => guide.attention.snapshot().quiet), { timeout: 30000 }).toBeNull();
+  await page.evaluate(() => guide.attention.configure({ ringDelayMs: 200, dwellMs: 1200 }));
+  const card = page.locator('[data-guide="guide-popup"]');
+  const d6 = await page.evaluate(() => guide.resolve('band-d6'));
+  await page.mouse.move(d6.x, d6.y);
+  await page.waitForTimeout(2000);
+  await expect(card).toBeHidden();
+  // a plain control (the places list) gets no guide offer, even from gaze
+  await page.evaluate(() => {
+    const p = guide.resolve('presets');
+    window.__gaze = setInterval(() => guide.attention.feed({ x: p.rect.x + 4, y: p.rect.y + p.rect.h - 4, t: performance.now(), confidence: 0.9 }), 33);
+  });
+  await page.waitForTimeout(2000);
+  await expect(card).toBeHidden();
+  await page.evaluate(({ x, y }) => {
+    clearInterval(window.__gaze);
+    window.__gaze = setInterval(() => guide.attention.feed({ x, y, t: performance.now(), confidence: 0.9 }), 33);
+  }, d6);
+  await expect(card).toContainText('Wondering about these colours?', { timeout: 5000 });
+  await card.getByRole('button', { name: 'No thanks' }).click();
+  await expect(card).toBeHidden();
+  expect(await page.evaluate(() => guide.popup.cooldown.isCooling('colours'))).toBe(true);
+  await page.evaluate(() => clearInterval(window.__gaze));
+  expect(errors()).toEqual([]);
+});
+
+test('guide attention: stepping back and forth in a time-lapse offers "what changed"', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?ra=133.7578&dec=-7.242&fov=0.5&band=92&view=field&ffov=0.1&mode=detector');
+  await ready(page);
+  await expect(page.locator('.epoch')).toHaveCount(4, { timeout: 60_000 });
+  await expect.poll(() => page.evaluate(() => guide.attention.snapshot().quiet), { timeout: 30000 }).toBeNull();
+  const card = page.locator('[data-guide="guide-popup"]');
+  for (const k of ['.', '.', ',', '.']) await page.keyboard.press(k); // 0 → 1 → 2 → 1 → 2: two turns
+  await expect(card).toBeHidden();
+  await page.keyboard.press(','); // a third turn
+  await expect(card).toContainText('Want to see what changed?');
+  await card.getByRole('button', { name: 'Yes' }).click();
+  await expect(card).toContainText('replaying the same visits');
+  expect(await page.evaluate(() => guide.runner.isRunning())).toBe(true);
+  expect(errors()).toEqual([]);
+});

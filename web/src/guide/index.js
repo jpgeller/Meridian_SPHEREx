@@ -4,15 +4,17 @@
 // guide.offer({ text: 'Want help identifying this?', onYes, target: 'sky:barnard' }),
 // guide.say({ say: '…', answers: ['got_it', 'more', 'close'] }).then((answer) => …),
 // guide.run([{ say: '…', actions: [{ circle: 'band-d6' }, { cmd: 'set_band', args: { band: 93 } }] }]).then((how) => …),
-// guide.fallback('colours'), guide.fallback('object', { id: 'sky:barnard' }), guide.runner.isRunning(), guide.stop().
+// guide.fallback('colours'), guide.fallback('object', { id: 'sky:barnard' }), guide.runner.isRunning(), guide.stop(),
+// guide.startGuide('object', { id: 'sky:barnard' }), guide.attention.snapshot(), guide.attention.feed({ x, y, confidence }).
 import { createRegistry } from './registry.js';
 import { createOverlay } from './overlay.js';
 import { createPopup } from './popup.js';
 import { createRunner } from './runner.js';
 import { fallbackScript } from './fallback.js';
+import { startAttention } from './attention.js';
 import { sanitize } from '../core/state.js';
 
-export function createGuide({ store, commands, sky, player }) {
+export function createGuide({ store, commands, sky, player, gaze = null }) {
   const skyEl = document.querySelector('#sky');
   let throughPopup = false;
   let popup = null;
@@ -67,7 +69,10 @@ export function createGuide({ store, commands, sky, player }) {
   // trigger: 'object' | 'change' | 'colours'; target: { id, name } or an id
   const fallback = (trigger, target) =>
     runner.runScript(fallbackScript(trigger, target, store.get()), { trigger, target });
-  return {
+  // An accepted offer starts the guide. For now: the fixed script (U5). U7 swaps this for the
+  // API client (which falls back to the same script on failure).
+  const startGuide = (trigger, target) => fallback(trigger, target);
+  const guide = {
     resolve: registry.resolve,
     locate: registry.locate,
     targetAt: registry.targetAt,
@@ -86,5 +91,10 @@ export function createGuide({ store, commands, sky, player }) {
     fallback,
     stop: () => runner.stop(),
     runner,
+    startGuide,
   };
+  // U6: what the person lingers on -> offers. Always listens for replays (change); dwell needs a
+  // source: the mouse with ?gaze=mouse, or gaze samples through guide.attention.feed() (U9).
+  guide.attention = startAttention({ guide, startGuide: (t, x) => guide.startGuide(t, x), store, sky, player, mouse: gaze === 'mouse' });
+  return guide;
 }

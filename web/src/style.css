@@ -1085,3 +1085,43 @@ body.field-open .guide-popup {
     transform: translateY(-6px);
   }
 }
+
+/* --- guide attention (U6): the dwell ring. Never takes a click. --- */
+#guide-attention {
+  position: fixed;
+  inset: 0;
+  z-index: 45; /* above the overlay (40), below the pop-up (50) */
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+#guide-attention.is-on {
+  opacity: 1;
+}
+#guide-attention .ga-svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+}
+#guide-attention circle {
+  fill: none;
+  stroke-width: 4;
+}
+#guide-attention .ga-track {
+  stroke: rgba(255, 255, 255, 0.25);
+}
+#guide-attention .ga-fill {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  filter: drop-shadow(0 0 3px rgba(255, 181, 71, 0.6));
+}
+@media (prefers-reduced-motion: reduce) {
+  #guide-attention {
+    transition: none;
+  }
+}
