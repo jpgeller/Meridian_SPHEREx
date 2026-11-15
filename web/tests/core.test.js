@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 
 import { normalizeBand, stepBand, detectorOf } from '../src/core/bands.js';
 import { createStore, DEFAULTS } from '../src/core/state.js';
-import { parseCoordinates } from '../src/core/coords.js';
+import { parseCoordinates, icrsToGalactic, galacticToIcrs } from '../src/core/coords.js';
 import { parseQuery, toQuery } from '../src/core/url.js';
 import { createCommands } from '../src/core/commands.js';
 import { registerDefaultCommands } from '../src/core/defaultCommands.js';
@@ -206,4 +206,14 @@ test('brightness/contrast steps convert to display cuts and back', () => {
   assert.deepEqual(cutsToLevel(levelToCuts([1.5, -2])), [1.5, -2]);
   assert.equal(describeLevel([0, 0]), '');
   assert.equal(describeLevel([2, -1]), 'brightness +2 · contrast −1');
+});
+
+test('ICRS <-> galactic: the Galactic centre and a round trip', () => {
+  const [l, b] = icrsToGalactic([266.40499, -28.93617]); // Sgr A*
+  assert.ok(Math.abs(((l + 180) % 360) - 180) < 0.01 && Math.abs(b) < 0.05, `${l}, ${b}`);
+  const [ra, dec] = galacticToIcrs(icrsToGalactic([83.822, -5.391]));
+  assert.ok(Math.abs(ra - 83.822) < 1e-9 && Math.abs(dec + 5.391) < 1e-9);
+  // the value Aladin 3.8.2 reports for the Galactic centre in its galactic view (astropy: 90.81028, -57.85165)
+  const [x, y] = galacticToIcrs([266.4168, -29.0078]);
+  assert.ok(Math.abs(x - 90.81028) < 1e-4 && Math.abs(y + 57.85165) < 1e-4);
 });

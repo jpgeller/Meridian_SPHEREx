@@ -1,6 +1,6 @@
 // App entry: core (state, commands, URL, inputs) -> sky -> controls -> status.
 import './style.css';
-import { store, commands, run, startCore } from './core/index.js';
+import { store, commands, run, startCore, setSkyCoords } from './core/index.js';
 import { createSky } from './sky/sky.js';
 import { createControls } from './ui/controls.js';
 import { createHandoff } from './sky/handoff.js';
@@ -31,7 +31,8 @@ window.addEventListener('meridian:command', (e) => {
 });
 
 sky = await createSky('#sky', { store, commands, onStatus: renderStatus });
-window.aladin = sky.aladin; // console debugging
+window.aladin = sky.aladin; // console debugging (overlays: use meridian.world2pix / pix2world)
+setSkyCoords(sky.coords);
 createControls(document.querySelector('#ui'), { store, commands, getWavelengths: () => sky.wavelengths });
 createHandoff(document.querySelector('#handoff'), { store, commands });
 export const field = createFieldView(document.querySelector('#field-root'), {

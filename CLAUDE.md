@@ -50,6 +50,9 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   to 0.743 µm (F_MAX). Wait until `layer.added` is true before setting it. The cube has no time information.
 - Views: 3D sphere `'SIN'`; Planetarium `'STG'` (≤160°); whole sky `aladin.setProjection('AIT'); aladin.setFrame('galactic'); setFoV(360)`.
   Aladin can't keep a fixed flat map while panning (it always re-projects around the view centre).
+- Sky ↔ screen for overlays: `meridian.world2pix / pix2world` (`web/src/sky/skyCoords.js`, also bridge messages). Aladin 3.8.2's
+  `world2pix` throws for any frame argument, and in the galactic (whole-sky) view `world2pix`/`getRaDec` treat ICRS numbers as
+  galactic l/b (double conversion). `pix2world` without a frame is correct ICRS: the app reads the view centre with it.
 - Colour views: `web/src/sky/colorViews.js`. Mixes are server-built colour HiPS at `/api/hips/mix/R-G-B` (`api/colormix.py`).
   Aladin lowercases colormap names when applying them: register custom colormaps in lowercase.
 - Aladin's right-drag (trackpad two-finger click + drag) changes the base layer's cuts (PNG default [0, 255]).

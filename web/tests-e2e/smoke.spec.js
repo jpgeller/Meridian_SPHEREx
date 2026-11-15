@@ -222,3 +222,52 @@ test('change video: WISE 0855 found and tracked; real dates and model frames are
   await expect(page.locator('#video-marks circle')).toHaveCount(1);
   expect(errors()).toEqual([]);
 });
+
+test('overlays: world2pix / pix2world in every view, in the page and through the bridge', async ({ page }) => {
+  await page.goto('/?ra=83.82208&dec=-5.39111&fov=30');
+  await ready(page);
+  await expect.poll(() => page.evaluate(() => meridian.world2pix(83.82208, -5.39111))).not.toBeNull();
+  for (const proj of ['SIN', 'STG', 'AIT']) {
+    await page.evaluate((p) => meridian.run('set_projection', { proj: p }), proj);
+    await page.evaluate(() => meridian.run('fly_to', { target: '83.82208 -5.39111', fov: 30 }).value);
+    const r = await page.evaluate(() => {
+      const box = document.querySelector('#sky').getBoundingClientRect();
+      const p = meridian.world2pix(83.82208, -5.39111); // the view centre
+      const back = meridian.pix2world(p.x, p.y);
+      return { p, back, w: box.width, h: box.height };
+    });
+    expect(Math.abs(r.p.x - r.w / 2), proj).toBeLessThan(3);
+    expect(Math.abs(r.p.y - r.h / 2), proj).toBeLessThan(3);
+    expect(r.p.inView).toBe(true);
+    expect(Math.abs(r.back.ra - 83.82208) + Math.abs(r.back.dec + 5.39111), proj).toBeLessThan(0.05);
+  }
+  // the far side of the 3D globe is not on screen
+  await page.evaluate(() => meridian.run('set_projection', { proj: 'SIN' }));
+  expect(await page.evaluate(() => meridian.world2pix(263.82208, 5.39111))).toBeNull();
+  // the same through postMessage, as an external overlay would ask
+  const reply = await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        addEventListener('message', (e) => e.data?.type === 'world2pix_result' && resolve(e.data));
+        postMessage({ type: 'world2pix', id: 7, points: [{ ra: 83.82208, dec: -5.39111 }, { ra: 263.82208, dec: 5.39111 }] }, location.origin);
+      }),
+  );
+  expect(reply.id).toBe(7);
+  expect(reply.points[0].inView).toBe(true);
+  expect(reply.points[1]).toBeNull();
+  // whole sky (galactic frame): the Galactic centre is in the middle, and the URL keeps true ICRS
+  await page.goto('/?proj=AIT&fov=360');
+  await ready(page);
+  await expect.poll(() => page.evaluate(() => aladin.getFrame())).toBe('GAL');
+  const gc = await page.evaluate(() => {
+    const box = document.querySelector('#sky').getBoundingClientRect();
+    return { p: meridian.world2pix(266.4168, -29.0078), w: box.width, h: box.height };
+  });
+  expect(Math.abs(gc.p.x - gc.w / 2)).toBeLessThan(3);
+  expect(Math.abs(gc.p.y - gc.h / 2)).toBeLessThan(3);
+  await page.mouse.move(gc.w / 2, gc.h / 2);
+  await page.mouse.down();
+  await page.mouse.move(gc.w / 2 + 40, gc.h / 2, { steps: 4 });
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(() => meridian.store.get().dec)).toBeGreaterThan(-45); // was -57.9 (wrong frame)
+});

@@ -23,6 +23,29 @@ meridianWindow.postMessage({ type: 'list_commands' }, origin); // replies { type
   in `startCore({ allowedOrigins })` in `web/src/main.js`.
 - In the page's console: `meridian.run(name, args)`, `meridian.commands.list()`, `meridian.store.get()`.
 
+### Sky positions for overlays
+
+An overlay that draws on the sky (labels, gaze targets, an AI guide pointing at a star) needs sky ↔ screen
+positions. Use these, not `aladin.world2pix` directly (see why below):
+
+```js
+// in the page
+meridian.world2pix(83.822, -5.391); // -> { x, y, pageX, pageY, inView } or null (not on screen / far side of the globe)
+meridian.pix2world(640, 360);       // -> { ra, dec } or null
+// from another window or frame, through the bridge (id is echoed back)
+meridianWindow.postMessage({ type: 'world2pix', id: 1, points: [{ ra: 83.822, dec: -5.391 }] }, origin);
+//   -> { type: 'world2pix_result', id: 1, points: [{ x, y, pageX, pageY, inView } | null] }
+meridianWindow.postMessage({ type: 'pix2world', id: 2, points: [{ x: 640, y: 360 }] }, origin);
+meridianWindow.postMessage({ type: 'get_state', id: 3 }, origin); // -> { type: 'state', id: 3, state: { ra, dec, fov, proj, view, ... } }
+```
+
+- RA/Dec are ICRS degrees in every view. `x, y` are pixels inside the sky (`#sky`, top-left origin);
+  `pageX, pageY` are page coordinates for `position: fixed` elements.
+- Positions change when the view moves: recompute on `meridian.store.subscribe(...)` (in the page), or
+  poll `get_state` and recompute when `ra/dec/fov/proj` change (from outside).
+- Why not `aladin.world2pix`: in Aladin 3.8.2 it throws for any frame argument, and without one it is
+  wrong in the whole-sky (galactic) view. `meridian.world2pix` works around both and checks every answer.
+
 Every on-screen control is a real `<button>` that only calls a command. So a gaze layer can either
 send commands directly, or find buttons on screen and press them.
 

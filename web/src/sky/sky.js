@@ -12,6 +12,7 @@ import { PRESETS, presetById, presetForText } from './presets.js';
 import { createNativeLayer } from './nativeLayer.js';
 import { createColorViews } from './colorViews.js';
 import { createLevels } from './levels.js';
+import { createSkyCoords } from './skyCoords.js';
 
 const DEFAULT_FIELD_FOV = 0.5; // degrees, after flying to a named object
 const SPHERE_FOV_AFTER_ALLSKY = 60;
@@ -66,11 +67,14 @@ export async function createSky(container, { store, commands, onStatus = () => {
   });
 
   // --- sky -> store (mouse) -------------------------------------------------------
+  const coords = createSkyCoords(aladin, typeof container === 'string' ? document.querySelector(container) : container);
+  sky.coords = coords;
   let pullTimer;
   const pull = () => {
     clearTimeout(pullTimer);
     pullTimer = setTimeout(() => {
-      const [ra, dec] = aladin.getRaDec(); // always ICRS, whatever frame is displayed
+      // not getRaDec: in the galactic (whole-sky) view Aladin 3.8.2 returns a wrong position (skyCoords.js)
+      const [ra, dec] = coords.centre() ?? aladin.getRaDec();
       store.set({ ra, dec, fov: aladin.getFov()[0] }, 'sky');
     }, 150);
   };
