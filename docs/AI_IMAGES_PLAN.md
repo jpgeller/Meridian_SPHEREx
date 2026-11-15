@@ -42,7 +42,7 @@ or zooming out) brings back the real sky, and Enter still opens the real images 
  offline (once per target)                          browser
  ─────────────────────────                          ───────
  api/impressions/facts/<id>.md   (A0, reviewed)     state.dive  0 … N  (URL &dive=1.6)
- api/impressions/prompts.yaml    (A2)                    ▲
+ api/impressions/prompts.yaml    (A1–A2)                    ▲
  api/tools/impressions.py ──► provider image API         │ commands: dive_in / dive_out / dive_reset
         │  outpaint chain, close-up first (A2)           │ (zoom_in / zoom_out continue into them at a target)
         ▼                                                │
@@ -104,6 +104,7 @@ Each line is what the levels should show. **Numbers here are working notes; A0 r
 separations, disc/jet/shell, colour in visible light, what is unknown. Each line has a source (SIMBAD entry, NASA Exoplanet
 Archive, or the discovery paper). These sheets feed the prompts (A2), captions (A4) and the guide (A5).
 **Done when:** every fact used in a caption has a source; a team member has read each sheet.
+- 15 Nov 2026: `eps_ind_b.md` written (for the A1 bake-off); 4 values still marked **Check**. Other four targets to do.
 
 ## Step A1 — Choose the image model (bake-off)  `[ ]` — needs a decision and an API key
 **Files:** `api/tools/impressions_bakeoff.py`, `api/.env` (key, git-ignored, never in the browser), `docs/research/AI_IMAGES.md`
@@ -112,6 +113,10 @@ image models, OpenAI's image API, Black Forest Labs' FLUX; check the current mod
 the space-art style, following the physics in the prompt, outpainting that leaves the centre untouched, commercial/public-use
 terms, cost per image. Claude (our current API) does not generate images, so this is a second provider.
 **Done when:** one provider chosen and written down with the reasons and the price; the key is in `api/.env`.
+- 15 Nov 2026: `api/tools/impressions_bakeoff.py` built (Gemini `gemini-nano-banana-2.1`, OpenAI `gpt-image-2`, BFL
+  `flux-3-image` + `flux-tools/outpainting-v1`; model ids from each provider's docs that day, overridable in `.env`).
+  `--dry-run` and 8 offline tests pass. FLUX 3 searches the web for reference pictures by default: the script sends
+  `grounding: false`. **Waiting for the three API keys** to run it (`--check` first, then `--n 2`, ~12 images).
 
 ## Step A2 — Generation script: outpaint chains  `[ ]`
 **Files:** `api/tools/impressions.py`, `api/impressions/prompts.yaml`, `api/tests/test_impressions.py`

@@ -9,3 +9,4 @@ httpx
 anthropic>=2.8  # AI guide (guide.py); optional at runtime: no key -> fallback scripts
 pytest
 astropy-healpix  # only for experiments/tile_prototype.py
+pyyaml  # impressions/prompts.yaml (tools/impressions_bakeoff.py)
