@@ -189,3 +189,22 @@ def test_movers_one_catalogue_answering_with_none_is_not_a_failure(monkeypatch):
 
     with pytest.raises(RuntimeError):
         movers.field_movers(127.42493, -6.3222, 0.1)
+
+
+def test_gaia_sed_magnitudes_and_matching(monkeypatch):
+    """G/BP/RP -> lambda F_lambda; the Gaia star is moved to the date before matching (Barnard's Star)."""
+    import gaia_sed
+
+    # Vega (0 mag) in RP: zero point x pivot (W/m^2 nm^-1 x nm)
+    assert abs(gaia_sed.mag_to_lfl(0.0, "RP") - 1.27e-11 * 776.9) < 1e-12
+    assert abs(gaia_sed.mag_to_lfl(5.0, "G") / gaia_sed.mag_to_lfl(0.0, "G") - 0.01) < 1e-9
+    star = {"source_id": "4472832130942575872", "ra": 269.44850252543836, "dec": 4.739420051112412,
+            "pmra": -801.551, "pmdec": 10362.394, "parallax": 546.976, "g": 8.19, "e_g": 0.003,
+            "bp": 9.79, "e_bp": 0.003, "rp": 6.96, "e_rp": 0.004, "teff": 3099.6, "has_xp": True}
+    monkeypatch.setattr(gaia_sed, "_stars_near", lambda *a: [star])
+    monkeypatch.setattr(gaia_sed, "_xp_spectrum", lambda *a: [{"um": 0.5, "lfl": 1e-12, "err": 0}])
+    got = gaia_sed.gaia_sed(269.44627, 4.7682, 61041.0)  # the resolver's 2026.0 position, ~103" from 2016.0
+    assert got["found"] and got["sep_arcsec"] < 2 and got["teff_gspphot"] == 3099.6
+    assert [p["band"] for p in got["photometry"]] == ["BP", "G", "RP"] and got["xp"]
+    assert abs(got["distance_pc"] - 1.83) < 0.01
+    assert not gaia_sed.gaia_sed(269.5, 4.8, 61041.0)["found"]

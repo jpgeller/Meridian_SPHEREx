@@ -2,6 +2,8 @@
 // measures that point in every SPHEREx frame of the field; the API works in rounds, so the
 // plot fills in as frames are downloaded. Plain SVG; a data table for screen readers.
 
+import { buildSed, buildSedSvg, describeSed } from './sed.js';
+
 const DET_COLOURS = ['#6aa8ff', '#5fd0c4', '#9be07a', '#f2d16b', '#f59a6b', '#ef7aa7']; // D1..D6, as the ribbon
 const W = 520;
 const H = 260;
@@ -22,6 +24,10 @@ export function createSpectrum(player, { store, commands }) {
   panel.innerHTML = `
     <header class="row">
       <h3 id="spec-title">Spectrum</h3>
+      <div role="radiogroup" aria-label="Graph" class="row spec-views">
+        <button type="button" role="radio" data-spec-view="spectrum" aria-checked="true">SPHEREx spectrum</button>
+        <button type="button" role="radio" data-spec-view="sed" aria-checked="false">SED with Gaia <kbd>e</kbd></button>
+      </div>
       <span id="spec-status" class="muted" role="status" aria-live="polite"></span>
       <button type="button" id="spec-close" class="spec-close">Close</button>
     </header>
@@ -40,10 +46,65 @@ export function createSpectrum(player, { store, commands }) {
 
   let token = 0;
   let last = null; // the last spectrum drawn (the guide reads its blends, UI plan U7)
+  // The SED view (sed.js): SPHEREx and Gaia on one graph. Gaia is fetched once per measured point.
+  let view = 'spectrum';
+  let point = null; // { ra, dec } being measured
+  const gaia = { key: '', data: null, error: '', loading: false };
+  panel.querySelectorAll('[data-spec-view]').forEach((b) =>
+    b.addEventListener('click', () => commands.run('set_spectrum_view', { view: b.dataset.specView }, 'ui')),
+  );
+
+  function wantGaia() {
+    if (!point) return null;
+    const key = `${point.ra.toFixed(6)},${point.dec.toFixed(6)}`;
+    if (gaia.key !== key) Object.assign(gaia, { key, data: null, error: '', loading: false });
+    if (!gaia.data && !gaia.error && !gaia.loading) {
+      gaia.loading = true;
+      // the point is in the target's frame, whose coordinates are for 2026.0 (resolve.py)
+      fetch(`/api/context/gaia_sed?ra=${point.ra.toFixed(6)}&dec=${point.dec.toFixed(6)}&mjd=61041`)
+        .then(async (r) => {
+          const body = await r.json();
+          if (!r.ok) throw new Error(body.detail ?? `Gaia unavailable (${r.status})`);
+          if (gaia.key === key) gaia.data = body;
+        })
+        .catch((err) => (gaia.key === key ? (gaia.error = err.message) : null))
+        .finally(() => {
+          if (gaia.key !== key) return;
+          gaia.loading = false;
+          if (view === 'sed') redraw();
+        });
+    }
+    return gaia.data;
+  }
+
+  function redraw() {
+    panel.querySelectorAll('[data-spec-view]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.specView === view)));
+    panel.querySelector('#spec-title').textContent = view === 'sed' ? 'Energy distribution (SED)' : 'Spectrum';
+    if (view === 'sed') drawSed();
+    else if (last) draw(last);
+  }
+
+  function drawSed() {
+    const g = wantGaia();
+    if (!g) {
+      svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="axis">${
+        gaia.error ? 'Gaia is not available right now' : 'Looking up this point in Gaia DR3…'
+      }</text>`;
+      summaryEl.textContent = gaia.error ? `Gaia: ${gaia.error}.` : '';
+      return;
+    }
+    const sed = buildSed(g, last);
+    const { svg: body, ok } = buildSedSvg(sed, { W, H });
+    svg.innerHTML = ok ? body : `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="axis">Nothing to plot yet</text>`;
+    summaryEl.textContent = describeSed(sed);
+    lastSed = sed;
+  }
+  let lastSed = null;
 
   async function measure(ra, dec) {
     const s = store.get();
     const my = ++token;
+    point = { ra, dec };
     panel.hidden = false;
     svg.innerHTML = '';
     tableEl.innerHTML = '';
@@ -64,7 +125,8 @@ export function createSpectrum(player, { store, commands }) {
       }
       if (my !== token) return;
       last = data;
-      draw(data);
+      if (view === 'sed') drawSed();
+      else draw(data);
       statusEl.textContent = data.complete
         ? `${data.points.length} measurements from ${data.n_frames} images${data.n_saturated ? ` (${data.n_saturated} too bright to measure)` : ''}`
         : `${data.points.length} measurements so far · loading images ${data.n_done}/${data.n_frames}…`;
@@ -155,6 +217,26 @@ export function createSpectrum(player, { store, commands }) {
     { label: 'Spectrum here', keys: ['s'], args: { ra: 'deg (default: target)', dec: 'deg (default: target)' } },
   );
 
+  commands.register(
+    'set_spectrum_view',
+    ({ view: v } = {}) => {
+      if (!['spectrum', 'sed'].includes(v)) throw new Error('view must be spectrum or sed');
+      view = v;
+      if (panel.hidden) {
+        const s = store.get();
+        if (s.view !== 'field') throw new Error('Open the time-lapse first');
+        measure(s.ra, s.dec); // the target
+      }
+      redraw();
+      return view;
+    },
+    { label: 'Spectrum graph: SPHEREx spectrum or SED with Gaia', args: { view: 'spectrum | sed' } },
+  );
+  commands.register('show_sed', () => commands.run('set_spectrum_view', { view: 'sed' }), {
+    label: 'SED: Gaia and SPHEREx on one graph, with a temperature',
+    keys: ['e'],
+  });
+
   // Click on the SPHEREx image -> spectrum of that pixel.
   player.elements.canvas.addEventListener('click', (e) => {
     const s = store.get();
@@ -170,5 +252,5 @@ export function createSpectrum(player, { store, commands }) {
   });
   player.elements.canvas.style.cursor = 'crosshair';
   // For the AI guide (UI plan U7): the spectrum on screen, or null when the panel is closed.
-  return { getLast: () => (panel.hidden ? null : last) };
+  return { getLast: () => (panel.hidden ? null : last), getSed: () => (panel.hidden || view !== 'sed' ? null : lastSed) };
 }

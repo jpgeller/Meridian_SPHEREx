@@ -43,6 +43,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import guide
 import resolve as resolver
 import context
+import gaia_sed
 import movers
 import cutouts
 import skypatch
@@ -208,6 +209,19 @@ async def gaia_context(
     """Gaia DR3 stars in the field, positions moved from 2016.0 to `mjd` with proper motion."""
     try:
         return await run_in_threadpool(context.gaia_sources, ra, dec, fov, mjd)
+    except Exception as err:
+        raise HTTPException(status_code=503, detail=f"Gaia unavailable: {err}")
+
+
+@app.get("/api/context/gaia_sed")
+async def gaia_sed_context(
+    ra: float = Query(..., ge=0, lt=360),
+    dec: float = Query(..., ge=-90, le=90),
+    mjd: float = Query(61041.0, ge=40000, le=80000, description="date of the SPHEREx images (moves Gaia stars there)"),
+) -> dict:
+    """The Gaia DR3 star at a point: photometry, GSP-Phot temperature and BP/RP spectrum, as lambda F_lambda."""
+    try:
+        return _finite(await run_in_threadpool(gaia_sed.gaia_sed, ra, dec, mjd))
     except Exception as err:
         raise HTTPException(status_code=503, detail=f"Gaia unavailable: {err}")
 

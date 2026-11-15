@@ -68,7 +68,7 @@ test('every registered command runs once', async ({ page }) => {
       set_show: { show: 'timelapse' },
     };
     // Field-only commands need the field view.
-    const fieldOnly = new Set(['select_point']);
+    const fieldOnly = new Set(['select_point', 'set_spectrum_view', 'show_sed']);
     const out = {};
     for (const c of meridian.commands.list()) {
       if (fieldOnly.has(c.name)) continue;
@@ -1040,4 +1040,21 @@ test('mouse mode: a white star on each button explains it on hover; none in the 
   await expect(page.locator('.hint-badge')).toHaveCount(0);
   await page.evaluate(() => meridian.run('set_input_mode', { mode: 'mouse' }));
   await expect.poll(() => page.locator('.hint-badge').count()).toBeGreaterThan(20);
+});
+
+test('SED: key e draws Gaia and SPHEREx on one graph with a blackbody temperature (eps Ind B)', async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.goto('/?ra=331.09664&dec=-56.80066&fov=2.3&band=92&view=field&ffov=0.1&mode=detector');
+  await ready(page);
+  await expect(page.locator('.epoch').first()).toBeVisible({ timeout: 60_000 });
+  await page.keyboard.press('e');
+  await expect(page.locator('#spec-title')).toHaveText('Energy distribution (SED)');
+  await expect(page.getByRole('radio', { name: /SED with Gaia/ })).toHaveAttribute('aria-checked', 'true');
+  const summary = page.locator('#spec-summary');
+  await expect(summary).toContainText('Gaia DR3 6412596012146801152', { timeout: 120_000 });
+  await expect(summary).toContainText(/Blackbody fit: about [\d,]+ K/, { timeout: 180_000 });
+  await expect(page.locator('#spec-svg .sed-fit')).toHaveCount(1);
+  await expect(page.locator('#spec-svg circle').first()).toBeVisible(); // SPHEREx points
+  await page.getByRole('radio', { name: /SPHEREx spectrum/ }).click();
+  await expect(page.locator('#spec-title')).toHaveText('Spectrum');
 });

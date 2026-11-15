@@ -830,6 +830,21 @@ body.field-open .handoff {
   display: none;
 }
 
+/* --- SED (sed.js): mission windows, Gaia spectrum, fit and reference curves --- */
+.sed-gaia-win { fill: rgba(106, 168, 255, 0.08); }
+.sed-spherex-win { fill: rgba(245, 154, 107, 0.07); }
+.sed-label { fill: var(--muted, #aab); font-size: 10px; }
+.sed-label.gaia { fill: #8fbaff; }
+.sed-label.spherex { fill: #f5b08b; }
+.sed-xp { fill: none; stroke: #8fbaff; stroke-width: 2; }
+.sed-phot { fill: #0b1020; stroke: #cfe0ff; stroke-width: 1.8; }
+.sed-fit-label { fill: #ffb547; font-size: 11px; font-weight: 700; }
+.sed-fit { fill: none; stroke: #ffb547; stroke-width: 2; }
+.sed-ref { fill: none; stroke: rgba(255, 255, 255, 0.35); stroke-width: 1; stroke-dasharray: 4 3; }
+.sed-ref-label { fill: rgba(255, 255, 255, 0.55); font-size: 9px; }
+.sed-peak { stroke: #ffb547; stroke-width: 1; stroke-dasharray: 2 3; opacity: 0.8; }
+.spec-views { gap: 8px; }
+
 /* --- spectrum panel --- */
 .spectrum {
   border-top: 1px solid var(--border);

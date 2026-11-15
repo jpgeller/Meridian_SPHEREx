@@ -115,6 +115,13 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   moves Gaia DR3 to the frames' mean date, measures the SPHEREx↔Gaia shift (<1″ on all 5 targets, scatter ~1.5″) and
   matches within 2.5×scatter + 32″/SNR (3.5–9″); bright sources (≥30σ) also match a bright Gaia star further out (glare).
   WISE 0855 in D6: found at the target (12σ, a G=16.3 star 6.6″ away; a fixed 9″ radius hid it). Candidates only.
+- SED (spectrum panel, key e; `web/src/field/sed.js`, `api/gaia_sed.py` -> `/api/context/gaia_sed`): Gaia DR3 star at the
+  point (VizieR I/355/gaiadr3, cone sorted by `_r` with every row kept: Barnard's Star is ~100″ from its 2016 spot),
+  XP sampled spectrum from I/355/xpsample looked up BY POSITION (a `Source=` constraint is ignored and returns another
+  star). All in λF_λ (W/m²). SPHEREx scaled to Gaia over 0.75–1.02 µm; blackbody fit ≤2.5 µm; excess >3 µm.
+  Broad G/BP read 1.5–2× high at the pivot for red stars (Barnard): XP first. Barnard saturates SPHEREx in all 204
+  images; RW Aur shows ×15 excess (lower limits); WISE 0855 has no Gaia star, a G=16.3 neighbour in the 12″ aperture, and
+  4.5/3.4 µm ×2.4 (methane). SVO's filter service did not answer (16 Nov 2026); zero points are SVO's published values.
 - R Dra saturates SPHEREx in every image (no spectrum possible; the panel says so). Ingest must pick frames per mode
   exactly like the player (per detector; single bands 40 and 92): neighbouring detectors share band numbers.
 - Names: `GET /api/resolve?name=` (Sesame + proper motion to a fixed epoch 2026.0, so cache keys don't drift).
