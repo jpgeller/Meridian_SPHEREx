@@ -4,7 +4,7 @@ Public web tool: a 3D sky made of real SPHEREx images. Search or fly to a place 
 real SPHEREx images of that patch, with band tools and WISE/Gaia context. Built to be fully usable without a mouse
 (eye tracking is merged later).
 
-**Build plan: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md). Work through it in order, one step per session, and tick
+**Build plan: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md); next, [docs/AI_IMAGES_PLAN.md](docs/AI_IMAGES_PLAN.md). Work through it in order, one step per session, and tick
 the checkboxes.** Product spec (for humans): docs/Meridian_SPHEREx_Project_Spec.pdf (source: docs/build_spec.py).
 
 ## Layout

@@ -516,6 +516,9 @@ Decided with the team on 16 Nov 2026.
 - Bugs found by the audit: side-by-side pictures spilled over the controls column (now half width each); the guide card's
   top-left and 2D spots now sit below the measured search bar / 2D header (taller with 64 px targets).
 
+## Next: deep zoom into AI artist's impressions at the five targets  `[ ]`
+Plan and steps A0–A8 in **[AI_IMAGES_PLAN.md](AI_IMAGES_PLAN.md)**. The 2D view stays real SPHEREx data at 6.15″/px.
+
 ## Optional (final version): repair the black blotches in the all-sky map  `[ ]`
 IRSA's all-sky tiles mask pixels in the bright, crowded Galactic centre (black blotches); SPHEREx has hundreds of images there
 and the full-resolution layer below 1.5° shows them. A fix: proxy the tiles of that region through the API and fill masked
