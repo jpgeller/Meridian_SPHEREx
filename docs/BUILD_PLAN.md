@@ -446,6 +446,12 @@ in `player.js`; command `toggle_trail` (key `r`, URL `op=trail`). Background: `d
   than the centroid box, so every measurement stuck to its edge and the star was rejected (the video only cross-faded).
   Flat cores are now measured by flood-filling the clipped pixels. The video waits on its first image until WISE and the
   motion catalogue have loaded, and no longer jumps back to 2010 when they arrive.
+- Smooth by default (16 Nov 2026): no pause on each real image ("Pause on real images" option, off); a 1 s pause at the
+  end before it loops. **Steady background** (option, on): what doesn't move is the masked median of all dates, so the field
+  stays still instead of shimmering. It shimmered because every real image has its own noise, sharpness (WISE 2.75″ vs
+  SPHEREx 6.15″), per-image scaling and, for SPHEREx, wavelength. Only the movers change, each cut out of its own images at
+  that image's own size (measured per image, outside-in, so WISE's hollow saturated cores don't fool it: ~45 px of WISE
+  glare vs ~17 px in SPHEREx for Barnard's Star). With it on, the badge always says MODEL. Image: `docs/img/video_barnard_steady.png`.
 - Images: `docs/img/video_wise0855_frames.png`, `docs/img/video_barnard_frames.png`.
 
 ## Step 17 — Side by side with Gaia  `[x]`

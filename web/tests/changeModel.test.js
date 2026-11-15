@@ -76,3 +76,13 @@ test('a saturated star with a wide flat core is measured at its centre, not its 
   const m = measureAround(img, w, w, 38, 33, 5);
   assert.ok(Math.abs(m.x - 40.5) < 0.6 && Math.abs(m.y - 37) < 0.6, JSON.stringify(m));
 });
+
+test('steady background: still stars are identical at every time, the mover still moves', () => {
+  const model = buildModel(frames, [mover], grid, T0);
+  const a = renderAt(model, T0 + 1.3 * 365.25, undefined, { steady: true });
+  const b = renderAt(model, T0 + 7.7 * 365.25, undefined, { steady: true });
+  assert.equal(a[30 * W + 10], b[30 * W + 10]); // the still star: same value
+  assert.equal(a[35 * W + 35], b[35 * W + 35]); // empty sky: same noise
+  const peakX = (img) => { let bx = 0; for (let x = 0; x < W; x++) if (img[15 * W + x] > img[15 * W + bx]) bx = x; return bx; };
+  assert.ok(Math.abs(peakX(a) - moverX(1.3)) <= 1 && Math.abs(peakX(b) - moverX(7.7)) <= 1, `${peakX(a)} ${peakX(b)}`);
+});

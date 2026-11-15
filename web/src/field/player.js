@@ -18,7 +18,8 @@ const DIFF_RANGE_SIGMA = 5; // difference images span ±5σ
 const SPHEREX_PIXEL_ARCSEC = 6.15;
 const TRAIL_STRETCH = [0, 1, 2].map(() => ({ vmin: 0, vmax: 1, kind: 'linear' }));
 const VIDEO_SECONDS = 12; // the whole time line, 2010 → 2026, plays in this many seconds
-const VIDEO_HOLD = 0.45; // seconds to hold on each real image
+const VIDEO_HOLD = 0.45; // seconds to hold on each real image (optional: "Pause on real images")
+const VIDEO_END_HOLD = 1; // seconds on the last image before the video loops
 const VIDEO_STRETCH = { vmin: 0, vmax: 1, kind: 'linear' };
 const mjdToIso = (mjd) => new Date((mjd - 40587) * 864e5).toISOString();
 const monthYear = (mjd) => new Date((mjd - 40587) * 864e5).toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
@@ -54,7 +55,11 @@ export function createPlayer(stage, { store, commands }) {
         <button type="button" data-op="subtract">Difference <kbd>d</kbd></button>
         <button type="button" data-op="trail">Motion trail <kbd>r</kbd></button>
         <button type="button" data-op="video">Change video <kbd>v</kbd></button>
-        <label class="inline" id="video-marks-wrap" hidden><input type="checkbox" id="video-marks-on" checked /> Mark moving objects</label>
+        <span class="row wrap" id="video-marks-wrap" hidden>
+          <label class="inline"><input type="checkbox" id="video-marks-on" checked /> Mark moving objects</label>
+          <label class="inline"><input type="checkbox" id="video-steady" checked /> Steady background</label>
+          <label class="inline"><input type="checkbox" id="video-hold" /> Pause on real images</label>
+        </span>
         <label class="inline" id="trail-wise-wrap" hidden><input type="checkbox" id="trail-wise" checked /> Include WISE 2010–2024</label>
         <span class="muted hint" id="op-hint"></span>
       </div>
@@ -84,7 +89,7 @@ export function createPlayer(stage, { store, commands }) {
   const ring = stage.querySelector('.target-ring');
   const epochsEl = $('#epochs');
 
-  const local = { speed: 2, perVisit: false, colormap: 'grey', trailWise: true, videoMarks: true };
+  const local = { speed: 2, perVisit: false, colormap: 'grey', trailWise: true, videoMarks: true, videoSteady: true, videoHold: false };
   let seq = []; // the images of the current sequence (aligned frames)
   let stretch = null; // grey: one stretch; colour: three (one per channel)
   let kind = 'grey';
@@ -133,6 +138,14 @@ export function createPlayer(stage, { store, commands }) {
     vid.mjd = model.mjds[target];
     vid.hold = 0;
     show(st);
+  });
+  $('#video-steady').addEventListener('change', (e) => {
+    local.videoSteady = e.target.checked;
+    show(store.get());
+  });
+  $('#video-hold').addEventListener('change', (e) => {
+    local.videoHold = e.target.checked;
+    vid.hold = 0;
   });
   $('#video-marks-on').addEventListener('change', (e) => {
     local.videoMarks = e.target.checked;
@@ -348,7 +361,7 @@ export function createPlayer(stage, { store, commands }) {
     vid.model = model;
     if (vid.mjd == null || vid.mjd < model.t0 || vid.mjd > model.t1) vid.mjd = model.t0;
     if (!vid.out || vid.out.length !== model.w * model.h) vid.out = new Float32Array(model.w * model.h);
-    const data = renderAt(model, vid.mjd, vid.out);
+    const data = renderAt(model, vid.mjd, vid.out, { steady: local.videoSteady });
     const { k, u } = bracket(model.mjds, vid.mjd);
     const real = u === 0 ? model.frames[k] : null;
     const frame = {
@@ -366,10 +379,19 @@ export function createPlayer(stage, { store, commands }) {
   function describeVideo(view) {
     const { model, k, real } = view.frame.video;
     const f = model.frames;
-    const when = real
-      ? `Real image ${k + 1} of ${f.length}: ${missionOf(real)} · ${fmtDate(real.meta.date_iso ?? mjdToIso(real.meta.mjd))}`
-      : `Model frame ~${monthYear(vid.mjd)}, between the real ${missionOf(f[k])} image of ${monthYear(model.mjds[k])} ` +
-        `and the ${missionOf(f[k + 1])} image of ${monthYear(model.mjds[k + 1])}`;
+    const between = f[k + 1]
+      ? `between the real ${missionOf(f[k])} image of ${monthYear(model.mjds[k])} and the ${missionOf(f[k + 1])} image of ${monthYear(model.mjds[k + 1])}`
+      : '';
+    let when;
+    if (local.videoSteady) when = `~${monthYear(vid.mjd)}${real ? `, moving objects from the real ${missionOf(real)} image of this date` : `, ${between}`}`;
+    else if (real) when = `Real image ${k + 1} of ${f.length}: ${missionOf(real)} · ${fmtDate(real.meta.date_iso ?? mjdToIso(real.meta.mjd))}`;
+    else when = `Model frame ~${monthYear(vid.mjd)}, ${between}`;
+    const how = local.videoSteady
+      ? `Steady background: everything that doesn't move is the average of all ${f.length} images, so it stays still; ` +
+        "only the moving objects change, each shown with its own real image from the nearest dates, slid along its motion. " +
+        'Turn it off to see each real image as it is (stars then shimmer: every image has its own noise, sharpness and scaling).'
+      : "In-between frames are a model: everything cross-fades, and each moving object's own image slides along its " +
+        'straight-line motion. Each image is scaled on its own, and WISE (2.75″ pixels) is sharper than SPHEREx (6.15″), so stars shimmer between images.';
     const t = model.tracks;
     const moving = t.length
       ? `Moving: ${t
@@ -385,8 +407,7 @@ export function createPlayer(stage, { store, commands }) {
       wiseNote = wise.loading ? ' Loading WISE 2010–2024…' : wise.error ? ` WISE not available here (${wise.error}).` : '';
     }
     return (
-      `${when}. ${moving} In-between frames are a model: everything cross-fades, and each moving object's own image ` +
-      `slides along its straight-line motion. Each image is scaled on its own; WISE (4.6 µm, 2.75″ pixels) looks sharper than SPHEREx (6.15″).${wiseNote}`
+      `${when}. ${moving} ${how}${wiseNote}`
     );
   }
 
@@ -430,8 +451,9 @@ export function createPlayer(stage, { store, commands }) {
     $('#video-from').textContent = String(year(model.t0));
     $('#video-to').textContent = String(year(model.t1));
     const badge = $('#video-badge');
-    badge.textContent = real ? `REAL · ${missionOf(real)} · ${monthYear(real.meta.mjd)}` : `MODEL · ${monthYear(vid.mjd)}`;
-    badge.classList.toggle('real', Boolean(real));
+    const isReal = Boolean(real) && !local.videoSteady; // with a steady background no frame is a whole real image
+    badge.textContent = isReal ? `REAL · ${missionOf(real)} · ${monthYear(real.meta.mjd)}` : `MODEL · ${monthYear(vid.mjd)}`;
+    badge.classList.toggle('real', isReal);
   }
 
   function videoTick(now) {
@@ -456,10 +478,12 @@ export function createPlayer(stage, { store, commands }) {
       let t = (vid.mjd ?? model.t0) + (dt * (model.t1 - model.t0)) / VIDEO_SECONDS;
       if (next == null) {
         t = model.t0; // loop
-        vid.hold = VIDEO_HOLD;
       } else if (t >= next) {
-        t = next; // land exactly on the next real image and hold it
-        vid.hold = k + 1 === model.mjds.length - 1 ? VIDEO_HOLD * 3 : VIDEO_HOLD;
+        const last = k + 1 === model.mjds.length - 1;
+        if (local.videoHold || last) {
+          t = next; // land exactly on the real image and hold it (always a moment at the end)
+          vid.hold = last ? VIDEO_END_HOLD : VIDEO_HOLD;
+        }
       }
       vid.mjd = t;
     }

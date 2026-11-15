@@ -210,7 +210,9 @@ test('change video: WISE 0855 found and tracked; real dates and model frames are
   const caption = page.locator('#player-caption');
   await expect(caption).toContainText(/Moving: CatWISE2020 object at 8\.\d″\/yr/, { timeout: 180_000 });
   await expect(page.locator('#video-badge')).toBeVisible();
-  await page.keyboard.press(' '); // pause
+  await expect(caption).toContainText('Steady background'); // the default: still stars stay still
+  await page.getByRole('checkbox', { name: 'Steady background' }).uncheck(); // each real image as it is
+  await page.locator('#p-play').click(); // pause (Space on the focused checkbox would tick it again)
   await page.keyboard.press('.'); // next real image
   await expect(caption).toContainText('Real image');
   await expect(page.locator('#video-badge')).toHaveText(/^REAL/);

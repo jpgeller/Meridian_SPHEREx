@@ -3,14 +3,19 @@
 
 const TYPING = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 
+// Inputs where keys do not type text (checkboxes, radios, colour pickers...): shortcuts still work there.
+const NOT_TEXT = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'color', 'file']);
+
 function isTyping(el) {
-  return el && (TYPING.has(el.tagName) || el.isContentEditable);
+  if (!el) return false;
+  if (el.tagName === 'INPUT' && NOT_TEXT.has(el.type)) return false;
+  return TYPING.has(el.tagName) || el.isContentEditable;
 }
 
 // Enter and Space must keep working on focused buttons and links; only use them
 // as shortcuts when nothing interactive has focus.
 function isInteractive(el) {
-  return el && el.closest?.('button, a[href], [role="button"], [role="slider"], summary, select');
+  return el && el.closest?.('button, a[href], [role="button"], [role="slider"], summary, select, input[type="checkbox"], input[type="radio"]');
 }
 
 export function startKeyboard(commands, { target = window } = {}) {
