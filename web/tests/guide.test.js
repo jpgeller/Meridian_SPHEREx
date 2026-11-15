@@ -294,11 +294,13 @@ test('runner: tour steps show "i / n", Next/Stop and auto-advance; the end card 
   assert.equal(shown[1].step, '2 / 2');
   assert.equal(shown[1].title, 'T');
   assert.deepEqual(shown[1].facts, [['a', 'b']]);
-  answerFn('next');
-  await tick();
-  assert.equal(shown[2].title, 'Is that clear?');
+  // B2: the last step carries the end card's answers (no Next), no auto-advance, no generic question
+  assert.deepEqual(shown[1].answers, ['got_it', { id: 'again', label: 'Show me again' }]);
+  assert.equal(shown[1].auto, 0);
+  assert.equal(shown[1].sub, undefined);
   answerFn('again');
   assert.equal(await done, 'again');
+  assert.equal(shown.length, 2, 'no separate end card');
   // Stop ends it
   const two = runner.runScript({ steps: [{ say: 'One.' }, { say: 'Two.' }] });
   await tick();
