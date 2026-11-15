@@ -1,0 +1,30 @@
+# AI Guide — progress
+
+Implementing [fix-and-improvements-ai-guide.md](fix-and-improvements-ai-guide.md) on branch `ai-guide-improvements`.
+
+Decisions (Nov 15, 2026):
+- The 7 Places keep their local tours (zero tokens), made richer from the fact cards. Other objects ask Claude.
+- B5: only the guide's own labels move; the sky hand-off button (`sky/handoff.js`) is not touched.
+- One indicator per spot: guide code only; `input/gaze.js` is not touched.
+- Budgets as in the spec (40 per visit, 15 s); the dynamic pill menu shares that budget.
+
+## P0 bug fixes
+- [x] B1 — Colours flow content
+- [ ] B2 — Last step label
+- [ ] B3 — Clear overlays on end
+- [ ] B4 — Stable card layout
+- [ ] B5 — Hint placement
+- [ ] B7 — Object explanations via Claude (non-Place objects)
+
+## P0 guide presence
+- [ ] Remove idle arrow; orb docks in pill
+
+## P0 preset fact cards
+- [ ] Fact cards for the 7 Places, sent as `facts.preset`; richer local Place tours
+
+## P1
+- [ ] Insight-first copy
+- [ ] New budgets + 5-min "Not now" + teaser auto-collapse
+- [ ] Pill states
+- [ ] Dynamic pill menu
+- [ ] Arrival trigger

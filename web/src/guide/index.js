@@ -201,12 +201,13 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
     if (kind === 'identify') return identifyTour(id, { inField: field });
     if (kind === 'motion') return motionTour(id, { inField: field, atTarget: presetIdOf(centre()?.id) === id });
     if (kind === 'change') return changeTour();
-    if (kind === 'colours') return coloursTour({ inField: field });
+    if (kind === 'colours') return coloursTour({ inField: field, id });
     if (kind === 'example') return exampleTour();
     if (kind === 'where') return whereTour({ fov: s.fov, detector: detectorOf(s.band).detector });
     return null;
   }
-  /** Play a tour, then follow the closing card's answer (Show me -> motion, Show me again, an example…). */
+  /** Play a tour, then follow the closing card's answer (Show me -> motion, or colours for a place that does
+   * not move, keeping the place id for its colour note; Show me again, an example…). */
   async function tour(kind, id = null) {
     guide.stop();
     await null; // let the command that asked for this finish first (its event must not end the new tour)
