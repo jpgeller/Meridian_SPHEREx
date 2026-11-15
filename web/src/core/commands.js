@@ -13,6 +13,7 @@
  * @property {string[]} [keys]     KeyboardEvent.key values that trigger it (core/keys.js)
  * @property {Object} [args]       Argument names -> short description (for the AI guide)
  * @property {boolean} [stub]      Not implemented yet; logs instead of acting
+ * @property {boolean} [personOnly] Only the person may run it (e.g. the eye-control mode); the AI guide never can
  */
 
 export function createCommands({ target = globalThis.window } = {}) {
