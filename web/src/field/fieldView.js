@@ -22,20 +22,20 @@ export function createFieldView(root, { store, commands, getWavelengths = () => 
       <header class="field-head">
         <h2 id="field-title" tabindex="-1">Time-lapse</h2>
         <p id="field-pos" class="muted"></p>
-        <button type="button" id="field-close" class="field-close">Back to sky <kbd>Esc</kbd></button>
+        <button type="button" id="field-close" class="field-close" data-guide="back-to-sky">Back to sky <kbd>Esc</kbd></button>
       </header>
       <div class="field-controls">
-        <div role="radiogroup" aria-label="Field size" class="row wrap" id="field-sizes">
+        <div role="radiogroup" aria-label="Field size" class="row wrap" id="field-sizes" data-guide="field-sizes">
           ${FIELD_FOVS.map(
             (f) => `<button type="button" role="radio" data-ffov="${f}">${f < 1 ? `${f * 60}′` : `${f}°`}</button>`,
           ).join('')}
         </div>
         <div class="row wrap" role="group" aria-label="Infrared band">
-          <button type="button" id="field-band-prev" aria-label="Shorter λ: previous band" aria-keyshortcuts="["><kbd>[</kbd> Shorter λ</button>
+          <button type="button" id="field-band-prev" data-guide="band-shorter" aria-label="Shorter λ: previous band" aria-keyshortcuts="["><kbd>[</kbd> Shorter λ</button>
           <span id="field-band" class="band-readout"></span>
-          <button type="button" id="field-band-next" aria-label="Longer λ: next band" aria-keyshortcuts="]">Longer λ <kbd>]</kbd></button>
+          <button type="button" id="field-band-next" data-guide="band-longer" aria-label="Longer λ: next band" aria-keyshortcuts="]">Longer λ <kbd>]</kbd></button>
           <span class="sep" aria-hidden="true"></span>
-          <div role="radiogroup" aria-label="Band mode" class="row wrap" id="band-modes">
+          <div role="radiogroup" aria-label="Band mode" class="row wrap" id="band-modes" data-guide="band-modes">
             <button type="button" role="radio" data-mode="single" title="One of the 102 bands">One band</button>
             <button type="button" role="radio" data-mode="detector" title="All 17 bands of this detector added: deeper">Whole detector</button>
             <button type="button" role="radio" data-mode="rgb" title="Three bands or detectors as red, green, blue">Colour mix</button>

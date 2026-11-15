@@ -496,14 +496,14 @@ test('guide pop-up: an offer is first in the Tab order, Esc dismisses it, the sa
   await page.keyboard.press('Tab');
   expect(await page.evaluate(() => document.activeElement.dataset.answer)).toBe('yes');
   await page.keyboard.press('Tab');
-  expect(await page.evaluate(() => [document.activeElement.tagName, document.activeElement.textContent])).toEqual(['BUTTON', 'No thanks']);
+  expect(await page.evaluate(() => [document.activeElement.tagName, document.activeElement.textContent])).toEqual(['BUTTON', 'Not now']);
   // Esc closes the card (a decline) and gives the focus back
   await page.keyboard.press('Escape');
   await expect(card).toBeHidden();
   expect(await page.evaluate(() => window.__offer)).toBe('dismissed');
   expect(await page.evaluate(() => window.__no)).toBe('dismissed');
   expect(await page.evaluate(() => document.activeElement.closest('[data-guide="guide-popup"]'))).toBeNull();
-  // the same target is not offered again inside the cool-down; another one is
+  // a declined target is not offered again in this session; another one is
   expect(await page.evaluate(() => guide.offer({ text: 'Again?', target: 'sky:barnard' }))).toBe('cooling');
   await expect(card).toBeHidden();
   await page.evaluate(() => {
@@ -512,12 +512,12 @@ test('guide pop-up: an offer is first in the Tab order, Esc dismisses it, the sa
   await expect(card).toContainText('colours');
   // while one card is open, a new offer is refused
   expect(await page.evaluate(() => guide.offer({ text: 'Third', target: 'search' }))).toBe('busy');
-  await card.getByRole('button', { name: 'No thanks' }).click();
+  await card.getByRole('button', { name: 'Not now' }).click();
   expect(await page.evaluate(() => window.__second)).toBe('no');
   expect(errors()).toEqual([]);
 });
 
-test('guide pop-up: Yes opens a step, answers resolve say(), a step over its target moves away, Esc beats "back to sky"', async ({ page }) => {
+test('guide pop-up: Yes opens a step, answers resolve say(), the card stays top right, Esc beats "back to sky"', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto('/?ra=269.45&dec=4.74&fov=20');
   await ready(page);
@@ -535,7 +535,7 @@ test('guide pop-up: Yes opens a step, answers resolve say(), a step over its tar
   await page.keyboard.press('Tab');
   await page.keyboard.press('Enter');
   await expect(card).toContainText('red dwarf');
-  await expect(card.locator('button')).toHaveText(['Got it', 'Show me more', 'Close']);
+  await expect(card.locator('.gp-answers button')).toHaveText(['Got it', 'Show me more', 'Close']);
   expect(await page.evaluate(() => guide.popup.kind())).toBe('step');
   await expect.poll(() => page.evaluate(() => document.activeElement.dataset.answer)).toBe('got_it');
   await page.keyboard.press('Tab');
@@ -543,29 +543,17 @@ test('guide pop-up: Yes opens a step, answers resolve say(), a step over its tar
   await expect(card).toBeHidden();
   expect(await page.evaluate(() => window.__answer)).toBe('more');
 
-  // a step whose target sits under the card moves (full text) to the top left; one elsewhere stays
-  await page.evaluate(() => {
-    const el = document.createElement('div');
-    el.dataset.guide = 'test-under-card';
-    el.style.cssText = 'position:fixed; top:60px; right:40px; width:60px; height:40px;';
-    document.body.append(el);
-  });
+  // the card always sits in the top-right corner (wireframe v4), whatever the step is about
   const long = 'SPHEREx takes one picture of each spot at a time, and over months it builds a spectrum in 102 colours.';
-  page.evaluate((say) => guide.say({ say, target: 'band-d1' }), long);
+  page.evaluate((say) => guide.say({ say, title: 'Spectra', target: 'band-d1' }), long);
   await expect(card).toBeVisible();
+  await expect(card.locator('.gp-title')).toHaveText('Spectra');
+  await expect(card.locator('.gp-text')).toHaveText(long); // nothing cut
   expect(await page.evaluate(() => guide.popup.spot())).toBe('top-right');
-  const full = (await card.boundingBox()).height;
-  page.evaluate((say) => guide.say({ say, target: 'test-under-card' }), long);
-  await expect.poll(() => page.evaluate(() => guide.popup.spot())).toBe('top-left');
-  await expect(card.locator('.gp-text')).toHaveText(long);
-  // after the slide: clear of the target and the search bar, same height (nothing cut)
-  await expect.poll(async () => (await card.boundingBox()).x).toBeLessThan(20);
-  const moved = await card.boundingBox();
-  const under = await page.locator('[data-guide="test-under-card"]').boundingBox();
-  expect(moved.x + moved.width).toBeLessThan(under.x);
-  expect(moved.height).toBe(full);
-  const search = await page.locator('#search').boundingBox();
-  expect(moved.y).toBeGreaterThan(search.y + search.height);
+  const box = await card.boundingBox();
+  expect(box.x + box.width).toBeGreaterThan(1200);
+  expect(box.y).toBeLessThan(40);
+  expect(await card.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true); // never scrolls
   await page.evaluate(() => guide.dismiss());
   await expect(card).toBeHidden();
 
@@ -591,35 +579,40 @@ test('guide pop-up: Yes opens a step, answers resolve say(), a step over its tar
   expect(errors()).toEqual([]);
 });
 
-test('guide pop-up: a step about a star under the top-right corner moves the card off the star', async ({ page }) => {
-  // Barnard's Star lands under the top-right card at this view
-  await page.goto('/?ra=276.7&dec=0.3&fov=20');
+test('guide pill: waits top right with the pointer parked beside it; the card takes its place; A opens the menu', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?fov=60');
   await ready(page);
-  await expect.poll(() => page.evaluate(() => guide.resolve('sky:barnard')), { timeout: 15000 }).not.toBeNull();
-  const star = await page.evaluate(() => guide.resolve('sky:barnard'));
-  expect(star.x).toBeGreaterThan(928); // where the default card would be
-  expect(star.y).toBeLessThan(226);
-  const say = 'Barnard’s Star moves across the sky faster than any other star: about the width of the full Moon every 180 years.';
-  await page.evaluate((s) => {
-    guide.say({ say: s, target: 'sky:barnard' });
-  }, say);
+  const pill = page.locator('[data-guide="guide-pill"]');
   const card = page.locator('[data-guide="guide-popup"]');
-  await expect(card.locator('.gp-text')).toHaveText(say); // the whole text, nothing cut
-  await expect.poll(() => page.evaluate(() => guide.popup.spot())).not.toBe('top-right');
-  // once it has slid away the star is visible to everyone again (gaze, overlay), and not under the card
-  await expect.poll(() => page.evaluate(() => guide.resolve('sky:barnard'))).not.toBeNull();
-  const b = await card.boundingBox();
-  const p = await page.evaluate(() => guide.resolve('sky:barnard'));
-  const pad = 24 + (p.r ?? 0);
-  const inside = p.x > b.x - pad && p.x < b.x + b.width + pad && p.y > b.y - pad && p.y < b.y + b.height + pad;
-  expect(inside).toBe(false);
-  // the guide's pointer flies from the card's new place
-  await page.evaluate(() => guide.pointAt('sky:barnard'));
-  const from = await page.evaluate(() => {
+  await expect(pill).toBeVisible();
+  await expect(pill).toHaveText('AI Guide');
+  const pb = await pill.boundingBox();
+  expect(pb.x + pb.width).toBeGreaterThan(1200);
+  expect(pb.y).toBeLessThan(40);
+  // the pointer is parked just left of the pill, and shows nothing (no marks)
+  const pointer = page.locator('#guide-overlay .go-pointer');
+  await expect(pointer).not.toHaveClass(/is-hidden/);
+  const tip = await page.evaluate(() => {
     const m = document.querySelector('#guide-overlay .go-pointer').style.transform.match(/translate\(([-\d.]+)px, ([-\d.]+)px/);
     return { x: +m[1], y: +m[2] };
   });
-  expect(Math.abs(from.x - (b.x + b.width / 2))).toBeLessThan(60);
+  expect(tip.x).toBeLessThan(pb.x);
+  expect(pb.x - tip.x).toBeLessThan(60);
+  expect(await page.evaluate(() => guide.overlay.active())).toEqual([]);
+  // key A: the menu, in the pill's place
+  await page.keyboard.press('a');
+  await expect(card).toContainText('What can I show you?');
+  await expect(pill).toBeHidden();
+  await expect(card.locator('.gp-answers button')).toHaveText(['What am I looking at?', 'Something moving', 'What the colours mean']);
+  // ✕ closes it and the pill comes back
+  await card.getByRole('button', { name: 'Dismiss' }).click();
+  await expect(card).toBeHidden();
+  await expect(pill).toBeVisible();
+  // the pill itself (a real button) opens the same menu
+  await pill.click();
+  await expect(card).toContainText('What can I show you?');
+  expect(errors()).toEqual([]);
 });
 
 // --- guide script runner (U5) ---
@@ -640,11 +633,12 @@ test('guide runner: a console script skips a bad command, acts as the guide, and
       .then((how) => (window.__how = how));
   });
   await expect(card).toContainText('Step one');
-  await expect(card.locator('button')).toHaveText(['Show me more', 'Close']);
+  await expect(card.locator('.gp-answers button')).toHaveText(['Next', 'Stop']);
+  await expect(card.locator('.gp-step')).toHaveText('1 / 3');
   expect(await page.evaluate(() => meridian.store.get().band)).toBe(93);
   // the guide's own command did not clear its circle
   expect(await page.evaluate(() => guide.overlay.active())).toEqual(['circle:band-d6']);
-  await card.getByRole('button', { name: 'Show me more' }).click();
+  await card.getByRole('button', { name: 'Next' }).click();
   await expect(card).toContainText('Step two');
   expect(await page.evaluate(() => [guide.runner.isRunning(), meridian.store.get().band])).toEqual([true, 93]);
   // the person presses a real button: the script ends at once, the card goes
@@ -666,10 +660,10 @@ test('guide runner: the fallback scripts play with the API unreachable; Close en
     guide.fallback('colours').then((how) => (window.__how = how));
   });
   await expect(card).toContainText('infrared');
-  await card.getByRole('button', { name: 'Show me more' }).click();
+  await card.getByRole('button', { name: 'Next' }).click();
   await expect(card).toContainText('D6');
   expect(await page.evaluate(() => meridian.store.get().band)).toBe(93);
-  await card.getByRole('button', { name: 'Show me more' }).click();
+  await card.getByRole('button', { name: 'Next' }).click();
   await card.getByRole('button', { name: 'Got it' }).click();
   await expect.poll(() => page.evaluate(() => window.__how)).toBe('done');
   await expect.poll(() => page.evaluate(() => guide.overlay.active().length)).toBe(0);
@@ -679,7 +673,7 @@ test('guide runner: the fallback scripts play with the API unreachable; Close en
     guide.fallback('object', { id: 'sky:barnard' }).then((how) => (window.__how = how));
   });
   await expect(card).toContainText("Barnard's Star");
-  await card.getByRole('button', { name: 'Close' }).click();
+  await card.getByRole('button', { name: 'Stop' }).click();
   await expect.poll(() => page.evaluate(() => window.__how)).toBe('closed');
   await expect(card).toBeHidden();
   expect(errors().filter((e) => !/\/api\//.test(e))).toEqual([]);
@@ -703,13 +697,17 @@ test('guide attention: with ?gaze=mouse, resting the mouse on Barnard\'s Star fo
   await expect(ring).toHaveClass(/is-on/, { timeout: 4000 });
   await expect(ring).toHaveAttribute('data-target', 'sky:barnard');
   expect(Date.now() - t0).toBeGreaterThan(1000); // not before 1.2 s
-  await expect(card).toContainText('Want help identifying this?', { timeout: 10000 });
+  await expect(card).toContainText('Want to know what this is?', { timeout: 10000 });
+  await expect(card).toContainText('You have been looking at it for 7 seconds.');
   expect(Date.now() - t0).toBeGreaterThan(6500); // about 7 s
   await expect(ring).not.toHaveClass(/is-on/);
-  await card.getByRole('button', { name: 'Yes' }).click();
-  await expect(card).toContainText("Barnard's Star");
+  // the pointer went first: it is on the star, circled, before any answer
+  expect(await page.evaluate(() => guide.overlay.active().sort())).toEqual(['circle:sky:barnard', 'pointer']);
+  await card.getByRole('button', { name: 'Yes, tell me' }).click();
+  await expect(card.locator('.gp-title')).toHaveText("Barnard's Star");
+  await expect(card).toContainText('Red dwarf star');
   expect(await page.evaluate(() => guide.runner.isRunning())).toBe(true);
-  await card.getByRole('button', { name: 'Close' }).click();
+  await card.getByRole('button', { name: 'Stop' }).click();
   await expect(card).toBeHidden();
   // still on the star, but inside the 60 s cool-down: no ring, no offer
   await page.mouse.move(star.x + 15, star.y);
@@ -741,7 +739,7 @@ test('guide attention: without ?gaze=mouse the mouse is ignored; gaze samples (U
     window.__gaze = setInterval(() => guide.attention.feed({ x, y, t: performance.now(), confidence: 0.9 }), 33);
   }, d6);
   await expect(card).toContainText('Wondering about these colours?', { timeout: 5000 });
-  await card.getByRole('button', { name: 'No thanks' }).click();
+  await card.getByRole('button', { name: 'Not now' }).click();
   await expect(card).toBeHidden();
   expect(await page.evaluate(() => guide.popup.cooldown.isCooling('colours'))).toBe(true);
   await page.evaluate(() => clearInterval(window.__gaze));
@@ -759,9 +757,10 @@ test('guide attention: stepping back and forth in a time-lapse offers "what chan
   for (const k of ['.', '.', ',', '.']) await page.keyboard.press(k); // 0 → 1 → 2 → 1 → 2: two turns
   await expect(card).toBeHidden();
   await page.keyboard.press(','); // a third turn
-  await expect(card).toContainText('Want to see what changed?');
-  await card.getByRole('button', { name: 'Yes' }).click();
-  await expect(card).toContainText('replaying the same visits');
+  await expect(card).toContainText('Trying to spot what changed?');
+  await card.getByRole('button', { name: 'Yes, tell me' }).click();
+  await expect(card).toContainText('This is the first picture');
+  await expect.poll(() => page.evaluate(() => meridian.store.get().frameIndex)).toBe(0);
   expect(await page.evaluate(() => guide.runner.isRunning())).toBe(true);
   expect(errors()).toEqual([]);
 });
@@ -794,7 +793,7 @@ test('guide endpoint: Yes shows "Thinking…", then plays the API\'s script; fac
   expect(sent.ids).toContain('band-d6');
   expect(sent.facts.band).toMatchObject({ band: 40, detector: 'D3' });
   expect(JSON.stringify(sent)).not.toMatch(/gaze|confidence/);
-  await card.getByRole('button', { name: 'Show me more' }).click();
+  await card.getByRole('button', { name: 'Next' }).click();
   await expect(card).toContainText('display choice'); // the bad command was dropped, the step kept
   await card.getByRole('button', { name: 'Got it' }).click();
   await expect.poll(() => page.evaluate(() => window.__how)).toBe('done');
@@ -825,7 +824,7 @@ test('guide endpoint: the fallback marker or a failed call plays the local scrip
     guide.startGuide('colours').then((how) => (window.__how = how));
   });
   await expect(card).toContainText('Thinking');
-  await card.getByRole('button', { name: 'Close' }).click();
+  await card.getByRole('button', { name: 'Close', exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.__how)).toBe('closed');
   await page.waitForTimeout(1800);
   await expect(card).toBeHidden(); // the late reply is ignored

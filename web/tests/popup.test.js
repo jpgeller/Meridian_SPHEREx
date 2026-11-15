@@ -160,14 +160,14 @@ function fakeClock() {
   };
 }
 
-test('createTimer: fires after 12 s; pause keeps the time left; cancel stops it', () => {
+test('createTimer: fires after 14 s; pause keeps the time left; cancel stops it', () => {
   const clock = fakeClock();
   let fired = 0;
   const timer = createTimer(AUTO_HIDE_MS, () => fired++, clock);
-  assert.equal(AUTO_HIDE_MS, 12000);
+  assert.equal(AUTO_HIDE_MS, 14000);
   timer.start();
   assert.equal(timer.running(), true);
-  clock.advance(11999);
+  clock.advance(13999);
   assert.equal(fired, 0);
   clock.advance(1);
   assert.equal(fired, 1);
@@ -180,10 +180,10 @@ test('createTimer: fires after 12 s; pause keeps the time left; cancel stops it'
   clock.advance(60000);
   assert.equal(fired, 1, 'paused: no hide');
   timer.resume();
-  clock.advance(3999);
+  clock.advance(5999);
   assert.equal(fired, 1);
   clock.advance(1);
-  assert.equal(fired, 2, 'resumes with the 4 s that were left');
+  assert.equal(fired, 2, 'resumes with the 6 s that were left');
 
   // gaze mode: cancelled, never fires
   timer.start();
@@ -196,6 +196,6 @@ test('createTimer: fires after 12 s; pause keeps the time left; cancel stops it'
   timer.start();
   clock.advance(6000);
   assert.equal(fired, 2);
-  clock.advance(6000);
+  clock.advance(8000);
   assert.equal(fired, 3);
 });

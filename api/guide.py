@@ -96,8 +96,9 @@ OUTPUT_SCHEMA: dict[str, Any] = {
             "items": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["say", "actions"],
+                "required": ["title", "say", "actions"],
                 "properties": {
+                    "title": {"type": "string"},
                     "say": {"type": "string"},
                     "actions": {
                         "type": "array",
@@ -106,7 +107,7 @@ OUTPUT_SCHEMA: dict[str, Any] = {
                             "additionalProperties": False,
                             "required": ["type", "id", "to", "label", "cmd", "args"],
                             "properties": {
-                                "type": {"type": "string", "enum": ["point", "circle", "highlight", "trail", "cmd"]},
+                                "type": {"type": "string", "enum": ["point", "circle", "highlight", "trail", "click", "cmd"]},
                                 "id": {"type": "string"},
                                 "to": {"type": "string"},
                                 "label": {"type": "string"},
@@ -151,7 +152,9 @@ that you are not sure or that the data here cannot tell. Never invent numbers, n
 (noise, artefacts, an asteroid, a variable star) when it matters.
 - State limits honestly (few dates per band, 6 arcsec pixels, blends with nearby stars, data still being processed).
 - Actions are optional; use at most 3 per step, and only when they help the person see what you say. Prefer \
-showing (point/circle) over changing the view. Use only commands and ids from the lists given. Do not repeat a \
+showing (point/circle) over changing the view. To teach a control, press it with "click" (the pointer flies to \
+the button and presses it, so the person sees where it is): e.g. click "band-d6", "op-trail", "play", \
+"open-field". Only ids without a colon are buttons; sky objects (sky:..., field:...) are shown with point/circle. Use only commands and ids from the lists given. Do not repeat a \
 command whose result is already the current state.
 - No greetings, no questions back, no markdown, no emoji.
 
@@ -159,8 +162,10 @@ Each action has every field; use "" for fields that do not apply:
 - {"type":"circle","id":"<id>"} / {"type":"highlight","id":"<id>"}
 - {"type":"point","id":"<id>","label":"<2-5 words>"}
 - {"type":"trail","id":"<from id>","to":"<to id>"}
+- {"type":"click","id":"<button id from ids>"}
 - {"type":"cmd","cmd":"<command name>","args":"<JSON object as a string, e.g. {\\"band\\": 93}>"}
-Reply with the JSON object {"steps":[{"say":"...","actions":[...]}]} only."""
+Each step has a "title": the thing it is about in 1 to 4 words (e.g. the object's name, "D6"), or "".
+Reply with the JSON object {"steps":[{"title":"...","say":"...","actions":[...]}]} only."""
 
 
 # --- request ----------------------------------------------------------------------------
@@ -306,6 +311,11 @@ def convert_action(a: Any, commands: dict, ids: set) -> tuple[dict | None, str]:
         if kind == "point" and isinstance(label, str) and label.strip():
             out["label"] = label.strip()[:80]
         return out, ""
+    if kind == "click":
+        i = a.get("id")
+        if not isinstance(i, str) or ":" in i or i not in ids:
+            return None, f"cannot click {i!r}"
+        return {"click": i}, ""
     if kind == "trail":
         pair = [a.get("id"), a.get("to")]
         if not all(p in ids for p in pair):
@@ -342,7 +352,10 @@ def parse_reply(text: str) -> list[dict]:
         if not isinstance(s, dict) or not isinstance(s.get("say"), str) or not s["say"].strip():
             continue
         acts = s.get("actions") if isinstance(s.get("actions"), list) else []
-        out.append({"say": s["say"].strip()[:MAX_SAY_CHARS], "actions": acts})
+        step = {"say": s["say"].strip()[:MAX_SAY_CHARS], "actions": acts}
+        if isinstance(s.get("title"), str) and s["title"].strip():
+            step["title"] = s["title"].strip()[:60]
+        out.append(step)
     if not out:
         raise ValueError("no step with text")
     return out[:MAX_STEPS]
@@ -360,7 +373,7 @@ def clean_steps(raw: list[dict], req: GuideRequest) -> list[dict]:
                 log.info("guide: step %d, action %d dropped: %s", i + 1, j + 1, why)
             elif len(actions) < MAX_ACTIONS:
                 actions.append(act)
-        out.append({"say": s["say"], "actions": actions})
+        out.append({"say": s["say"], "actions": actions, **({"title": s["title"]} if s.get("title") else {})})
     return out
 
 

@@ -55,7 +55,7 @@ test('axe: no serious or critical issues on the main screen, with the guide card
 // The guide's own live region (the pop-up's), and the eye-control one (input/gaze.js).
 const guideLive = (page) => page.locator('[role="status"][aria-live="polite"]').filter({ hasText: /^Guide:/ });
 
-test('keyboard only (Tab + Space / Enter): replays bring the offer, Yes, "Thinking…", the explanation, Got it', async ({ page }) => {
+test('keyboard only (Tab + Space / Enter): replays bring the offer, Yes, the tour step by step, Got it', async ({ page }) => {
   await page.route('**/api/guide', async (route) => {
     await new Promise((r) => setTimeout(r, 500)); // long enough to hear "Thinking…"
     await route.fulfill({ json: STEP }).catch(() => {});
@@ -66,8 +66,8 @@ test('keyboard only (Tab + Space / Enter): replays bring the offer, Yes, "Thinki
   await quiet(page);
   // the offer comes from the keyboard too: stepping back and forth through the visits
   for (const k of ['.', '.', ',', '.', ',']) await page.keyboard.press(k);
-  await expect(card(page)).toContainText('Want to see what changed?');
-  await expect(guideLive(page)).toHaveText('Guide: Want to see what changed?');
+  await expect(card(page)).toContainText('Trying to spot what changed?');
+  await expect(guideLive(page)).toHaveText(/^Guide: Trying to spot what changed\?/);
   // a single "next" key (Tab) reaches the card's answers first; a single "press" key answers
   // (the field view had put the focus on its title, far from the card in the Tab order)
   await page.keyboard.press('Tab');
@@ -75,14 +75,20 @@ test('keyboard only (Tab + Space / Enter): replays bring the offer, Yes, "Thinki
   // focus on the card pauses its auto-hide (mode A): no fast reaction needed
   await page.waitForTimeout(500);
   await page.keyboard.press('Space');
-  await expect(card(page)).toContainText('Thinking');
-  await expect(guideLive(page)).toHaveText('Guide: Thinking…');
-  await expect(card(page)).toContainText('cold brown dwarf');
-  await expect(guideLive(page)).toHaveText(/^Guide: The ring marks WISE 0855/);
-  // the keyboard stays in the card: the step's first answer has the focus, and it is visible
-  await expect.poll(() => page.evaluate(() => document.activeElement.dataset.answer)).toBe('got_it');
+  // the tour: each step is read out, and the keyboard stays on its first answer (Next), visibly
+  await expect(card(page)).toContainText('This is the first picture');
+  await expect(guideLive(page)).toHaveText(/^Guide: This is the first picture/);
+  await expect.poll(() => page.evaluate(() => document.activeElement.dataset.answer)).toBe('next');
   const ring = await page.evaluate(() => getComputedStyle(document.activeElement).outlineStyle);
   expect(ring).not.toBe('none');
+  for (const text of ['watch the circled', 'motion trail']) {
+    await page.keyboard.press('Enter');
+    await expect(card(page)).toContainText(text);
+    await expect.poll(() => page.evaluate(() => document.activeElement.dataset.answer)).toBe('next');
+  }
+  await page.keyboard.press('Enter');
+  await expect(card(page)).toContainText('Is that clear?');
+  await expect.poll(() => page.evaluate(() => document.activeElement.dataset.answer)).toBe('got_it');
   await page.keyboard.press('Enter');
   await expect(card(page)).toBeHidden();
   expect(await page.evaluate(() => guide.runner.isRunning())).toBe(false);
@@ -116,18 +122,18 @@ test('dwell only (full gaze mode): offer, Yes, explanation and Got it on the sky
   await page.evaluate(() => guide.attention.configure({ ringDelayMs: 200, dwellMs: 1500 }));
   const star = await page.evaluate(() => guide.resolve('sky:barnard'));
   await page.evaluate(({ x, y }) => __gaze(x, y, 2200), star);
-  await expect(card(page)).toContainText('Want help identifying this?');
+  await expect(card(page)).toContainText('Want to know what this is?');
   // answers: at least 64 px high, at least 16 px apart
-  const boxes = await card(page).locator('button').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()));
+  const boxes = await card(page).locator('.gp-answers button').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()));
   for (const b of boxes) expect(b.height).toBeGreaterThanOrEqual(64);
   expect(boxes[1].left - boxes[0].right).toBeGreaterThanOrEqual(16);
   // looking away for a while: the offer stays (no step needs a fast reaction)
   await page.evaluate(() => __gaze(640, 420, 1500));
   await expect(card(page)).toBeVisible();
   await page.evaluate(() => __gaze(...__answer('Yes'), 1200));
-  await expect(card(page)).toContainText('moves fast');
+  await expect(card(page)).toContainText('Red dwarf star'); // the guide's own notes on this place
   await page.evaluate(() => __gaze(640, 420, 400)); // the eyes leave the spot where Yes was
-  await page.evaluate(() => __gaze(...__answer('Got it'), 1200));
+  await page.evaluate(() => __gaze(...__answer('Stop'), 1200));
   await expect(card(page)).toBeHidden();
   expect(await page.evaluate(() => guide.runner.isRunning())).toBe(false);
   // eye control can be switched off at any time: by a look at its button, and the change is spoken

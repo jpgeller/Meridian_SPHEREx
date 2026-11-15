@@ -19,11 +19,19 @@ function describe(target) {
   return { id, name: t.name || preset?.label || null, note: preset?.note || null };
 }
 
+// One sentence: "This is Barnard's Star, the fastest-moving star…" when the note is one sentence that
+// starts with "The"/"A"; otherwise the name, then the note.
+function firstLine(name, note) {
+  if (!note) return `This is ${name}.`;
+  const one = !/[.!?]\s+\S/.test(note.trim());
+  return one && /^(The|A|An) /.test(note) ? `This is ${name}, ${note[0].toLowerCase()}${note.slice(1)}` : `This is ${name}. ${note}`;
+}
+
 const objectScript = (target, state) => {
   const { id, name, note } = describe(target);
-  const mark = id ? [{ circle: id }] : [];
+  const mark = id ? [{ point: id }, { circle: id }] : [];
   return [
-    { say: name ? `This is ${name}.${note ? ` ${note}` : ''}` : 'This is the spot you were looking at.', actions: mark },
+    { say: name ? firstLine(name, note) : 'This is the spot you were looking at.', actions: mark },
     {
       say: 'SPHEREx photographs every part of the sky in 102 infrared colours, a few times a year. Each colour is a separate picture, taken on its own date.',
       actions: [],

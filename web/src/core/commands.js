@@ -6,6 +6,11 @@
 // Async commands return { ok: true, pending: true, value: Promise } and emit when settled;
 // they also emit `meridian:command-start` (same detail, without ok) when they begin, so the
 // guide can stay quiet while e.g. a fly_to is still looking up a name.
+//
+// actingAs(source, fn): every run() made while fn runs (synchronously) reports `source` instead of
+// its own. The guide presses a real button with it (runner.js `click`): the button's own handler
+// runs the command as usual, but the bus reports it as the guide's, not the person's. A personOnly
+// command (e.g. the eye-control mode) refuses to run inside actingAs: only the person can press it.
 
 /**
  * @typedef {Object} CommandMeta
@@ -19,6 +24,7 @@
 export function createCommands({ target = globalThis.window } = {}) {
   /** @type {Map<string, {fn: Function, meta: CommandMeta}>} */
   const registry = new Map();
+  let actor = null; // actingAs() source, while its fn runs
 
   function register(name, fn, meta = {}) {
     if (!/^[a-z][a-z0-9_]*$/.test(name)) throw new Error(`bad command name: ${name}`);
@@ -26,10 +32,15 @@ export function createCommands({ target = globalThis.window } = {}) {
   }
 
   function run(name, args = {}, source = 'code') {
+    if (actor) source = actor;
     const entry = registry.get(name);
     if (!entry) {
       console.warn(`[commands] unknown command: ${name}`);
       return { ok: false, error: 'unknown command' };
+    }
+    if (actor && entry.meta.personOnly) {
+      console.warn(`[commands] only the person can run ${name} (asked by: ${actor})`);
+      return { ok: false, error: `only the person can run ${name}` };
     }
     const emit = (ok, error) =>
       target?.dispatchEvent?.(
@@ -70,5 +81,15 @@ export function createCommands({ target = globalThis.window } = {}) {
     return [...registry].map(([name, { meta }]) => ({ name, ...meta }));
   }
 
-  return { register, run, list, has: (name) => registry.has(name) };
+  function actingAs(source, fn) {
+    const was = actor;
+    actor = source;
+    try {
+      return fn();
+    } finally {
+      actor = was;
+    }
+  }
+
+  return { register, run, list, actingAs, has: (name) => registry.has(name) };
 }

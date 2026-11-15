@@ -223,7 +223,7 @@ test('fallback scripts: 2-4 steps with text, only whitelisted commands and valid
     }
   }
   assert.match(fallbackScript('object', 'sky:barnard')[0].say, /Barnard's Star/);
-  assert.deepEqual(fallbackScript('object', 'sky:barnard')[0].actions, [{ circle: 'sky:barnard' }]);
+  assert.deepEqual(fallbackScript('object', 'sky:barnard')[0].actions, [{ point: 'sky:barnard' }, { circle: 'sky:barnard' }]);
   assert.ok(fallbackScript('change', null, { view: 'field' }).some((s) => s.actions.some((a) => a.cmd === 'set_op' && a.args.op === 'trail')));
   assert.ok(fallbackScript('colours').some((s) => s.actions.some((a) => a.circle === 'band-d6')));
 });

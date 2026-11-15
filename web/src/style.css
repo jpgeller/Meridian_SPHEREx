@@ -961,6 +961,19 @@ body.field-open .handoff {
 .go-pointer.is-edge svg {
   animation: go-nudge 1.2s ease-in-out infinite;
 }
+/* the guide presses a button (runner.js click): one short push (reduced motion: none) */
+.go-pointer.is-pressing svg {
+  animation: go-press 0.25s ease-out;
+}
+@keyframes go-press {
+  50% {
+    transform: scale(0.82);
+  }
+}
+.guide-pressed {
+  outline: 3px solid var(--accent) !important;
+  outline-offset: 2px;
+}
 @keyframes go-pulse {
   0%,
   100% {
@@ -1058,96 +1071,229 @@ body.field-open .handoff {
   }
 }
 
-/* --- guide pop-up card (U4): top right, above the overlay. Offer = one line + Yes / No thanks;
-   step = the explanation + 1 to 3 answers. popup.js moves it (inline left/top) to another spot
-   when it would cover the middle of the sky or the thing being explained; is-placed slides it. --- */
+/* --- AI guide (wireframe v4): the pill and the Siri-like card, always in the top-right corner.
+   The pill waits there (the amber pointer parks beside it); the card takes its place when the guide
+   speaks: header (orb · AI GUIDE · step · ✕), title, one short thought, facts, answers, progress bar. --- */
+.guide-pill,
 .guide-popup {
   position: fixed;
   z-index: 50; /* above the guide overlay (40) */
   top: var(--edge);
   right: var(--edge);
+}
+body.field-open .guide-pill,
+body.field-open .guide-popup {
+  top: 92px; /* below the field view's "Back to sky" button and the Eye control card */
+  right: 28px;
+}
+.guide-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-4) 0 var(--space-3);
+  border: 1px solid rgba(255, 181, 71, 0.35);
+  border-radius: 999px;
+  background: var(--surface);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-m);
+  font-weight: 600;
+  cursor: pointer;
+}
+.guide-pill:hover {
+  border-color: var(--accent);
+}
+.guide-pill:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+.guide-pill[hidden] {
+  display: none;
+}
+.gp-orb {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ffe2bd, #ffb15c 55%, #d97757);
+  box-shadow: 0 0 10px rgba(255, 177, 92, 0.7);
+  animation: gp-breathe 2.4s ease-in-out infinite;
+}
+@keyframes gp-breathe {
+  50% {
+    transform: scale(0.82);
+    box-shadow: 0 0 4px rgba(255, 177, 92, 0.5);
+  }
+}
+.guide-popup {
   width: min(var(--popup-w), calc(100vw - 2 * var(--edge)));
   box-sizing: border-box;
-  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-l);
-  background: var(--surface-solid);
+  padding: 12px 14px 10px;
+  border: 1px solid rgba(255, 181, 71, 0.3);
+  border-radius: 18px;
+  background: var(--surface);
+  backdrop-filter: blur(14px);
   box-shadow:
-    var(--shadow),
-    0 0 18px rgba(255, 181, 71, 0.22);
+    0 14px 36px rgba(0, 0, 0, 0.5),
+    0 0 22px rgba(255, 177, 92, 0.12);
   color: var(--text);
-  animation: gp-in 0.22s ease-out both;
-}
-.guide-popup.is-placed {
-  transition:
-    left 0.25s ease,
-    top 0.25s ease; /* reduced motion: the global rule turns this off, so it jumps */
+  overflow: hidden; /* never scrolls: the text is clipped to about 40 words */
+  animation: gp-in 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .guide-popup[hidden] {
   display: none;
 }
-body.field-open .guide-popup {
-  /* until popup.js places it: below the field view's "Back to sky" button */
-  top: 72px;
-  right: 28px;
-}
 .guide-popup.is-leaving {
   animation: gp-out 0.16s ease-in both;
 }
-.guide-popup::before {
-  /* a small amber dot: the guide is speaking (the pointer flies from here) */
-  content: '';
-  position: absolute;
-  top: calc(var(--space-3) + 6px);
-  left: 7px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
+.gp-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
 }
-.gp-text {
-  margin: 0 0 var(--space-3);
-  font-size: var(--fs-l);
+.gp-name {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 600;
+}
+.gp-step {
+  margin-left: auto;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.gp-step[hidden] + .gp-x,
+.gp-step:empty + .gp-x {
+  margin-left: auto;
+}
+.guide-popup button.gp-x {
+  width: 28px;
+  height: 28px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.guide-popup button.gp-x:hover {
+  background: var(--control-hover);
+  color: var(--text);
+}
+.gp-title {
+  margin: 0;
+  font-size: var(--fs-m);
+  font-weight: 700;
   line-height: 1.4;
 }
-.guide-popup.is-offer .gp-text {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.gp-text {
+  margin: 2px 0 0;
+  font-size: var(--fs-m);
+  line-height: 1.5;
+}
+.gp-sub {
+  margin: 2px 0 0;
+  font-size: var(--fs-s, 13px);
+  color: var(--muted);
+  line-height: 1.45;
+}
+.gp-title[hidden],
+.gp-text[hidden],
+.gp-sub[hidden],
+.gp-facts[hidden] {
+  display: none;
+}
+.gp-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 6px 0 0;
+  font-size: var(--fs-s, 13px);
+}
+.gp-facts dt {
+  color: var(--muted);
+}
+.gp-facts dd {
+  margin: 0;
 }
 .gp-answers {
   display: flex;
-  gap: var(--space-4); /* large gaps: dwell and switch users must not hit the neighbour (U10) */
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: 10px;
 }
 .gp-answers button {
-  flex: 1;
-  min-height: var(--target); /* gaze-friendly: answers are pressed by dwell in mode C */
-  padding: var(--space-1) var(--space-3);
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 40px;
+  padding: var(--space-1) var(--space-4);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
+  border-radius: 999px;
   background: var(--control);
   color: var(--text);
   font: inherit;
   font-size: var(--fs-m);
   cursor: pointer;
 }
+/* full eye control (mode C): answers are pressed by a 0.8 s look, so they are big and apart (U10) */
+body[data-input='gaze'] .gp-answers {
+  gap: var(--space-4);
+}
+body[data-input='gaze'] .gp-answers button,
+body[data-input='gaze'] .guide-pill {
+  min-height: var(--target);
+}
 .gp-answers button:hover {
   background: var(--control-hover);
 }
 .gp-answers button.is-primary {
   border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--accent);
+  color: #1a1206;
   font-weight: 600;
 }
-.gp-answers button:focus-visible {
+.gp-answers button:focus-visible,
+.guide-popup button.gp-x:focus-visible {
   outline: var(--focus-ring);
   outline-offset: 2px;
+}
+.gp-bar {
+  position: absolute; /* along the card's bottom edge */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+}
+.gp-bar[hidden] {
+  display: block;
+  visibility: hidden;
+}
+.gp-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  transform: scaleX(0);
+}
+.gp-bar i.is-paused {
+  animation-play-state: paused !important;
+}
+@keyframes gp-bar {
+  to {
+    transform: scaleX(1);
+  }
 }
 @keyframes gp-in {
   from {
     opacity: 0;
-    transform: translateY(-8px) scale(0.98);
+    transform: translateY(-10px) scale(0.98);
   }
 }
 @keyframes gp-out {

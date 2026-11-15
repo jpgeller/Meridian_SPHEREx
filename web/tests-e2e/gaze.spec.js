@@ -72,6 +72,7 @@ test('mode A (default): mouse and keyboard work with no tracker; gaze presses no
   expect(d6).toMatchObject({ kind: 'button' });
   expect(d6.w).toBeGreaterThan(60);
   expect(items.find((t) => t.id === 'preset:barnard')).toMatchObject({ kind: 'button', label: "Barnard's Star" });
+  expect(items.find((t) => t.id === 'guide-pill')).toMatchObject({ kind: 'button', label: 'AI Guide' });
   expect(items.some((t) => t.kind === 'target')).toBe(true); // named things from the registry too
   // replies are throttled: 1.5 s of samples at 30 Hz -> a handful of lists, not 45
   expect(await page.evaluate(() => __targets.length)).toBeLessThanOrEqual(7);
@@ -118,7 +119,7 @@ test('mode B: a replay of recorded-like samples drives the dwell ring and the co
   // gaze never answers in B: the card stays until the person answers
   await page.waitForTimeout(500);
   await expect(card(page)).toBeVisible();
-  await card(page).getByRole('button', { name: 'No thanks' }).click();
+  await card(page).getByRole('button', { name: 'Not now' }).click();
   await expect(card(page)).toBeHidden();
   expect(errors()).toEqual([]);
 });
@@ -146,15 +147,17 @@ test('mode C: a glance does nothing, a 0.8 s look opens the time-lapse, and the 
   await page.evaluate(() => guide.attention.configure({ ringDelayMs: 200, dwellMs: 1500 }));
   const t = await page.evaluate(() => guide.resolve('field:target'));
   await page.evaluate(({ x, y }) => __gaze(x, y, 2200), t);
-  await expect(card(page)).toContainText('Want help identifying this?');
-  const yes = await page.evaluate(() => __centre('[data-guide="guide-popup"] button', 'Yes'));
+  await expect(card(page)).toContainText('Want to know what this is?');
+  const yes = await page.evaluate(() => __centre('[data-guide="guide-popup"] .gp-answers button', 'Yes'));
   await page.evaluate(([x, y]) => __gaze(x, y, 1200), yes);
-  await expect(card(page)).toContainText('cold brown dwarf');
-  // still looking where Yes was: whatever button is there now is not pressed until the eyes leave
+  // the time-lapse of WISE 0855: the guide knows the place and tells its own notes
+  await expect(card(page).locator('.gp-title')).toHaveText('WISE 0855');
+  await expect(card(page)).toContainText('Brown dwarf');
+  // still looking where Yes was: whatever button is there now (Next) is not pressed until the eyes leave
   await page.evaluate(([x, y]) => __gaze(x, y, 1500), yes);
-  await expect(card(page)).toContainText('cold brown dwarf');
+  await expect(card(page).locator('.gp-step')).toHaveText('1 / 2');
   await page.evaluate(() => __gaze(640, 300, 300));
-  await page.evaluate(() => __gaze(...__centre('[data-guide="guide-popup"] button', 'Got it'), 1200));
+  await page.evaluate(() => __gaze(...__centre('[data-guide="guide-popup"] .gp-answers button', 'Stop'), 1200));
   await expect(card(page)).toBeHidden();
   expect(await page.evaluate(() => guide.runner.isRunning())).toBe(false);
   // one look at the eye-control button turns eye control off
@@ -179,7 +182,7 @@ test('mode C: sky edges pan (panels do not), a colour button presses and still a
   await page.evaluate(() => __gaze(...__centre('[data-guide="band-d6"]'), 3200));
   expect(await page.evaluate(() => meridian.store.get().band)).toBe(93);
   await expect(card(page)).toContainText('Wondering about these colours?');
-  await card(page).getByRole('button', { name: 'No thanks' }).click();
+  await card(page).getByRole('button', { name: 'Not now' }).click();
   // rest zone: bottom-left corner (the guide card has the top right, Aladin's logo the bottom right)
   await page.evaluate(() => __gaze(30, 790, 1300));
   await expect(page.locator('.gaze-rest')).toContainText('Paused');

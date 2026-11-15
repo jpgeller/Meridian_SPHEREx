@@ -49,12 +49,12 @@ export function createPlayer(stage, { store, commands }) {
         <span id="trail-from"></span><div class="trail-bar" id="trail-bar"></div><span id="trail-to"></span>
       </div>
       <div class="player-bar" role="group" aria-label="Compare dates">
-        <button type="button" data-op="none">Time-lapse <kbd>t</kbd></button>
-        <button type="button" data-op="blink">Blink <kbd>b</kbd></button>
-        <button type="button" data-op="add">Add <kbd>m</kbd></button>
-        <button type="button" data-op="subtract">Difference <kbd>d</kbd></button>
-        <button type="button" data-op="trail">Motion trail <kbd>r</kbd></button>
-        <button type="button" data-op="video">Change video <kbd>v</kbd></button>
+        <button type="button" data-op="none" data-guide="op-none">Time-lapse <kbd>t</kbd></button>
+        <button type="button" data-op="blink" data-guide="op-blink">Blink <kbd>b</kbd></button>
+        <button type="button" data-op="add" data-guide="op-add">Add <kbd>m</kbd></button>
+        <button type="button" data-op="subtract" data-guide="op-subtract">Difference <kbd>d</kbd></button>
+        <button type="button" data-op="trail" data-guide="op-trail">Motion trail <kbd>r</kbd></button>
+        <button type="button" data-op="video" data-guide="op-video">Change video <kbd>v</kbd></button>
         <span class="row wrap" id="video-marks-wrap" hidden>
           <label class="inline"><input type="checkbox" id="video-marks-on" checked /> Mark moving objects</label>
           <label class="inline"><input type="checkbox" id="video-steady" checked /> Steady background</label>
@@ -63,12 +63,12 @@ export function createPlayer(stage, { store, commands }) {
         <label class="inline" id="trail-wise-wrap" hidden><input type="checkbox" id="trail-wise" checked /> Include WISE 2010–2024</label>
         <span class="muted hint" id="op-hint"></span>
       </div>
-      <div class="epochs" id="epochs" role="group" aria-label="Dates (select two to compare)"></div>
+      <div class="epochs" id="epochs" data-guide="dates" role="group" aria-label="Dates (select two to compare)"></div>
       <div class="player-bar">
-        <button type="button" id="p-prev" aria-label="Previous frame">◀︎ <kbd>,</kbd></button>
-        <button type="button" id="p-play" aria-keyshortcuts="Space">Play <kbd>Space</kbd></button>
-        <button type="button" id="p-next" aria-label="Next frame"><kbd>.</kbd> ▶︎</button>
-        <input type="range" id="p-scrub" min="0" max="0" value="0" aria-label="Frame" />
+        <button type="button" id="p-prev" data-guide="frame-prev" aria-label="Previous frame">◀︎ <kbd>,</kbd></button>
+        <button type="button" id="p-play" data-guide="play" aria-keyshortcuts="Space">Play <kbd>Space</kbd></button>
+        <button type="button" id="p-next" data-guide="frame-next" aria-label="Next frame"><kbd>.</kbd> ▶︎</button>
+        <input type="range" id="p-scrub" data-guide="frame-slider" min="0" max="0" value="0" aria-label="Frame" />
         <label class="inline">Speed
           <select id="p-speed">${SPEEDS.map((s) => `<option value="${s}" ${s === 2 ? 'selected' : ''}>${s} fps</option>`).join('')}</select>
         </label>

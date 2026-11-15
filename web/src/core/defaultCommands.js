@@ -114,6 +114,11 @@ export function registerDefaultCommands(commands, store) {
   register('play', () => set({ playing: true }), { label: 'Play' });
   register('pause', () => set({ playing: false }), { label: 'Pause' });
   register('toggle_play', () => set({ playing: !s().playing }), { label: 'Play / pause', keys: [' '] });
+  // the guide's tours start a time-lapse from its first picture (frame 0 = the oldest date)
+  register('set_frame', ({ index }) => set({ frameIndex: Math.max(0, Math.floor(Number(index) || 0)), playing: false }), {
+    label: 'Go to a frame',
+    args: { index: 'frame index, 0 = the oldest date' },
+  });
   // In the change video, , and . jump between real images (the player owns the video's time line).
   const videoStep = (dir) => {
     set({ playing: false });
