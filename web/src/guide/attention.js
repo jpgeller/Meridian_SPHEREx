@@ -47,7 +47,9 @@ export const DEFAULTS = Object.freeze({
   replayWindowMs: 30000,
   blinkReplayMs: 2000,
   pendingMaxMs: 15000,
+  featureDwellMs: 7000, // a long look at a control (the mouse source sets 5 s)
 });
+export const MOUSE_DWELL_MS = 5000; // the mouse rests on a star or a control this long -> an offer
 
 export const TEXTS = Object.freeze({
   object: 'Want to know what this is?',
@@ -66,11 +68,19 @@ const MOVES = new Set(['fly_to', 'go_preset']);
 // a different sequence of frames: the replay count starts again
 const NEW_SEQUENCE = ['ra', 'dec', 'ffov', 'band', 'mode', 'rgb', 'formula', 'view'];
 
-/** Which offer a registry id leads to: 'object' | 'colours' | null (plain controls, nothing). */
+// Controls that never lead to an offer: the guide's own UI, big containers, layout buttons.
+const NOT_FEATURES = new Set(['guide-popup', 'guide-pill', 'panel-toggle', 'face-panel', 'search', 'presets', 'time-player', 'show-modes']);
+
+/**
+ * Which moment a registry id leads to: 'object' | 'colours' | 'feature' | null.
+ * feature = any other named control (a 2D mode button, Play, the field sizes...): a long look at it
+ * makes the proactive guide offer help with that feature (nudge.js).
+ */
 export function classifyTarget(id) {
   if (typeof id !== 'string') return null;
   if (/^(sky|field):/.test(id)) return 'object';
   if (/^colou?r:/.test(id) || /^band-(ribbon|d[1-6])$/.test(id) || /^colour-view/.test(id)) return 'colours';
+  if (/^(preset|proj):[\w.-]+$/.test(id) || (/^[a-z][a-z0-9-]*$/.test(id) && !NOT_FEATURES.has(id))) return 'feature';
   return null;
 }
 
@@ -141,6 +151,14 @@ export function createAttention({
       id = null;
     }
     const trigger = classify(id);
+    // a control counts only when the eyes (or the mouse) are on it, not merely near it
+    if (trigger === 'feature') {
+      try {
+        if (targetAt(s.x, s.y, 0) !== id) return null;
+      } catch {
+        return null;
+      }
+    }
     return trigger ? { id, trigger } : null;
   }
 
@@ -166,13 +184,14 @@ export function createAttention({
     const key = triggerKey(dwell.trigger, dwell.id);
     const elapsed = t - dwell.start;
     if (dwell.fired || isCooling(key)) return setRing(null);
-    if (elapsed >= o.dwellMs) {
+    if (elapsed >= (dwell.trigger === 'feature' ? (o.featureDwellMs ?? o.dwellMs) : o.dwellMs)) {
       dwell.fired = true;
       setRing(null);
       onTrigger({ trigger: dwell.trigger, target: dwell.id, key });
       return;
     }
-    if (elapsed < o.ringDelayMs) return setRing(null);
+    // controls get no ring (a ring on every button the mouse rests on would be noise)
+    if (elapsed < o.ringDelayMs || dwell.trigger === 'feature') return setRing(null);
     const progress = Math.round(((elapsed - o.ringDelayMs) / Math.max(1, o.dwellMs - o.ringDelayMs)) * 1000) / 1000;
     const at = sample && t - sample.at <= o.lostMs ? sample : null;
     setRing({ id: dwell.id, trigger: dwell.trigger, progress, x: at?.x ?? null, y: at?.y ?? null });
@@ -304,7 +323,7 @@ const TICK_MS = 100;
  * @param {Object} [o.player] { isLoading() }
  * @param {boolean} [o.mouse]  feed the mouse position as gaze (?gaze=mouse); setMouse() changes it later
  */
-export function startAttention({ guide, startGuide, store, sky, player, mouse = false, doc = document, win = window }) {
+export function startAttention({ guide, startGuide, onMoment = () => false, store, sky, player, mouse = false, doc = document, win = window }) {
   let dragging = false;
   let dwellMs = DEFAULTS.dwellMs; // for the offer's "looking at it for 7 seconds"
   const quietHook = () => {
@@ -355,6 +374,9 @@ export function startAttention({ guide, startGuide, store, sky, player, mouse = 
 
   // ---- offers ----
   async function onTrigger({ trigger, target, key }) {
+    // the proactive guide (nudge.js) takes the moments it handles; the rest get the local offers below
+    if (onMoment({ trigger, target, key })) return;
+    if (trigger === 'feature') return;
     // the pointer goes first: it flies to the thing and circles it, so the question needs no explaining
     const mark = trigger === 'change' ? 'time-player' : target ?? 'band-ribbon';
     guide.overlay.circle(mark);
@@ -391,6 +413,13 @@ export function startAttention({ guide, startGuide, store, sky, player, mouse = 
   // while gaze feeds the guide, so two sources never fight over one dwell.
   let pos = null;
   let mouseOn = Boolean(mouse);
+  // the mouse rests 5 s (a mouse that lingers that long means interest); gaze keeps the 7 s look
+  const useDwell = (byMouse) => {
+    const ms = byMouse ? MOUSE_DWELL_MS : DEFAULTS.dwellMs;
+    dwellMs = ms;
+    attention.configure({ dwellMs: ms, featureDwellMs: ms });
+  };
+  if (mouseOn) useDwell(true);
   let gazeOn = false; // only a label: gaze samples come through feed()
   win.addEventListener('pointermove', (e) => {
     if (e.pointerType === 'touch') return;
@@ -424,6 +453,7 @@ export function startAttention({ guide, startGuide, store, sky, player, mouse = 
     setMouse(on) {
       if (mouseOn && !on) attention.lose();
       mouseOn = Boolean(on);
+      useDwell(mouseOn);
     },
     setGaze(on) {
       gazeOn = Boolean(on);

@@ -302,6 +302,22 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
     barEl.style.animation = `gp-bar ${ms}ms linear forwards`;
   }
 
+  // In the 2D view the screen's top-right corner holds the controls column; the card sits in the top-right
+  // corner of the image instead (the target is in the middle of the image, so it stays visible).
+  let placeTimer = 0;
+  function place() {
+    const box = doc.body.classList.contains('field-open') ? doc.querySelector('.canvas-wrap')?.getBoundingClientRect() : null;
+    if (!(box?.width > 0)) {
+      card.style.left = card.style.top = card.style.right = '';
+      card.dataset.spot = 'top-right';
+      return;
+    }
+    card.style.right = 'auto';
+    card.style.left = `${Math.round(Math.max(8, box.right - card.offsetWidth - 12))}px`;
+    card.style.top = `${Math.round(box.top + 12)}px`;
+    card.dataset.spot = 'image-top-right';
+  }
+
   function render(kind, c, answers, auto) {
     win.clearTimeout(leaveTimer);
     const focusWasInside = handoff || card.contains(doc.activeElement);
@@ -346,6 +362,9 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
     timer = auto ? createTimer(auto, () => close(kind === 'offer' ? 'timeout' : 'auto')) : null;
     startBar(auto);
     if (timer && !card.matches(':hover') && !card.contains(doc.activeElement)) timer.start();
+    place();
+    win.clearInterval(placeTimer);
+    placeTimer = win.setInterval(place, 250); // the view may change under an open card (a tour opens the 2D view)
     if (fresh) {
       void card.offsetWidth;
       card.classList.add('is-placed');
@@ -354,6 +373,7 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
 
   function close(outcome) {
     if (!open) return false;
+    win.clearInterval(placeTimer);
     const was = open;
     open = null;
     tabbedIn = false; // the next card gets its own first Tab
@@ -494,7 +514,7 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
     dismiss: (reason = 'close') => close(reason),
     isOpen: () => !!open,
     kind: () => open?.kind ?? null,
-    spot: () => (open ? 'top-right' : null),
+    spot: () => (open ? card.dataset.spot : null),
     setAutoHide,
     autoHide: () => autoHide,
     cooldown,
