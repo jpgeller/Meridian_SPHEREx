@@ -283,7 +283,11 @@ export function createPopup({ doc = document, resolve = () => null, getCentre = 
     const v = (name, d) => parseFloat(cs.getPropertyValue(name)) || d;
     const edge = v('--edge', 12);
     // --edge-x/-y are calc(6vw/6vh + 4px): compute them here (parseFloat cannot)
-    const out = { edge, edgeX: 0.06 * vw + 4, edgeY: 0.06 * vh + 4, leftTop: v('--left-top', 116), leftW: v('--left-w', 264), toolsW: v('--tools-w', 284) };
+    const edgeX = 0.06 * vw + 4;
+    const edgeY = 0.06 * vh + 4;
+    // top-left spot: below the side panel's "Controls" button (and clear of the search bar)
+    const leftTop = Math.max(v('--left-top', 12), edgeY) + v('--toggle-h', 64) + v('--space-2', 8);
+    const out = { edge, edgeX, edgeY, leftTop, leftW: v('--left-w', 264), toolsW: v('--tools-w', 284) };
     const dock = doc.querySelector('[data-region="dock"]')?.getBoundingClientRect();
     if (dock?.width > 0) Object.assign(out, { dockTop: dock.top, dockLeft: dock.left, dockRight: dock.right });
     else Object.assign(out, { dockTop: vh - out.edgeY - v('--dock-h', 132), dockRight: vw - v('--logo-clear', 112) });

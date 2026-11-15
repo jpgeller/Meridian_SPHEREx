@@ -100,15 +100,15 @@ test('mode B: a replay of recorded-like samples drives the dwell ring and the co
   expect(await page.evaluate(() => guide.popup.autoHide())).toBe(false); // offers wait for an answer
   await page.evaluate(() => guide.attention.configure({ ringDelayMs: 300, dwellMs: 3000 }));
   const ring = page.locator('#guide-attention');
+  // the fixture fixates where D6 sat in an older layout (~1062, 715): move the saccade and fixation
+  // onto D6's centre today, so the test follows the layout instead of pinning it
+  const d6 = await page.locator('[data-guide="band-d6"]').boundingBox();
+  const dx = d6.x + d6.width / 2 - 1062;
+  const dy = d6.y + d6.height / 2 - 715;
+  const moved = { ...SAMPLES, samples: SAMPLES.samples.map((p) => (p.x > 700 ? { ...p, x: p.x + dx, y: p.y + dy } : p)) };
   await page.evaluate((data) => {
-    // The recording fixates D6 at about (1071, 715) in the layout it was made for; layouts move
-    // (e.g. the 6% edge margin), so shift it onto D6 wherever it is now.
-    const r = document.querySelector('[data-guide="band-d6"]').getBoundingClientRect();
-    const dx = r.left + r.width / 2 - 1071;
-    const dy = r.top + r.height / 2 - 715;
-    const samples = data.samples.map((p) => (p.x == null ? p : { ...p, x: p.x + dx, y: p.y + dy }));
-    window.__replay = meridian.gaze.replay({ ...data, samples });
-  }, SAMPLES);
+    window.__replay = meridian.gaze.replay(data);
+  }, moved);
   await expect(ring).toHaveClass(/is-on/, { timeout: 4000 });
   await expect(ring).toHaveAttribute('data-target', 'band-d6');
   await expect(page.locator('.gaze-dot')).toBeVisible();
@@ -169,7 +169,7 @@ test('mode C: sky edges pan (panels stay 6% clear of them), a colour button pres
   const pos = () => page.evaluate(() => [meridian.store.get().ra, meridian.store.get().dec]);
   await quiet(page);
   const before = await pos();
-  await page.evaluate(() => __gaze(1265, 700, 2000)); // right edge, over the sky
+  await page.evaluate(() => __gaze(1265, 450, 2000)); // right edge, over the sky (the readout has the bottom right)
   const after = await pos();
   expect(after[0]).toBeLessThan(before[0]); // pan right = towards smaller RA
   // panels are 6% clear of the screen edges, so the edge band is always sky: the left edge pans left

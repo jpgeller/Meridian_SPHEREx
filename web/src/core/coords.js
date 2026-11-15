@@ -108,3 +108,34 @@ export function decFromUrl(text) {
   if (m) return (m[1] === '-' ? -1 : 1) * (Number(m[2]) + Number(m[3]) / 60 + Number(m[4]) / 3600);
   return t === '' ? NaN : Number(t);
 }
+
+const pad = (n, w = 2) => String(n).padStart(w, '0');
+
+/**
+ * Degrees -> readable sky position, for the corner readout.
+ * formatRaDec(133.79513, -7.24515) -> { ra: '08h 55m 10.8s', dec: '−07° 14′ 43″' }
+ */
+export function formatRaDec(ra, dec) {
+  const r = ((((ra % 360) + 360) % 360) / 15) * 3600; // seconds of time
+  let ds = Math.round(r * 10); // tenths of a second, rounded once so 59.96 s carries over
+  const rh = Math.floor(ds / 36000) % 24;
+  const rm = Math.floor((ds % 36000) / 600);
+  const rs = (ds % 600) / 10;
+  const sign = dec < 0 ? '−' : '+';
+  let as = Math.round(Math.abs(dec) * 3600);
+  const dd = Math.floor(as / 3600);
+  const dm = Math.floor((as % 3600) / 60);
+  const dsec = as % 60;
+  return {
+    ra: `${pad(rh)}h ${pad(rm)}m ${rs.toFixed(1).padStart(4, '0')}s`,
+    dec: `${sign}${pad(dd)}° ${pad(dm)}′ ${pad(dsec)}″`,
+  };
+}
+
+/** Field of view in degrees -> '60°', '2.5°', '30′', '45″'. */
+export function formatFov(fov) {
+  if (fov >= 10) return `${Math.round(fov)}°`;
+  if (fov >= 1) return `${Number(fov.toFixed(1))}°`;
+  if (fov * 60 >= 1) return `${Number((fov * 60).toFixed(1))}′`;
+  return `${Math.round(fov * 3600)}″`;
+}

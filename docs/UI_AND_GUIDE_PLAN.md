@@ -104,8 +104,8 @@ Today `controls.js` is one temporary panel ("the final UI design is merged later
 
 Progress (Nov 14): there was no wireframe. Chosen layout: search on top (centred, clear of Aladin's top-left widgets), left = `#face-slot`
 (hidden until U8) + presets in a 2-column grid of 64 px buttons, bottom dock = six real detector buttons (`set_band` to the
-middle channel, 17 ticks each, current channel marked, wavelength range per detector) + the slider, **right column = "Sky tools"**
-(view type, colours, brightness), collapsible through the new command `toggle_tools`. Look: the existing navy + amber, refined;
+middle channel, 17 ticks each, current channel marked, wavelength range per detector) + the slider, **left side panel** (Nov 2026: one panel holds eye control, face (folded), places, view (3D sphere / Planetarium) and colours, sized to fit 1280×800 without scrolling; the right column was merged into it for eye tracking. Brightness has no section any more (keys `<` `>` `\` and the right-drag still work); whole sky left the buttons and stays reachable by URL/command. All Aladin widgets and its logo are off: a bottom-right readout shows RA / Dec / field, with the status line above it. **TODO: credit Aladin Lite (CDS) somewhere visible.**)
+(view type, colours, brightness), collapsible with a 64 px "Controls" button through the command `toggle_panel` (key P). Look: the existing navy + amber, refined;
 all tokens on `:root` in `style.css` (`--target: 64px`, `--left-top`, `--tools-top`, `--dock-h`…). Regions in `ui/shell.js`;
 `#controls` is still the shell root (e2e waits for it, field view hides it). `data-guide` ids for U2 already set: `search`, `presets`,
 `band-ribbon`, `band-d1`…`band-d6`, `colour-views`, `face-panel`. Field view and player: tokens + hover only, no logic moved.

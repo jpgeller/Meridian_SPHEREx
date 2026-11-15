@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 
 import { normalizeBand, stepBand, detectorOf } from '../src/core/bands.js';
 import { createStore, DEFAULTS } from '../src/core/state.js';
-import { parseCoordinates, icrsToGalactic, galacticToIcrs, raToUrl, decToUrl, raFromUrl, decFromUrl } from '../src/core/coords.js';
+import { parseCoordinates, icrsToGalactic, galacticToIcrs, raToUrl, decToUrl, raFromUrl, decFromUrl, formatRaDec, formatFov } from '../src/core/coords.js';
 import { parseQuery, toQuery } from '../src/core/url.js';
 import { createCommands } from '../src/core/commands.js';
 import { registerDefaultCommands } from '../src/core/defaultCommands.js';
@@ -249,4 +249,15 @@ test('url coordinates: readable, exact round trip at 5 decimals, old degree link
   assert.equal(decFromUrl(' 4d46m05.52s'), decFromUrl('+4d46m05.52s')); // a '+' arrives as a space
   assert.equal(parseQuery('?ra=133.7951&dec=-7.2451').patch.ra, 133.7951);
   assert.ok(Number.isNaN(raFromUrl('nonsense')));
+});
+
+test('coords: readout formatting', () => {
+  assert.deepEqual(formatRaDec(133.79513, -7.24515), { ra: '08h 55m 10.8s', dec: '−07° 14′ 43″' });
+  assert.deepEqual(formatRaDec(266.4168, -29.0078), { ra: '17h 45m 40.0s', dec: '−29° 00′ 28″' });
+  assert.equal(formatRaDec(359.99999, 0).ra, '00h 00m 00.0s'); // rounding carries over the hour
+  assert.equal(formatRaDec(10, 45).dec, '+45° 00′ 00″');
+  assert.equal(formatFov(180), '180°');
+  assert.equal(formatFov(2.5), '2.5°');
+  assert.equal(formatFov(0.5), '30′');
+  assert.equal(formatFov(0.005), '18″');
 });

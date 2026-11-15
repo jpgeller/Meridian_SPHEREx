@@ -14,11 +14,11 @@ const html = String.raw;
 const CANVAS_W = 96;
 const CANVAS_H = 116;
 
-export function createFacePanel(slot, { commands, target = window } = {}) {
+export function createFacePanel(slot, { commands, target = window, open = true } = {}) {
   slot.innerHTML = html`
     <section class="card face-panel" aria-label="Face tracking">
       <div class="face-head">
-        <button type="button" id="face-toggle" class="face-toggle" aria-expanded="true" aria-controls="face-body">
+        <button type="button" id="face-toggle" class="face-toggle" aria-expanded="${open}" aria-controls="face-body">
           <span class="face-title">Face<span class="sr-only"> tracking</span></span>
           <span id="face-mode" class="face-mode" data-mode="demo">Simulated</span>
           <span class="chev" aria-hidden="true"></span>
@@ -26,7 +26,7 @@ export function createFacePanel(slot, { commands, target = window } = {}) {
         <button type="button" id="face-demo" class="face-demo" aria-pressed="false"
                 title="Show the simulated face even while a tracker is sending">Demo</button>
       </div>
-      <div id="face-body" class="face-body">
+      <div id="face-body" class="face-body" ${open ? '' : 'hidden'}>
         <div class="face-grid">
           <canvas id="face-canvas" width="${CANVAS_W}" height="${CANVAS_H}" role="img"
                   aria-label="Face landmark mesh, simulated"></canvas>
@@ -52,7 +52,7 @@ export function createFacePanel(slot, { commands, target = window } = {}) {
   const feed = createFaceFeed({ now: () => performance.now() });
   const reducedQuery = target.matchMedia?.('(prefers-reduced-motion: reduce)');
   const t0 = performance.now();
-  let expanded = true;
+  let expanded = open;
   let onScreen = true;
   let running = null; // { stop }
   let lastMode = null;
