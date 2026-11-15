@@ -14,7 +14,8 @@ export function createInputModeButton({ store, commands, doc = document }) {
   btn.innerHTML = `
     <span class="im-eye" aria-hidden="true"></span>
     <span class="im-text"><span class="im-k">Eye control</span><span class="im-v"></span></span>
-    <span class="im-next" aria-hidden="true"></span>`;
+    <span class="im-next"></span>`;
+  btn.setAttribute('aria-keyshortcuts', 'g');
   btn.addEventListener('click', () => commands.run('cycle_input_mode', {}, 'ui'));
 
   const place = (view) => {
@@ -34,7 +35,8 @@ export function createInputModeButton({ store, commands, doc = document }) {
     btn.querySelector('.im-v').textContent = info.label;
     btn.querySelector('.im-next').textContent = `next: ${next.label}`;
     btn.title = `${info.title}. Press to switch to: ${next.label.toLowerCase()} (key G).`;
-    btn.setAttribute('aria-label', `Eye control: ${info.label.toLowerCase()} (${info.letter}). Press to switch to ${next.label.toLowerCase()}.`);
+    // no aria-label: the visible words are the name ("Eye control Off next: Guide only"), so a
+    // screen reader, voice control and the gaze layer all name it by what is on screen (U10)
     place(s.view);
   };
   store.subscribe((s, changed) => {

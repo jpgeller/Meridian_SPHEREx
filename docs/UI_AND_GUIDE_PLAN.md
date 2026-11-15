@@ -434,7 +434,7 @@ colours offer, rest zone pause/resume, `set_dwell`).
 
 ---
 
-## Step U10 — Accessibility and ALS-friendly behaviour  `[ ]`  P1
+## Step U10 — Accessibility and ALS-friendly behaviour  `[x]`  P1
 **Files:** `web/src/ui/*`, `web/src/guide/*`
 
 - Everyone can finish the whole guide flow with **dwell or one switch**: answer buttons at least 64 px, large gaps, no hover-only actions.
@@ -444,6 +444,30 @@ colours offer, rest zone pause/resume, `set_dwell`).
 - Eye control can be switched off (mode A) from a button, at any time.
 
 **Done when:** a keyboard-only and a dwell-only pass through "offer, yes, explanation, got it" both succeed, and axe (or Lighthouse) reports no serious issues on the main screen.
+
+Progress (Nov 14): checked the guide flow, timeouts, contrast, focus, motion, colour-only cues, screen-reader text and the
+eye-control switch. **Already fine:** offers never auto-hide in B/C (only A's 12 s, paused while focused or hovered); "Thinking…"
+needs no answer (9 s client timeout, then the local script); script steps wait for an answer; overlay, ring and gaze layer are
+`aria-hidden`; the pop-up's live region reads every offer, "Thinking…" and step, gaze.js's reads mode changes and pause; the global
+`prefers-reduced-motion` rule plus JS checks (overlay flight, card leave, face panel stills); the eye-control button is on screen in
+sky and field views, key `G`, and one look turns C off. **Fixed:** (1) a keyboard user deep in the time-lapse (focus on its title)
+could not reach the card quickly: the **first Tab after a card opens now goes to its first answer** wherever the focus was (not
+while typing in a field; a second Tab leaves as usual), so Tab + Space/Enter (one "next" + one "press" switch) always finish the
+guide. (2) Answer gap 8 → 16 px. (3) The search bar now ends left of the card's top-right spot (right-anchored, starts after
+Aladin's readout, `--aladin-tl` 296 px): at 1280×800 it ends at 904, the card starts at 928 (was covering "Go"). (4) Contrast:
+detector ranges `--muted-strong` #c3cce6 (were 3.8:1 on the pressed tint, now ≥ 5.5:1); `--border-strong` #3d4d82 → #5b6ea8 (control
+edges/rings ≥ 3:1); muted text stays ≥ 4.9:1 even over white sky through the 84% panels. (5) Not colour alone: the pressed detector
+gets a thicker edge (plus the tall channel tick); face flags blink/open are dashed outline when off, filled when on, and read
+"blink: yes/no". (6) Accessible names = visible text (WCAG 2.5.3, axe `label-content-name-mismatch`): detector buttons ("Detector"
+screen-reader only), the eye-control button (no aria-label; `aria-keyshortcuts="g"`), and in `field/` (separate commit) the band
+step and Play buttons. **axe** (`@axe-core/playwright`, new devDependency): 0 violations of any impact on the sky view, with an
+offer and a step open, and in the WISE 0855 field view; `.aladin-container` is excluded (Aladin's own widgets, not our code); axe
+leaves the translucent panels' contrast "incomplete", checked by hand above. New `tests-e2e/a11y.spec.js` (4): axe in 4 states;
+keyboard-only pass (replay keys → offer → Tab → Space → "Thinking…" read → step read, focus on Got it with a visible ring → Enter,
+the field view stays); dwell-only pass on the sky in mode C (offer stays while the eyes wander, answers ≥ 64 px and ≥ 16 px apart,
+Yes → step → Got it by eyes, a look turns eye control off and "Eye control: off." is spoken); reduced motion. `npm test` 127/127,
+`test:e2e` 38/38 (one earlier run hit the known blank-frame tile 404 race in "motion trail"; it passed on rerun), pytest 33/33.
+Open: no real screen-reader session (VoiceOver) was run; the guide has no key of its own (it relies on the first-Tab rule).
 
 ---
 

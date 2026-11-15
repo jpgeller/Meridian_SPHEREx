@@ -43,8 +43,8 @@ export function createControls(root, { store, commands, getWavelengths }) {
     <div class="ribbon" role="group" aria-label="Detectors, short to long wavelength" data-guide="band-ribbon">
       ${DETECTOR_IDS.map(
         (d) => html`<button type="button" class="det" data-detector="${d}" data-guide="band-d${d}"
-            style="--det: ${DETECTOR_COLOURS[d - 1]}" aria-label="Detector D${d}">
-            <span class="det-name">D${d}</span>
+            style="--det: ${DETECTOR_COLOURS[d - 1]}">
+            <span class="det-name"><span class="sr-only">Detector </span>D${d}</span>
             <span class="det-range" data-range="${d}"></span>
             <span class="det-ticks" aria-hidden="true">${'<i></i>'.repeat(CHANNELS_PER_DETECTOR)}</span>
           </button>`,
@@ -165,8 +165,9 @@ export function createControls(root, { store, commands, getWavelengths }) {
       const d = Number(el.dataset.range);
       const lo = w?.[(d - 1) * CHANNELS_PER_DETECTOR];
       const hi = w?.[d * CHANNELS_PER_DETECTOR - 1];
+      // the visible text is the button's name ("Detector" is screen-reader only), so the name
+      // always contains what is on screen (WCAG 2.5.3, and gaze/voice users say what they see)
       el.textContent = lo && hi ? `${lo.toFixed(2)}–${hi.toFixed(2)} µm` : '';
-      el.closest('.det').setAttribute('aria-label', `Detector D${d}${lo && hi ? `, ${lo.toFixed(2)} to ${hi.toFixed(2)} µm` : ''}`);
     });
   }
 

@@ -115,15 +115,26 @@ export function createFacePanel(slot, { commands, target = window } = {}) {
     }
   }
 
+  // a flag is filled when on; screen readers hear "blink: yes" / "blink: no" (not colour alone, U10)
+  function setFlag(el, word, on) {
+    const text = `${word}: ${on ? 'yes' : 'no'}`;
+    if (el.dataset.text === text) return;
+    el.dataset.text = text;
+    el.classList.toggle('on', on);
+    const sr = slot.ownerDocument.createElement('span');
+    sr.className = 'sr-only';
+    sr.textContent = `: ${on ? 'yes' : 'no'}`;
+    el.replaceChildren(word, sr);
+  }
+
   function renderReadouts(face, flags) {
     const est = (k) => (face.computed[k] ? ' (computed)' : '');
     $('#face-ear').textContent = `${fmt.ear(face.ear[0])}/${fmt.ear(face.ear[1])}`;
     $('#face-ear').title = `Eye aspect ratio, left · right${est('ear')}. Blink below 0.16.`;
-    $('#face-blink').classList.toggle('on', flags.blink || flags.wink);
-    $('#face-blink').textContent = flags.wink ? 'wink' : 'blink';
+    setFlag($('#face-blink'), flags.wink ? 'wink' : 'blink', flags.blink || flags.wink);
     $('#face-mar').textContent = fmt.mar(face.mar);
     $('#face-mar').title = `Mouth aspect ratio${est('mar')}. Open above 0.30.`;
-    $('#face-open').classList.toggle('on', flags.mouthOpen);
+    setFlag($('#face-open'), 'open', flags.mouthOpen);
     const { yaw, pitch, roll } = face.pose;
     $('#face-pose').textContent = `↔${fmt.deg(yaw)} ↕${fmt.deg(pitch)}`;
     $('#face-roll').textContent = fmt.deg(roll);

@@ -19,6 +19,9 @@
 //
 // Every button is a real <button>; Tab reaches them (the card is the first thing in the page),
 // Esc closes the card before anything else hears the key. The words go through an aria-live region.
+// U10: the first Tab after a card opens goes to its first answer wherever the focus was (e.g. deep in
+// the time-lapse), so one "next" key + one "press" key always finish the guide; a second Tab leaves
+// the card as usual. Not while typing in a field (Tab there keeps its meaning).
 
 import { hits } from './overlay.js';
 
@@ -234,6 +237,7 @@ export function createPopup({ doc = document, resolve = () => null, getCentre = 
   let checkTimer = 0;
   let returnFocus = null;
   let handoff = false; // closed by an answer from the keyboard; the next card may take the focus
+  let tabbedIn = false; // the first Tab of this card has brought the focus in (U10)
   const timer = createTimer(AUTO_HIDE_MS, () => close('timeout'));
 
   function render(kind, text, answers, target) {
@@ -312,6 +316,7 @@ export function createPopup({ doc = document, resolve = () => null, getCentre = 
     if (!open) return false;
     const was = open;
     open = null;
+    tabbedIn = false; // the next card gets its own first Tab
     timer.cancel();
     win.clearInterval(checkTimer);
     const focusWasInside = card.contains(doc.activeElement);
@@ -401,6 +406,22 @@ export function createPopup({ doc = document, resolve = () => null, getCentre = 
   card.addEventListener('pointerleave', resume);
   card.addEventListener('focusin', pause);
   card.addEventListener('focusout', () => win.setTimeout(resume, 0));
+
+  // the first Tab after a card opens brings the keyboard to its first answer (U10)
+  const typing = (el) => !!el?.matches?.('input:not([type=range]):not([type=checkbox]):not([type=radio]), textarea, select, [contenteditable=""], [contenteditable="true"]');
+  win.addEventListener(
+    'keydown',
+    (e) => {
+      if (e.key !== 'Tab' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || !open || tabbedIn) return;
+      tabbedIn = true;
+      if (card.contains(doc.activeElement) || typing(doc.activeElement)) return;
+      const first = answersEl.querySelector('button');
+      if (!first) return;
+      e.preventDefault();
+      first.focus();
+    },
+    true,
+  );
 
   // Esc closes the card first (capture phase: before the app's own Esc, "back to sky")
   win.addEventListener(
