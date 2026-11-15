@@ -90,6 +90,7 @@ export function createPlayer(stage, { store, commands }) {
   let kind = 'grey';
   let note = '';
   let loadToken = 0;
+  let loading = false; // building a sequence (the guide stays quiet meanwhile)
   let loadedKey = '';
   let playTimer = null;
   let blinkTimer = null;
@@ -175,6 +176,7 @@ export function createPlayer(stage, { store, commands }) {
     loadedKey = key;
     const token = ++loadToken;
     const stale = () => token !== loadToken;
+    loading = true;
     seq = [];
     stretch = null;
     derived.clear();
@@ -218,6 +220,8 @@ export function createPlayer(stage, { store, commands }) {
       setMessage('Could not load the images (the SPHEREx archive may be busy).', [
         { label: 'Retry', run: () => reload(store.get(), { force: true }) },
       ]);
+    } finally {
+      if (!stale()) loading = false;
     }
   }
 
@@ -688,6 +692,7 @@ export function createPlayer(stage, { store, commands }) {
       const scale = SPHEREX_PIXEL_ARCSEC * (seq[0].w / (shownFrame.w || seq[0].w));
       return { ra0: s.ra, dec0: s.dec, scale, w: shownFrame.w, h: shownFrame.h, mjd };
     },
+    isLoading: () => loading, // the frames of a new sequence are still loading (guide attention, U6)
     getMovers: () => movers.list, // { movers: [{ id, ra, dec, pmra, pmdec, ... }], epoch_mjd } or null
     elements: {
       view: stage.querySelector('.player-view'),
