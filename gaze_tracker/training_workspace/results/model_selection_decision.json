@@ -1,0 +1,7 @@
+{
+ "run": "unigaze_b16_frozen_head_001",
+ "selection_metric": "val_mean_euclid_px_macro",
+ "val_mean_euclid_px_macro": 225.16741440825407,
+ "runs_compared": 2,
+ "decided": "2026-11-14T22:35:46.314763"
+}

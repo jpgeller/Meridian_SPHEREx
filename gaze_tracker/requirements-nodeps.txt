@@ -1,0 +1,6 @@
+# Install with:   pip install --no-deps -r requirements-nodeps.txt
+#
+# The official UniGaze package pins timm==0.3.2, which does not work with current PyTorch.
+# Its code runs fine with timm 1.x (installed by requirements.txt), so it is installed
+# WITHOUT its pinned dependencies.
+unigaze==0.1.3

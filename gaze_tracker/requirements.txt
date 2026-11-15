@@ -1,0 +1,41 @@
+# =============================================================================
+# Gaze tracker - Python packages (tested on Windows 11, Python 3.12)
+# =============================================================================
+# Install in THIS order (see README.md, "Install"):
+#
+#   1) PyTorch. With an NVIDIA GPU (recommended) use the CUDA build, e.g.:
+#        pip install torch torchvision --index-url https://download.pytorch.org/whl/cu132
+#      (pick the CUDA version for your driver at https://pytorch.org/get-started/locally/)
+#      Without a GPU this file installs the normal (CPU) build; it works, just slower.
+#   2) pip install -r requirements.txt
+#   3) pip install --no-deps -r requirements-nodeps.txt
+#
+# Versions in comments are the ones the model was trained and tested with.
+# =============================================================================
+
+# deep learning
+torch>=2.4                     # tested 2.15.0 (CUDA 13.2)
+torchvision>=0.19              # tested 0.29.2 (UniGaze imports it)
+timm>=1.0.9,<2                 # tested 1.0.31 (UniGaze's Vision Transformer)
+safetensors>=0.4               # tested 0.8.0  (UniGaze checkpoint format)
+huggingface_hub>=0.24          # tested 2.4.0  (downloads the UniGaze checkpoint once, ~350 MB)
+
+# vision
+opencv-contrib-python>=4.10    # tested 5.0.0  (YuNet face detector; the contrib build is what MediaPipe expects)
+mediapipe>=0.10.20             # tested 1.2.3  (head tracking + head stabiliser in the live demo)
+
+# data, training and analysis
+numpy>=2.0,<3                  # tested 2.5.4
+pandas>=2.2                    # tested 3.1.1
+pyarrow>=15                    # tested 26.0.1
+scikit-learn>=1.4              # tested 1.9.1
+matplotlib>=3.8                # tested 3.11.2
+plotly>=5.20                   # tested 7.1.0
+pyyaml>=6.0
+tqdm>=4.66
+
+# notebooks and tests
+jupyterlab>=4.0
+ipykernel>=6.29
+nbformat>=5.9
+pytest>=8.0

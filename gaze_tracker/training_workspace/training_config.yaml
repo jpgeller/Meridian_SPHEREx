@@ -1,0 +1,153 @@
+# =============================================================================
+# NASA Space Apps eye-tracking — UniGaze fine-tuning configuration
+# =============================================================================
+# Every relative path below is resolved against the folder that contains this
+# file (training_workspace/), never against the terminal's working directory.
+# Nothing in this file starts training on its own.
+# =============================================================================
+
+paths:
+  # The acquisition dataset. It is only ever READ. Nothing is written into it.
+  dataset_root: ../NASA_EyeTracking_Dataset
+  manifests_dir: manifests
+  cache_dir: processed_cache
+  checkpoints_dir: checkpoints
+  experiments_dir: experiments
+  reports_dir: reports
+  figures_dir: figures
+  predictions_dir: predictions
+  # The YuNet face detector already shipped with the capture app.
+  yunet_model: ../models/face_detection_yunet_2023mar.onnx
+  # Where Hugging Face stores the UniGaze checkpoint once you allow the download.
+  hf_cache_dir: checkpoints/hf_cache
+
+# Fixed, documented, subject-disjoint split (from the collection protocol).
+# Changing this requires a written scientific justification in the README.
+splits:
+  train: [P001, P002, P003, P004, P005, P006]
+  validation: [P007, P008]
+  test: [P009, P010]
+
+dataset:
+  frames_per_trial: 10           # set by the capture protocol
+  expected_screen_px: [2560, 1600]
+  expected_raw_px: [1280, 720]
+  face_crop_px: 224
+  eye_crop_px: 112
+  # Timing checks against fixation-target onset (seconds).
+  min_latency_after_onset_s: 0.80   # the capture app's settle time
+  max_latency_after_onset_s: 3.00   # longer means an unusual trial; flagged, not removed
+  # Physical monitor size. Leave null unless you have MEASURED it.
+  # When null, no millimetre or angular metrics are produced anywhere.
+  monitor_width_mm: null
+  monitor_height_mm: null
+
+preprocessing:
+  # "unigaze_normalized": landmark + head-pose based data normalisation from the
+  #                        raw frame, mirroring the official UniGaze video script
+  #                        (approximate camera intrinsics, see below).
+  # "existing_face_crop":  the 224x224 crops written by the capture app.
+  input_mode: unigaze_normalized
+  version: "norm-v1"              # bump whenever preprocessing changes
+  # Approximate camera model. This IS an approximation: no calibration exists.
+  # "upstream_dummy" reproduces UniGaze's predict_gaze_video.py exactly:
+  # crop 2.0x around the face, focal length = 4 x crop width, no distortion.
+  camera_model: upstream_dummy
+  crop_scale: 2.0
+  focal_norm: 960
+  distance_norm: 600
+  roi_size: 224
+  max_normalized_head_angle_deg: 80
+  image_normalization: imagenet   # verified from UniGaze wrap_transforms('basic_imagenet')
+  cache_format: npy_memmap        # "npy_memmap" or "none" (warp on the fly)
+
+model:
+  checkpoint_name: unigaze_b16_joint
+  hf_repo_id: UniGaze/UniGaze-models
+  hf_filename: unigaze_b16_joint.safetensors
+  # Optional: path to a manually downloaded unigaze_b16_joint.safetensors
+  # (absolute, or relative to training_workspace/). null = use checkpoints/hf_cache.
+  local_checkpoint_path: null
+  embed_dim: 768
+  num_blocks: 12
+  drop_path_rate: 0.1             # UniGaze default; only active in train mode
+  head:
+    type: mlp                     # "linear" or "mlp"
+    hidden_dim: 256
+    dropout: 0.0                  # tested, not assumed
+    use_gaze_angles: true         # concatenate UniGaze (pitch, yaw) to the CLS feature
+
+loss:
+  type: huber                     # "huber" | "mse" | "euclidean"
+  huber_delta: 0.02               # in screen-diagonal units (~60 px on 2560x1600)
+
+# Checkpoint selection: participant-averaged mean Euclidean pixel error on
+# the validation participants. Lower is better.
+selection_metric: val_mean_euclid_px_macro
+
+sampler:
+  type: participant_trial_balanced
+  frames_per_trial_per_epoch: 2   # frames drawn from each trial per epoch
+  trials_per_participant_per_epoch: 500
+
+stage_a:                          # frozen backbone, train head only
+  epochs: 40
+  batch_size: 256
+  head_lr: 3.0e-4
+  weight_decay: 0.01
+  warmup_epochs: 1
+  scheduler: cosine               # "cosine" | "plateau" | "onecycle"
+  early_stopping_patience: 7
+  grad_clip_norm: 1.0
+
+stage_b:                          # unfreeze the last N transformer blocks
+  epochs: 25
+  batch_size: 32
+  grad_accum_steps: 2
+  unfreeze_last_blocks: 4
+  backbone_lr: 1.0e-5
+  head_lr: 1.0e-4
+  weight_decay: 0.05
+  warmup_epochs: 1
+  scheduler: cosine
+  early_stopping_patience: 6
+  grad_clip_norm: 1.0
+  layer_lr_decay: 0.75            # deeper-to-shallower LR multiplier within unfrozen blocks
+  val_frames_per_trial: 3         # per-epoch validation subset; final evaluation uses all frames
+
+augmentation:
+  enabled: false                  # baseline is NO augmentation
+  brightness: 0.10
+  contrast: 0.10
+  gaussian_noise_std: 0.01
+  blur_probability: 0.0
+
+hardware:
+  device: auto                    # "auto" | "cuda" | "cpu" (cpu must be chosen explicitly)
+  allow_cpu_training: false
+  precision: auto                 # "auto" | "bf16" | "fp16" | "fp32"
+  num_workers: 4                  # Windows spawn-safe; set 0 if workers misbehave
+  pin_memory: true
+  persistent_workers: true
+
+evaluation:
+  pixel_thresholds: [16, 32, 64, 100, 150, 200]
+  diagonal_fraction_thresholds: [0.01, 0.02, 0.05, 0.10]
+  interface_target_radii_px: [40, 80, 120]
+  bootstrap_iterations: 2000
+
+calibration:
+  point_counts: [5, 9, 16]
+  calibration_session: S01        # calibration points come from this session only
+  method: ridge_affine            # "ridge_affine" | "ridge_poly2"
+  ridge_alpha: 0.05              # shrinkage toward the identity map; tune on VALIDATION participants
+
+reproducibility:
+  seed: 1234
+  deterministic: false            # true is slower; set for exact reruns
+
+test_set:
+  # The test set is sealed. 06_Final_Test_Evaluation.ipynb asks for a typed
+  # confirmation and writes reports/test_unsealed.json; after that the seal
+  # refuses a second evaluation unless you override it explicitly.
+  sealed: true
