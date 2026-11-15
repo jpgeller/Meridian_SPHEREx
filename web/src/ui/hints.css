@@ -1,8 +1,9 @@
-/* Yellow "!" hints (ui/hints.js): mouse mode only. One fixed layer above everything; only the badges
-   take the mouse (for hover), the bubble never does. */
+/* Sparkle hints (ui/hints.js): mouse mode only. One fixed layer above everything; only the badges
+   take the mouse (for hover), the bubble never does. A badge is a small white four-point star that
+   grows when the mouse rests on it. */
 .hints {
-  --hint-yellow: #ffd23f;
-  --hint-ink: #1a1400;
+  --hint-star: #ffffff;
+  --hint-glow: rgba(255, 255, 255, 0.75);
   position: fixed;
   inset: 0;
   z-index: 90;
@@ -12,21 +13,29 @@
   position: absolute;
   top: 0;
   left: 0;
-  width: 18px;
+  width: 18px; /* the hover area; the star itself is drawn a little smaller */
   height: 18px;
-  border-radius: 50%;
-  background: var(--hint-yellow);
-  color: var(--hint-ink);
-  font: 800 12px/18px system-ui, -apple-system, 'Segoe UI', sans-serif;
-  text-align: center;
-  box-shadow: 0 0 0 2px var(--bg-deep, #050812), 0 2px 6px rgba(0, 0, 0, 0.5);
+  display: grid;
+  place-items: center;
+  color: var(--hint-star);
   cursor: help;
   pointer-events: auto;
   user-select: none;
-  transition: transform 0s, scale 0.12s ease;
+  transition: scale 0.18s ease;
+}
+.hint-badge svg {
+  width: 13px;
+  height: 13px;
+  pointer-events: none; /* the badge itself is what the mouse hits */
+  /* dark rim so the white star still shows over the bright Milky Way and light buttons */
+  filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 3px rgba(0, 0, 0, 0.5));
+  transition: filter 0.18s ease;
 }
 .hint-badge:hover {
-  scale: 1.2;
+  scale: 1.7;
+}
+.hint-badge:hover svg {
+  filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 4px var(--hint-glow));
 }
 .hint-bubble {
   position: absolute;
@@ -35,7 +44,7 @@
   z-index: 1; /* above every badge (they come later in the layer) */
   max-width: 280px;
   padding: 8px 12px;
-  border: 1px solid var(--hint-yellow);
+  border: 1px solid rgba(255, 255, 255, 0.55);
   border-radius: var(--radius-s, 6px);
   background: var(--surface-solid, #0b1126);
   color: var(--text, #e9eefb);
@@ -44,7 +53,8 @@
   pointer-events: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  .hint-badge {
+  .hint-badge,
+  .hint-badge svg {
     transition: none;
   }
 }

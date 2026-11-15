@@ -1,4 +1,4 @@
-// What each button does, in a sentence: the text of the yellow "!" hints (ui/hints.js) shown in
+// What each button does, in a sentence: the text of the sparkle hints (ui/hints.js) shown in
 // input mode A (mouse and keyboard). Pure: no DOM beyond `el.matches` / attributes, so it is unit-tested.
 //
 // Order of preference for a button's hint:
@@ -63,7 +63,7 @@ export const HINT_RULES = Object.freeze([
   ['#spec-close', 'Close the spectrum.'],
 ]);
 
-/** Buttons that get no "!" (their own text is the explanation, or they belong to a message). */
+/** Buttons that get no star (their own text is the explanation, or they belong to a message). */
 export const HINT_SKIP = '[data-answer], [data-no-hint]';
 
 const clean = (s) => (typeof s === 'string' ? s.trim().replace(/\s+/g, ' ') : '');

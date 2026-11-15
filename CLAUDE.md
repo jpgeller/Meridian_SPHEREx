@@ -54,7 +54,7 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   options are `role="switch"` buttons and choices are stepping buttons (no checkboxes or drop-downs: they can't be 64 px and
   gaze presses buttons). The 2D view is two columns (image | controls) so it fits without scrolling at ≥1280×800. The test
   "every control is at least 64 x 64 px and reachable" checks the sky view and every 2D mode.
-- **Hints**: in input mode A (mouse) every button gets a yellow "!" whose hover explains it (`web/src/ui/hints.js`, a
+- **Hints**: in input mode A (mouse) every button gets a small white star that grows on hover and explains it (`web/src/ui/hints.js`, a
   separate aria-hidden layer, never inside the buttons). Give each new button a hint: a rule in `ui/hintText.js`, a
   `data-hint`, or a `title`; `data-no-hint` opts out.
 - UI and guide live in `web/src/ui/` and `web/src/guide/` (plan: docs/UI_AND_GUIDE_PLAN.md). They only call `run(...)`

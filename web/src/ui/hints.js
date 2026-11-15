@@ -1,5 +1,5 @@
-// Yellow "!" hints (mouse mode only). In input mode A (mouse and keyboard) every visible button that
-// has an explanation (ui/hintText.js) gets a small yellow "!" on its top-right corner; resting the mouse
+// Sparkle hints (mouse mode only). In input mode A (mouse and keyboard) every visible button that
+// has an explanation (ui/hintText.js) gets a small white star on its top-right corner; resting the mouse
 // on it shows what the button does. Off in modes B and C: a gaze user cannot hover, and the badges
 // would only be clutter near the targets.
 //
@@ -11,6 +11,9 @@ import { hintFor } from './hintText.js';
 import './hints.css';
 
 const BADGE = 18; // px
+// a four-point sparkle: curved sides meeting in four sharp points
+const STAR =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 0C12.7 6.4 17.6 11.3 24 12C17.6 12.7 12.7 17.6 12 24C11.3 17.6 6.4 12.7 0 12C6.4 11.3 11.3 6.4 12 0Z"/></svg>';
 const MIN_GAP_MS = 120; // re-place at most this often (the readout changes text while panning)
 
 export function createHints({ store, doc = document, win = window }) {
@@ -47,7 +50,7 @@ export function createHints({ store, doc = document, win = window }) {
     if (!b) {
       b = doc.createElement('span');
       b.className = 'hint-badge';
-      b.textContent = '!';
+      b.innerHTML = STAR;
       b.addEventListener('mouseenter', () => showBubble(btn, b));
       b.addEventListener('mouseleave', hideBubble);
       // not a control: keep a click on the badge from reaching anything
@@ -76,7 +79,8 @@ export function createHints({ store, doc = document, win = window }) {
         if (!reaches(btn, r.left + r.width / 2, r.top + r.height / 2) || !reaches(btn, r.right - 14, r.top + 14)) continue;
         const b = badgeFor(btn);
         b.dataset.hint = text;
-        b.style.transform = `translate(${Math.round(r.right - BADGE + 5)}px, ${Math.round(r.top - 5)}px)`;
+        // `translate`, not `transform`: the hover `scale` would multiply a transform and fling the star away
+        b.style.translate = `${Math.round(r.right - BADGE + 5)}px ${Math.round(r.top - 5)}px`;
         seen.add(btn);
       }
     }
@@ -106,8 +110,10 @@ export function createHints({ store, doc = document, win = window }) {
     const h = bubble.offsetHeight;
     const pad = 8;
     const x = Math.min(Math.max(pad, a.left + a.width / 2 - w / 2), win.innerWidth - w - pad);
-    const below = a.bottom + 6;
-    const y = below + h + pad > win.innerHeight ? a.top - h - 6 : below;
+    // measured before the hover scale (1.7) applies: leave room for the grown star
+    const grow = BADGE * 0.35 + 6;
+    const below = a.bottom + grow;
+    const y = below + h + pad > win.innerHeight ? a.top - h - grow : below;
     bubble.style.transform = `translate(${Math.round(x)}px, ${Math.round(Math.max(pad, y))}px)`;
   }
 

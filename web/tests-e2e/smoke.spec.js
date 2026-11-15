@@ -1015,7 +1015,7 @@ test('not in Gaia: WISE 0855 in D6 is a candidate at the target; the same patch 
   await expect(caption).toContainText('Every source here has a Gaia star', { timeout: 60_000 });
 });
 
-test('mouse mode: a yellow "!" on each button explains it on hover; none in the eye-control modes', async ({ page }) => {
+test('mouse mode: a white star on each button explains it on hover; none in the eye-control modes', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/?fov=60');
   await ready(page);
