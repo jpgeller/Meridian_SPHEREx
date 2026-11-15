@@ -550,3 +550,66 @@ test('guide pop-up: a step about a star under the card shrinks; the registry sti
   // for everyone else (gaze, overlay) a star behind the card is covered, as before
   expect(await page.evaluate(() => guide.resolve('sky:barnard'))).toBeNull();
 });
+
+// --- guide script runner (U5) ---
+
+test('guide runner: a console script skips a bad command, acts as the guide, and a button press ends it', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?fov=60');
+  await ready(page);
+  const card = page.locator('[data-guide="guide-popup"]');
+  await page.evaluate(() => {
+    window.__how = null;
+    guide
+      .run([
+        { say: 'Step one: the longest wavelengths.', actions: [{ cmd: 'not_a_command' }, { cmd: 'set_band', args: { band: 93 } }, { circle: 'band-d6' }] },
+        { say: 'Step two.', actions: [{ cmd: 'set_band', args: { band: 'red' } }] },
+        { say: 'Step three.' },
+      ])
+      .then((how) => (window.__how = how));
+  });
+  await expect(card).toContainText('Step one');
+  await expect(card.locator('button')).toHaveText(['Show me more', 'Close']);
+  expect(await page.evaluate(() => meridian.store.get().band)).toBe(93);
+  // the guide's own command did not clear its circle
+  expect(await page.evaluate(() => guide.overlay.active())).toEqual(['circle:band-d6']);
+  await card.getByRole('button', { name: 'Show me more' }).click();
+  await expect(card).toContainText('Step two');
+  expect(await page.evaluate(() => [guide.runner.isRunning(), meridian.store.get().band])).toEqual([true, 93]);
+  // the person presses a real button: the script ends at once, the card goes
+  await page.locator('[data-guide="band-d1"]').click();
+  await expect(card).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__how)).toBe('interrupted');
+  expect(await page.evaluate(() => guide.runner.isRunning())).toBe(false);
+  expect(errors()).toEqual([]);
+});
+
+test('guide runner: the fallback scripts play with the API unreachable; Close ends them', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?fov=60');
+  await ready(page);
+  await page.route('**/api/**', (r) => r.abort());
+  const card = page.locator('[data-guide="guide-popup"]');
+  await page.evaluate(() => {
+    window.__how = null;
+    guide.fallback('colours').then((how) => (window.__how = how));
+  });
+  await expect(card).toContainText('infrared');
+  await card.getByRole('button', { name: 'Show me more' }).click();
+  await expect(card).toContainText('D6');
+  expect(await page.evaluate(() => meridian.store.get().band)).toBe(93);
+  await card.getByRole('button', { name: 'Show me more' }).click();
+  await card.getByRole('button', { name: 'Got it' }).click();
+  await expect.poll(() => page.evaluate(() => window.__how)).toBe('done');
+  await expect.poll(() => page.evaluate(() => guide.overlay.active().length)).toBe(0);
+
+  await page.evaluate(() => {
+    window.__how = null;
+    guide.fallback('object', { id: 'sky:barnard' }).then((how) => (window.__how = how));
+  });
+  await expect(card).toContainText("Barnard's Star");
+  await card.getByRole('button', { name: 'Close' }).click();
+  await expect.poll(() => page.evaluate(() => window.__how)).toBe('closed');
+  await expect(card).toBeHidden();
+  expect(errors().filter((e) => !/\/api\//.test(e))).toEqual([]);
+});

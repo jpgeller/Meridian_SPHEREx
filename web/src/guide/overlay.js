@@ -22,7 +22,7 @@ const FADE_MS = 220;
 const ARROW_REST = Math.atan2(-1, -1); // the cursor shape points up-left
 const ARROW_LEN = 30; // px from the tip to the far end of the arrow
 // commands whose source does not mean "the person did something"
-const QUIET_SOURCES = new Set(['guide', 'preset']); // 'preset' = the fly_to inside go_preset
+export const QUIET_SOURCES = new Set(['guide', 'preset']); // 'preset' = the fly_to inside go_preset
 
 // --- pure helpers (unit-tested) --------------------------------------------------------
 

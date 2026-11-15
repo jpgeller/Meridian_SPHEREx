@@ -215,7 +215,7 @@ Reduced motion: no slide/fade. No API call anywhere in the card. `npm test` 68/6
 
 ---
 
-## Step U5 — Script runner and action tags  `[ ]`  P0
+## Step U5 — Script runner and action tags  `[x]`  P0
 **Files:** `web/src/guide/runner.js` (new), `web/src/guide/fallback.js` (new), `web/tests/runner.test.js`
 
 A **script** is a list of steps: `{ say: string, actions: Action[] }`.
@@ -234,6 +234,27 @@ Useful commands that already exist: `fly_to`, `set_band`, `set_mode`, `set_color
 - **Fixed fallback scripts** for the three triggers (object, change, colours) that need no network. The runner uses them when the API fails, times out, or returns invalid JSON.
 
 **Done when:** a script with a bad command name runs the good steps and skips the bad one; killing the API still plays the fallback scripts.
+
+Progress (Nov 14): `guide/runner.js` (validation exported and unit-tested, runner with everything injected) + `guide/fallback.js`.
+`window.guide` gains **`run(steps, { trigger?, target? })`** → promise of `'done' | 'closed'` (Close or Esc) `| 'interrupted'` (the
+person ran a command) `| 'stopped'` (`guide.stop()`) `| 'replaced'` (a newer script, or someone else's `guide.say`) `| 'empty'`,
+**`fallback(trigger, target?)`** (same promise), `stop()` and `guide.runner` (`isRunning()`). Steps: `{ say, actions?, answers?, target? }`
+(or a plain string; `{ steps }` is accepted). Actions: `{point:id, label?}`, `{circle:id}`, `{highlight:id}`, `{trail:[a,b]}`, `{cmd, args?}`.
+**Whitelist:** the command must be in `commands.list()` and not a `stub` (so `select_point` is out until it has a real meta), every arg
+must be named in that command's own `args` spec, and each value that maps to a state field (`band, mode, rgb, formula, color, mix, proj,
+compare, op, t, fov, ra, dec`, `layer`→`layers`, `index`→`t`) must survive `state.js sanitize()`; other args only as short strings,
+numbers or booleans. Overlay ids must look like ids. Each drop is logged (`[guide] step 2, action 1 dropped: …`); a step keeps its
+text when all its actions are dropped; a step without text is dropped; at most 6 steps × 6 actions. Order per step: clear the marks,
+show the card, then run the actions (the pointer flies from the card; an async command such as `fly_to` is awaited, at most 10 s,
+before the next action), then wait for the answer. The card gets `target` = the step's first marked id so it shrinks rather than cover
+it. **Default answers:** middle steps "Show me more" / "Close", the last step "Got it"; any answer but Close goes on. **End rule** =
+the overlay's (`QUIET_SOURCES`, now exported): any successful command whose source is not `guide`/`preset` ends the script at once and
+dismisses the card; failed commands do not. Dragging/zooming by hand is not a command, so it does **not** end the script (the marks follow
+the sky). Fallbacks (2–3 steps each, no network, say plainly that the guide is offline): **object** circles the target and uses the
+preset's `note` when the id is a preset; **change** points at the player and, in the field view, `set_op {op:'trail'}` (idempotent, unlike
+`toggle_trail`) + points at the trail legend, then says a streak is a hint, not proof; **colours** points at the ribbon, `set_band 93`
+(middle of D6, as the D6 button) + circles `band-d6`, then says the colours are a display choice. `npm test` 75/75 (7 new),
+`test:e2e` 23/23 (2 new: a console script with a bad command interrupted by a button press; the fallbacks with `/api/**` aborted).
 
 ---
 

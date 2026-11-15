@@ -2,12 +2,17 @@
 // U3 overlay, U4 pop-up, U5 runner... Console: guide.resolve('band-d6'), guide.targetAt(x, y),
 // guide.pointAt('band-d6', 'Longest wavelengths'), guide.circle('sky:barnard'), guide.clear(),
 // guide.offer({ text: 'Want help identifying this?', onYes, target: 'sky:barnard' }),
-// guide.say({ say: '…', answers: ['got_it', 'more', 'close'] }).then((answer) => …).
+// guide.say({ say: '…', answers: ['got_it', 'more', 'close'] }).then((answer) => …),
+// guide.run([{ say: '…', actions: [{ circle: 'band-d6' }, { cmd: 'set_band', args: { band: 93 } }] }]).then((how) => …),
+// guide.fallback('colours'), guide.fallback('object', { id: 'sky:barnard' }), guide.runner.isRunning(), guide.stop().
 import { createRegistry } from './registry.js';
 import { createOverlay } from './overlay.js';
 import { createPopup } from './popup.js';
+import { createRunner } from './runner.js';
+import { fallbackScript } from './fallback.js';
+import { sanitize } from '../core/state.js';
 
-export function createGuide({ store, sky, player }) {
+export function createGuide({ store, commands, sky, player }) {
   const skyEl = document.querySelector('#sky');
   let throughPopup = false;
   let popup = null;
@@ -42,6 +47,19 @@ export function createGuide({ store, sky, player }) {
     // the middle of the sky: in the field view, the target in the middle of the image
     getCentre: () => (store.get().view === 'field' ? registry.resolve('field:target') : null),
   });
+  const runner = createRunner({
+    say: popup.say,
+    dismiss: popup.dismiss,
+    overlay,
+    run: commands.run,
+    list: commands.list,
+    sanitize,
+    getState: () => store.get(),
+    events: window,
+  });
+  // trigger: 'object' | 'change' | 'colours'; target: { id, name } or an id
+  const fallback = (trigger, target) =>
+    runner.runScript(fallbackScript(trigger, target, store.get()), { trigger, target });
   return {
     resolve: registry.resolve,
     locate: registry.locate,
@@ -57,5 +75,9 @@ export function createGuide({ store, sky, player }) {
     say: popup.say,
     dismiss: popup.dismiss,
     popup,
+    run: runner.runScript,
+    fallback,
+    stop: () => runner.stop(),
+    runner,
   };
 }
