@@ -1205,7 +1205,7 @@ body.field-open .guide-pill {
     0 14px 36px rgba(0, 0, 0, 0.5),
     0 0 22px rgba(255, 177, 92, 0.12);
   color: var(--text);
-  overflow: hidden; /* never scrolls: the text is clipped to about 40 words */
+  overflow: hidden; /* the card never scrolls; only its body (.gp-body) does, for long text */
   animation: gp-in 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .guide-popup[hidden] {
@@ -1251,6 +1251,21 @@ body.field-open .guide-pill {
 .guide-popup button.gp-x:hover {
   background: var(--control-hover);
   color: var(--text);
+}
+/* B4 (stable targets for eye tracking): the words live in a body of FIXED height, so the answer row
+   below it sits at the same y on every step of a tour (title + about 5 lines + a muted line fit; longer
+   text scrolls inside the body, never pushing the buttons). Offers are one card with a short title and
+   a muted line: a smaller fixed body. */
+.gp-body {
+  --gp-body-h: calc(var(--fs-m) * 1.4 + var(--fs-m) * 1.5 * 5 + 16px); /* ~141 px */
+  box-sizing: border-box;
+  height: var(--gp-body-h);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.guide-popup.is-offer .gp-body {
+  --gp-body-h: calc(var(--fs-m) * 1.4 * 2 + var(--fs-s, 13px) * 1.45 * 2 + 6px); /* 2 title lines + 2 muted lines, ~80 px */
 }
 .gp-title {
   margin: 0;

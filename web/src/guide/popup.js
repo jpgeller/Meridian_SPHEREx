@@ -5,7 +5,7 @@
 //          **Title**
 //          One short thought.
 //          muted line · facts (term / value)
-//          [Primary] [Second] [Third]
+//          [Primary] [Second] [Third]     (B4: the words above have a fixed height, so these never move)
 //          ───────── progress bar (auto-advance / auto-hide; reading the card pauses it)
 //   pill:  [orb] AI Guide      (a real button; opens the guide's menu through onPill -> command)
 //
@@ -226,6 +226,14 @@ export function createTimer(ms, onFire, { setTimer = setTimeout, clearTimer = cl
   };
 }
 
+// The card's markup. B4: the words sit in a body of fixed height (long text scrolls inside it), so the
+// answers below keep the same place on every step of a tour.
+export const CARD_HTML =
+  '<div class="gp-head"><span class="gp-orb" aria-hidden="true"></span><b class="gp-name">AI GUIDE</b>' +
+  '<span class="gp-step"></span><button type="button" class="gp-x" aria-label="Dismiss">✕</button></div>' +
+  '<div class="gp-body"><p class="gp-title"></p><p class="gp-text"></p><p class="gp-sub"></p><dl class="gp-facts"></dl></div>' +
+  '<div class="gp-answers"></div><div class="gp-bar" aria-hidden="true"><i></i></div>';
+
 // --- the card ----------------------------------------------------------------------------
 
 /**
@@ -244,11 +252,7 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
   card.dataset.spot = 'top-right';
   card.setAttribute('aria-label', 'Guide');
   card.hidden = true;
-  card.innerHTML =
-    '<div class="gp-head"><span class="gp-orb" aria-hidden="true"></span><b class="gp-name">AI GUIDE</b>' +
-    '<span class="gp-step"></span><button type="button" class="gp-x" aria-label="Dismiss">✕</button></div>' +
-    '<p class="gp-title"></p><p class="gp-text"></p><p class="gp-sub"></p><dl class="gp-facts"></dl>' +
-    '<div class="gp-answers"></div><div class="gp-bar" aria-hidden="true"><i></i></div>';
+  card.innerHTML = CARD_HTML;
   const q = (sel) => card.querySelector(sel);
   const titleEl = q('.gp-title');
   const textEl = q('.gp-text');
@@ -257,6 +261,7 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
   const stepEl = q('.gp-step');
   const answersEl = q('.gp-answers');
   const barEl = q('.gp-bar i');
+  const bodyEl = q('.gp-body');
   q('.gp-x').addEventListener('click', () => close('close'));
 
   // the pill: where the guide waits (its pointer parks beside it)
@@ -342,6 +347,7 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
       }),
     );
     factsEl.hidden = !c.facts?.length;
+    bodyEl.scrollTop = 0; // a new step starts at its first line
     answersEl.replaceChildren(
       ...answers.map((a, i) => {
         const b = doc.createElement('button');
