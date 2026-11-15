@@ -5,6 +5,7 @@ import { detectorOf, BAND_MIN, BAND_MAX, DETECTORS, CHANNELS_PER_DETECTOR } from
 import { COLOR_PRESETS, DETECTOR_COLOURS, mixBands } from '../sky/colorViews.js';
 import { describeLevel } from '../sky/levels.js';
 import { createShell } from './shell.js';
+import { createFacePanel } from './facePanel.js';
 
 const html = String.raw;
 const DETECTOR_IDS = Array.from({ length: DETECTORS }, (_, i) => i + 1);
@@ -31,6 +32,8 @@ export function createControls(root, { store, commands, getWavelengths }) {
         ${PRESETS.map((p) => `<button type="button" class="big" data-preset="${p.id}" title="${p.note}">${p.label}</button>`).join('')}
       </div>
     </section>`;
+
+  createFacePanel(root.querySelector('#face-slot'), { commands });
 
   shell.dock.innerHTML = html`
     <div class="dock-head">

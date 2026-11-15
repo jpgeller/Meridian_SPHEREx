@@ -8,6 +8,8 @@
 //        -> { type: 'world2pix_result', id, points: [{ x, y, pageX, pageY, inView } | null, ...] }
 //   { type: 'pix2world', id, points: [{ x, y }, ...] } -> { type: 'pix2world_result', id, points: [{ ra, dec } | null] }
 //   { type: 'get_state', id }               -> { type: 'state', id, state: { ra, dec, fov, view, ... } }
+//   { type: 'face', landmarks: [[x, y] x 68], ear?: [l, r], mar?, pose?: { yaw, pitch, roll }, confidence? }
+//        -> no reply; re-sent in the page as the window event `meridian:face` (ui/facePanel.js validates it)
 // RA/Dec are ICRS degrees; x, y are pixels inside the sky view (sky/skyCoords.js). `id` is echoed back.
 //
 // Only messages from allowed origins are accepted. By default: this page's own origin and
@@ -56,6 +58,9 @@ export function startMessages(
         e.source?.postMessage?.({ type: `${msg.type}_result`, id: msg.id ?? null, points: pts.map(fn) }, { targetOrigin: e.origin });
         break;
       }
+      case 'face':
+        target.dispatchEvent?.(new CustomEvent('meridian:face', { detail: msg }));
+        break;
       case 'get_state':
         e.source?.postMessage?.({ type: 'state', id: msg.id ?? null, state: getState() }, { targetOrigin: e.origin });
         break;
