@@ -8,6 +8,7 @@ import { parseCoordinates } from '../src/core/coords.js';
 import { parseQuery, toQuery } from '../src/core/url.js';
 import { createCommands } from '../src/core/commands.js';
 import { registerDefaultCommands } from '../src/core/defaultCommands.js';
+import { levelToCuts, cutsToLevel, describeLevel } from '../src/sky/levels.js';
 
 const quiet = (fn) => {
   const warn = console.warn;
@@ -196,4 +197,13 @@ test('colour views: valid presets and custom mixes; blank bands refused', () => 
   const s2 = createStore();
   s2.set(parseQuery(q).patch);
   assert.deepEqual(s2.get().mix, [87, 42, 22]);
+});
+
+test('brightness/contrast steps convert to display cuts and back', () => {
+  assert.deepEqual(levelToCuts([0, 0]), [0, 255]);
+  const [lo, hi] = levelToCuts([2, 0]);
+  assert.ok(lo < 0 && hi < 255, 'brighter = window moves down');
+  assert.deepEqual(cutsToLevel(levelToCuts([1.5, -2])), [1.5, -2]);
+  assert.equal(describeLevel([0, 0]), '');
+  assert.equal(describeLevel([2, -1]), 'brightness +2 · contrast −1');
 });

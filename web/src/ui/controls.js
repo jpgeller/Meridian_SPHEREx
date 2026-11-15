@@ -3,6 +3,7 @@
 import { PRESETS } from '../sky/presets.js';
 import { detectorOf, BAND_MIN, BAND_MAX } from '../core/bands.js';
 import { COLOR_PRESETS, mixBands } from '../sky/colorViews.js';
+import { describeLevel } from '../sky/levels.js';
 
 const html = String.raw;
 
@@ -48,6 +49,16 @@ export function createControls(root, { store, commands, getWavelengths }) {
         <button type="submit">Apply</button>
       </form>
       <p id="color-note" class="muted color-note"></p>
+
+      <label>Brightness <span id="level-label" class="muted"></span></label>
+      <div class="row wrap" role="group" aria-label="Map brightness and contrast">
+        <button type="button" data-cmd="dimmer" aria-label="Dimmer">− <kbd>&lt;</kbd></button>
+        <button type="button" data-cmd="brighter" aria-label="Brighter">+ <kbd>&gt;</kbd></button>
+        <button type="button" data-cmd="less_contrast">Less contrast</button>
+        <button type="button" data-cmd="more_contrast">More contrast</button>
+        <button type="button" data-cmd="reset_level" id="level-reset">Reset <kbd>\</kbd></button>
+      </div>
+      <p class="muted color-note">Mouse: right-click and drag on the sky. Trackpad: click with two fingers and drag. Sideways = brightness, up/down = contrast.</p>
     </section>`;
 
   const $ = (sel) => root.querySelector(sel);
@@ -78,6 +89,9 @@ export function createControls(root, { store, commands, getWavelengths }) {
   root.querySelectorAll('[data-color]').forEach((b) =>
     b.addEventListener('click', () => commands.run('set_color', { color: b.dataset.color }, 'ui')),
   );
+  root.querySelectorAll('[data-cmd]').forEach((b) =>
+    b.addEventListener('click', () => commands.run(b.dataset.cmd, {}, 'ui')),
+  );
   $('#mix-form').addEventListener('submit', (e) => {
     e.preventDefault();
     const mix = ['#mix-r', '#mix-g', '#mix-b'].map((id) => Number($(id).value));
@@ -97,7 +111,10 @@ export function createControls(root, { store, commands, getWavelengths }) {
     );
     root.querySelectorAll('[data-color]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.color === state.color)));
     const mixed = mixBands(state);
-    band.disabled = Boolean(mixed); // a colour mix uses its own three bands
+    const lv = describeLevel(state.level);
+    $('#level-label').textContent = lv ? `· ${lv} (changed)` : '· as served';
+    $('#level-label').classList.toggle('changed', Boolean(lv));
+    $('#level-reset').disabled = !lv;
     const mixForm = $('#mix-form');
     mixForm.hidden = state.color !== 'custom';
     ['#mix-r', '#mix-g', '#mix-b'].forEach((id, i) => {
@@ -106,7 +123,7 @@ export function createControls(root, { store, commands, getWavelengths }) {
     const wl2 = getWavelengths?.();
     const um = (b) => (wl2 ? `${wl2[b].toFixed(2)} µm` : `band ${b}`);
     $('#color-note').textContent = mixed
-      ? `Red ${um(mixed[0])} · green ${um(mixed[1])} · blue ${um(mixed[2])}. The band slider is not used in colour mixes.`
+      ? `Red ${um(mixed[0])} · green ${um(mixed[1])} · blue ${um(mixed[2])}. Moving the band slider leaves the mix and shows that band.`
       : state.color === 'tint'
         ? 'Each detector has its own tint (see the ribbon), so changing band changes the colour.'
         : 'Brightness of one band, no colour added.';

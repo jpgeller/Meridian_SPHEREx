@@ -150,11 +150,39 @@ test('colour views: tinted band follows the detector; presets and custom mixes s
   await page.getByRole('radio', { name: 'Dust glow' }).click();
   await expect.poll(base).toContain('/api/hips/mix/62-46-22');
   await expect(page).toHaveURL(/color=dust/);
-  await expect(page.locator('#band')).toBeDisabled();
-  await page.getByRole('radio', { name: 'Grey' }).click();
+  // the band slider stays free: choosing a band leaves the mix for that band, tinted
+  await page.keyboard.press(']');
   await expect.poll(base, { timeout: 20_000 }).toContain('spherex_allsky_cube');
+  await expect(page).not.toHaveURL(/color=dust/);
+  await page.getByRole('radio', { name: 'Grey' }).click();
   await expect.poll(cmap).toBe('grey');
-  await expect(page.locator('#band')).toBeEnabled();
+});
+
+test('brightness: buttons, keys and the right-drag gesture all show in the panel and reset', async ({ page }) => {
+  await page.goto('/');
+  await ready(page);
+  const cuts = () => page.evaluate(() => aladin.getBaseImageLayer()?.getCuts?.());
+  await expect.poll(cuts, { timeout: 20_000 }).toEqual([0, 255]);
+  await page.getByRole('button', { name: 'Brighter' }).click();
+  await page.keyboard.press('>');
+  await expect(page).toHaveURL(/level=2,0/);
+  await expect(page.locator('#level-label')).toContainText('brightness +2');
+  expect((await cuts())[1]).toBeLessThan(255);
+  // Aladin's own gesture: right-button drag sideways on the sky
+  await page.getByRole('button', { name: /Reset/ }).click();
+  await expect(page.locator('#level-label')).toContainText('as served');
+  const box = await page.locator('#sky').boundingBox();
+  const x = box.x + box.width * 0.6;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(x + 250, y, { steps: 8 });
+  await page.mouse.up({ button: 'right' });
+  await page.keyboard.press('Escape'); // close Aladin's context menu if it opened
+  await expect(page.locator('#level-label')).toContainText('(changed)');
+  await page.keyboard.press('\\');
+  await expect(page.locator('#level-label')).toContainText('as served');
+  await expect.poll(cuts).toEqual([0, 255]);
 });
 
 test('motion trail: WISE 0855 leaves a rainbow streak over 2010–2026', async ({ page }) => {

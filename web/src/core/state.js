@@ -32,6 +32,7 @@ export const DEFAULTS = Object.freeze({
   band: 40,
   color: 'tint', // full-map colour view (COLORS)
   mix: [62, 46, 22], // custom colour mix: red, green, blue bands
+  level: [0, 0], // map brightness and contrast steps (0, 0 = as served); see sky/levels.js
   mode: 'single',
   rgb: ['D6', 'D4', 'D2'], // colour mix: red, green, blue; each a band (1-101) or a detector 'D1'..'D6'
   formula: '',
@@ -69,6 +70,11 @@ export function sanitize(patch, current = DEFAULTS) {
         // three real bands (blank frames 0, 50, 51 have no all-sky tiles)
         const ok = Array.isArray(v) && v.length === 3 && v.every((b) => Number.isInteger(b) && b >= 1 && b <= 101 && b !== 50 && b !== 51);
         ok ? (out.mix = [...v]) : warn(k, v);
+        break;
+      }
+      case 'level': {
+        const ok = Array.isArray(v) && v.length === 2 && v.every(isNum);
+        ok ? (out.level = v.map((x) => Math.round(clamp(x, -10, 10) * 100) / 100)) : warn(k, v);
         break;
       }
       case 'ra': isNum(v) ? (out.ra = wrapRa(v)) : warn(k, v); break;

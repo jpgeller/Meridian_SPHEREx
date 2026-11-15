@@ -61,9 +61,11 @@ export function registerDefaultCommands(commands, store) {
   });
 
   // --- bands --------------------------------------------------------------------
-  register('set_band', ({ band }) => set({ band }), { label: 'Set band', args: { band: '1-101' } });
-  register('next_band', () => set({ band: stepBand(s().band, +1) }), { label: 'Next band', keys: [']'] });
-  register('prev_band', () => set({ band: stepBand(s().band, -1) }), { label: 'Previous band', keys: ['['] });
+  // A colour mix shows three fixed bands; choosing a band on the sky leaves the mix for that band, tinted.
+  const bandPatch = (band) => ({ band, ...(s().view === 'sky' && !['grey', 'tint'].includes(s().color) ? { color: 'tint' } : {}) });
+  register('set_band', ({ band }) => set(bandPatch(band)), { label: 'Set band', args: { band: '1-101' } });
+  register('next_band', () => set(bandPatch(stepBand(s().band, +1))), { label: 'Next band', keys: [']'] });
+  register('prev_band', () => set(bandPatch(stepBand(s().band, -1))), { label: 'Previous band', keys: ['['] });
   register('set_mode', ({ mode, rgb, formula }) => {
     const patch = { mode };
     if (rgb !== undefined) patch.rgb = rgb;
@@ -78,6 +80,13 @@ export function registerDefaultCommands(commands, store) {
     label: 'Colour view of the map',
     args: { color: 'grey | tint | ir (infrared colour) | dust (dust glow) | ice (ices) | custom' },
   });
+  // Brightness/contrast of the map, also changed by right-click (two-finger click) drag on the sky
+  const level = (db, dc) => () => set({ level: [s().level[0] + db, s().level[1] + dc] });
+  register('brighter', level(1, 0), { label: 'Brighter map', keys: ['>'] });
+  register('dimmer', level(-1, 0), { label: 'Dimmer map', keys: ['<'] });
+  register('more_contrast', level(0, 1), { label: 'More contrast' });
+  register('less_contrast', level(0, -1), { label: 'Less contrast' });
+  register('reset_level', () => set({ level: [0, 0] }), { label: 'Reset brightness and contrast', keys: ['\\'] });
   register('set_mix', ({ mix }) => set({ color: 'custom', mix }), {
     label: 'Custom colour mix',
     args: { mix: '[red band, green band, blue band], e.g. [62, 46, 22]' },

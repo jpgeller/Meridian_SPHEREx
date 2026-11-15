@@ -11,6 +11,7 @@ import { SPHEREX_HIPS, loadWavelengths, waitForLayer, showBand } from './spherex
 import { PRESETS, presetById, presetForText } from './presets.js';
 import { createNativeLayer } from './nativeLayer.js';
 import { createColorViews } from './colorViews.js';
+import { createLevels } from './levels.js';
 
 const DEFAULT_FIELD_FOV = 0.5; // degrees, after flying to a named object
 const SPHERE_FOV_AFTER_ALLSKY = 60;
@@ -140,6 +141,9 @@ export async function createSky(container, { store, commands, onStatus = () => {
 
   // Colour views: grey, tinted band, or false-colour mixes (see colorViews.js)
   sky.colors = createColorViews(aladin, sky, { store, onStatus });
+
+  // Brightness/contrast: Aladin's right-drag gesture, made visible and resettable (see levels.js)
+  sky.levels = createLevels(aladin, { store });
 
   // Sharper than the all-sky tiles when zoomed in (see nativeLayer.js)
   sky.native = createNativeLayer(aladin, { store, commands, onStatus });

@@ -377,6 +377,14 @@ Infrared has no visible colour; IRSA's cube is one grey picture per band, so swi
   names. IRSA's **1.0 µm tiles have gaps near the Galactic centre** (yellow bars in a mix), so the Infrared preset uses 1.25 µm for blue.
 - Full-resolution patches follow the colour view (tinted with the same colormap); they're off in colour mixes (they're single-band).
 - Images: `docs/img/colour_views.png`, `docs/img/colour_tinted_bands.png`.
+- The band slider stays free in mixes: choosing a band (slider, `[` `]`, `set_band`) on the sky leaves the mix and shows
+  that band tinted. "Your mix" is the free three-band choice.
+- **Brightness/contrast** (`web/src/sky/levels.js`, state `level` = [brightness, contrast] steps, URL `level=`): Aladin's
+  hidden right-drag gesture (trackpad: two-finger click + drag; sideways = brightness, up/down = contrast) changes the map's
+  display cuts. We read the cuts back into state after each drag, show them in the panel ("changed", amber), and add commands
+  `brighter` `>`, `dimmer` `<`, `more_contrast`, `less_contrast`, `reset_level` `\`. PNG tiles' default cuts are [0, 255].
+- **Black patches near the Galactic centre** are masked pixels in IRSA's all-sky map (crowded, very bright region), not missing
+  data: SPHEREx has hundreds of exposures there, and the full-resolution layer (below 1.5°) fills them with real stars.
 
 ## Step 15 — Motion trail (all dates in one picture)  `[x]`
 **Files:** `web/src/field/trail.js` (pure maths, `tests/trail.test.js`), `web/src/field/wiseFrames.js`, op `trail`

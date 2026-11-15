@@ -22,6 +22,7 @@ export function parseQuery(query) {
   }
   if (q.has('rgb')) patch.rgb = q.get('rgb').split(',').map((c) => (/^[dD][1-6]$/.test(c) ? c : Number(c)));
   if (q.has('mix')) patch.mix = q.get('mix').split(',').map(Number);
+  if (q.has('level')) patch.level = q.get('level').split(',').map(Number);
   if (q.has('t')) patch.t = q.get('t').split(',').filter(Boolean).map(Number);
   if (q.has('layers')) patch.layers = q.get('layers').split(',').filter(Boolean);
   return { patch, name: q.get('name') || null };
@@ -40,6 +41,7 @@ export function toQuery(state) {
   if (state.view === 'field' || state.ffov !== DEFAULTS.ffov) q.set('ffov', String(state.ffov));
   if (state.mode === 'rgb') q.set('rgb', state.rgb.join(','));
   if (state.color === 'custom') q.set('mix', state.mix.join(','));
+  if (state.level.some((x) => x !== 0)) q.set('level', state.level.join(','));
   if (state.t.length) q.set('t', state.t.join(','));
   if (state.layers.length) q.set('layers', state.layers.join(','));
   // URLSearchParams encodes ',' as %2C; keep lists readable.

@@ -52,6 +52,9 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   Aladin can't keep a fixed flat map while panning (it always re-projects around the view centre).
 - Colour views: `web/src/sky/colorViews.js`. Mixes are server-built colour HiPS at `/api/hips/mix/R-G-B` (`api/colormix.py`).
   Aladin lowercases colormap names when applying them: register custom colormaps in lowercase.
+- Aladin's right-drag (trackpad two-finger click + drag) changes the base layer's cuts (PNG default [0, 255]).
+  `web/src/sky/levels.js` mirrors it to state `level`. Black blotches near the Galactic centre are masked pixels in IRSA's
+  all-sky tiles, not missing SPHEREx data (the full-resolution layer fills them).
 - The HiPS cube stops at order 5 (12.9″/px) and Aladin draws tiles with NEAREST filtering (hard-coded), so deep zoom looks
   blocky. `web/src/sky/nativeLayer.js` + `/api/skypatch` overlay full-resolution (6.15″) patches below 1.5°. PNG overlays via
   `A.image(url, {imgFormat:'png', wcs})` need CD1_1 < 0 and CD2_2 > 0 (rows top = north).
