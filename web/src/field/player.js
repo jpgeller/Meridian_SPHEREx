@@ -7,10 +7,17 @@ import { loadFrameList, bandsWithData } from './frames.js';
 import { buildSequence, sequenceKey } from './sequence.js';
 import { drawFrame, drawRGB, sharedStretch, rgbStretches } from './render.js';
 import { addFrames, differenceSignificance, pickPair, pickForAdd } from './compare.js';
+import { motionTrail, resampleToGrid } from './trail.js';
+import { loadWiseFrames, WISE_PIXEL_ARCSEC } from './wiseFrames.js';
+import { groupByVisit } from './sequence.js';
 
 const SPEEDS = [1, 2, 4, 6, 10]; // frames per second
 const BLINK_HZ = 2;
 const DIFF_RANGE_SIGMA = 5; // difference images span ±5σ
+const SPHEREX_PIXEL_ARCSEC = 6.15;
+const TRAIL_STRETCH = [0, 1, 2].map(() => ({ vmin: 0, vmax: 1, kind: 'linear' }));
+const year = (mjd) => new Date((mjd - 40587) * 864e5).getUTCFullYear();
+const cssColour = (c) => `rgb(${c.map((v) => Math.round(v * 255)).join(',')})`;
 const fmtDate = (iso) =>
   iso ? new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 const shortDate = (iso) =>
@@ -26,11 +33,16 @@ export function createPlayer(stage, { store, commands }) {
         </div>
         <p id="player-msg" class="player-msg" role="status" aria-live="polite"></p>
       </div>
+      <div class="trail-legend" id="trail-legend" hidden aria-hidden="true">
+        <span id="trail-from"></span><div class="trail-bar" id="trail-bar"></div><span id="trail-to"></span>
+      </div>
       <div class="player-bar" role="group" aria-label="Compare dates">
         <button type="button" data-op="none">Time-lapse <kbd>t</kbd></button>
         <button type="button" data-op="blink">Blink <kbd>b</kbd></button>
         <button type="button" data-op="add">Add <kbd>m</kbd></button>
         <button type="button" data-op="subtract">Difference <kbd>d</kbd></button>
+        <button type="button" data-op="trail">Motion trail <kbd>r</kbd></button>
+        <label class="inline" id="trail-wise-wrap" hidden><input type="checkbox" id="trail-wise" checked /> Include WISE 2010–2024</label>
         <span class="muted hint" id="op-hint"></span>
       </div>
       <div class="epochs" id="epochs" role="group" aria-label="Dates (select two to compare)"></div>
@@ -59,7 +71,7 @@ export function createPlayer(stage, { store, commands }) {
   const ring = stage.querySelector('.target-ring');
   const epochsEl = $('#epochs');
 
-  const local = { speed: 2, perVisit: false, colormap: 'grey' };
+  const local = { speed: 2, perVisit: false, colormap: 'grey', trailWise: true };
   let seq = []; // the images of the current sequence (aligned frames)
   let stretch = null; // grey: one stretch; colour: three (one per channel)
   let kind = 'grey';
@@ -71,6 +83,7 @@ export function createPlayer(stage, { store, commands }) {
   let blinkPhase = 0;
   const derived = new Map(); // memoised add/subtract results for the current sequence
   let shownFrame = null; // what is on the canvas now (for overlays)
+  const wise = { key: '', frames: null, error: '', loading: false }; // WISE epochs for the trail
   const showListeners = [];
 
   // --- controls -> commands --------------------------------------------------------
@@ -81,6 +94,10 @@ export function createPlayer(stage, { store, commands }) {
     b.addEventListener('click', () => commands.run('set_op', { op: b.dataset.op }, 'ui')),
   );
   scrub.addEventListener('input', () => store.set({ frameIndex: Number(scrub.value), playing: false }, 'ui'));
+  $('#trail-wise').addEventListener('change', (e) => {
+    local.trailWise = e.target.checked;
+    show(store.get());
+  });
   $('#p-speed').addEventListener('change', (e) => {
     local.speed = Number(e.target.value);
     syncTimers(store.get());
@@ -203,11 +220,79 @@ export function createPlayer(stage, { store, commands }) {
       const d = derived.get(key);
       return { ...d, cmap: 'diverging', label: '', index: null };
     }
+    if (s.op === 'trail' && n >= 2 && kind !== 'rgb') return trailView(s);
     return { frame: seq[i], stretch, cmap: local.colormap, label: '', index: i };
+  }
+
+  // Motion trail: one picture of every date, oldest blue → newest red (trail.js). With WISE on,
+  // the SPHEREx visits are resampled onto WISE's finer 2.75" grid and the 2010–2024 WISE epochs
+  // come first, so the time line spans ~16 years and nearby stars visibly streak.
+  function wantWise(s) {
+    const key = `${s.ra.toFixed(5)},${s.dec.toFixed(5)}|${s.ffov}`;
+    if (wise.key !== key) Object.assign(wise, { key, frames: null, error: '', loading: false });
+    if (!wise.frames && !wise.error && !wise.loading) {
+      wise.loading = true;
+      loadWiseFrames(s.ra, s.dec, s.ffov)
+        .then((frames) => (wise.key === key ? (wise.frames = frames) : null))
+        .catch((err) => (wise.key === key ? (wise.error = err.message) : null))
+        .finally(() => {
+          if (wise.key !== key) return;
+          wise.loading = false;
+          derived.clear();
+          const st = store.get();
+          if (st.op === 'trail') show(st);
+        });
+    }
+    return wise.frames;
+  }
+
+  function trailView(s) {
+    // one image per visit (medians), so a crowded visit doesn't outweigh the others
+    const visits = seq.every((f) => f.meta.visit != null && !f.meta.n_combined) ? groupByVisit(seq) : seq;
+    const wiseFrames = local.trailWise ? wantWise(s) : null;
+    const key = `trail:${wiseFrames ? 'wise' : 'spherex'}:${seq.length}`;
+    if (!derived.has(key)) {
+      let frames = visits;
+      if (wiseFrames?.length) {
+        // same patch of sky as the SPHEREx frames, on WISE's 2.75" pixels
+        const scale = SPHEREX_PIXEL_ARCSEC / WISE_PIXEL_ARCSEC;
+        const size = Math.round(visits[0].w * scale);
+        frames = [...wiseFrames.map((f) => resampleToGrid(f, size, 1)), ...visits.map((f) => resampleToGrid(f, size, scale))];
+      }
+      const t = motionTrail(frames);
+      const frame = {
+        id: key,
+        w: t.w,
+        h: t.h,
+        rgb: [{ data: t.r }, { data: t.g }, { data: t.b }],
+        meta: { ...visits[0].meta, mode: 'trail' },
+        trail: { ...t, nWise: wiseFrames?.length ?? 0, nSpherex: visits.length },
+      };
+      derived.set(key, { frame, stretch: TRAIL_STRETCH });
+    }
+    return { ...derived.get(key), label: '', index: null };
+  }
+
+  function describeTrail(view) {
+    const t = view.frame.trail;
+    const parts = [];
+    if (t.nWise) parts.push(`${t.nWise} WISE 4.6 µm images`);
+    parts.push(`${t.nSpherex} SPHEREx visits`);
+    let wiseNote = '';
+    if (local.trailWise && !t.nWise) {
+      wiseNote = wise.loading ? ' · Loading WISE 2010–2024…' : wise.error ? ` · WISE not available here (${wise.error}).` : '';
+    }
+    return (
+      `Motion trail: ${parts.join(' + ')}, ${year(t.t0)}–${year(t.t1)}, each tinted by date (oldest blue → newest red) and stacked. ` +
+      'Things that stay put come out white; a moving object leaves a rainbow streak from blue to red; ' +
+      'a star that changes brightness gets a coloured fringe. Each image is scaled on its own, so compare positions, not brightness.' +
+      wiseNote
+    );
   }
 
   function describe(s, view) {
     const m = view.frame.meta;
+    if (view.frame.trail) return describeTrail(view);
     if (s.op === 'subtract' && view.pair) {
       const [a, b] = view.pair;
       return (
@@ -261,7 +346,20 @@ export function createPlayer(stage, { store, commands }) {
     epochsEl.querySelectorAll('[data-epoch]').forEach((b) =>
       b.classList.toggle('current', Number(b.dataset.epoch) === (view.index ?? -1)),
     );
+    renderTrailLegend(view.frame.trail);
     for (const fn of showListeners) fn(view);
+  }
+
+  function renderTrailLegend(t) {
+    const legend = $('#trail-legend');
+    legend.hidden = !t;
+    if (!t) return;
+    $('#trail-from').textContent = String(year(t.t0));
+    $('#trail-to').textContent = String(year(t.t1));
+    // one stop per date, placed by time, so the bar shows where the dates bunch up
+    const span = t.t1 - t.t0 || 1;
+    const stops = t.mjds.map((m, k) => `${cssColour(t.colours[k])} ${(((m - t.t0) / span) * 100).toFixed(1)}%`);
+    $('#trail-bar').style.background = `linear-gradient(to right, ${stops.join(', ')})`;
   }
 
   function renderEpochs(s) {
@@ -287,11 +385,18 @@ export function createPlayer(stage, { store, commands }) {
     scrub.disabled = !many || !timelapse;
     stage.querySelectorAll('[data-op]').forEach((b) => {
       b.setAttribute('aria-pressed', String(b.dataset.op === s.op));
-      b.disabled = (b.dataset.op !== 'none' && !many) || (b.dataset.op === 'subtract' && kind === 'rgb');
+      b.disabled = (b.dataset.op !== 'none' && !many) || (['subtract', 'trail'].includes(b.dataset.op) && kind === 'rgb');
     });
+    $('#trail-wise-wrap').hidden = s.op !== 'trail';
     $('#p-visit').disabled = s.mode !== 'single'; // other modes are already one per visit
     $('#op-hint').textContent =
-      s.op === 'none' ? '' : s.op === 'add' ? 'Select 2+ dates below, or all are added.' : 'Select two dates below, or the first and last are used.';
+      s.op === 'none'
+        ? ''
+        : s.op === 'add'
+          ? 'Select 2+ dates below, or all are added.'
+          : s.op === 'trail'
+            ? 'Uses every date.'
+            : 'Select two dates below, or the first and last are used.';
     epochsEl.querySelectorAll('[data-epoch]').forEach((b) =>
       b.setAttribute('aria-pressed', String(s.t.includes(Number(b.dataset.epoch)))),
     );

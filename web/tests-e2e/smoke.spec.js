@@ -156,3 +156,19 @@ test('colour views: tinted band follows the detector; presets and custom mixes s
   await expect.poll(cmap).toBe('grey');
   await expect(page.locator('#band')).toBeEnabled();
 });
+
+test('motion trail: WISE 0855 leaves a rainbow streak over 2010–2026', async ({ page }) => {
+  test.setTimeout(240_000);
+  const errors = collectErrors(page);
+  await page.goto('/?ra=133.7578&dec=-7.242&fov=0.5&band=92&view=field&ffov=0.1&mode=detector');
+  await ready(page);
+  await expect(page.locator('.epoch')).toHaveCount(4, { timeout: 60_000 });
+  await page.keyboard.press('r');
+  await expect(page).toHaveURL(/op=trail/);
+  const caption = page.locator('#player-caption');
+  await expect(caption).toContainText(/WISE 4\.6 µm images \+ 4 SPHEREx visits, 2010–2026/, { timeout: 180_000 });
+  await expect(page.locator('#trail-legend')).toBeVisible();
+  await page.getByLabel('Include WISE 2010–2024').uncheck();
+  await expect(caption).toContainText('Motion trail: 4 SPHEREx visits, 2025–2026');
+  expect(errors()).toEqual([]);
+});

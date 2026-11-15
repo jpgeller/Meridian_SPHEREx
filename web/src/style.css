@@ -486,3 +486,21 @@ body.field-open .handoff {
 #controls input[type='range']:disabled {
   opacity: 0.4;
 }
+
+/* motion trail legend: a colour bar from the first to the last date */
+.trail-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.trail-legend[hidden] {
+  display: none;
+}
+.trail-bar {
+  flex: 1;
+  height: 10px;
+  border-radius: 5px;
+}

@@ -378,6 +378,20 @@ Infrared has no visible colour; IRSA's cube is one grey picture per band, so swi
 - Full-resolution patches follow the colour view (tinted with the same colormap); they're off in colour mixes (they're single-band).
 - Images: `docs/img/colour_views.png`, `docs/img/colour_tinted_bands.png`.
 
+## Step 15 — Motion trail (all dates in one picture)  `[x]`
+**Files:** `web/src/field/trail.js` (pure maths, `tests/trail.test.js`), `web/src/field/wiseFrames.js`, op `trail`
+in `player.js`; command `toggle_trail` (key `r`, URL `op=trail`). Background: `docs/research/CHANGE_VIDEO.md` (option D).
+- Each date is scaled on its own (background → 0, bright → 1, asinh), tinted by when it was taken (blue 2010 → red 2026),
+  and summed, normalised by the summed colour so that **anything present on every date is white**. A mover leaves a
+  rainbow streak; a variable star a coloured fringe. A gamma lift keeps one-date streaks visible next to static stars.
+- SPHEREx visits are medians of their exposures. **Include WISE 2010–2024** (on by default) adds the WiseView W2 epochs:
+  the SPHEREx frames are resampled onto WISE's 2.75″ grid (same centre, same patch), giving a ~16-year baseline. Without
+  WISE, SPHEREx's ~1 year shows almost no motion for the challenge targets.
+- Not available in colour-mix sequences (three channels already use the colours). The legend bar places a colour stop per date.
+- Verified: Barnard's Star streaks blue (south) → red (north), its known motion; WISE 0855 leaves a clean streak ending
+  at its 2026 position, all field stars white. Images: `docs/img/trail_barnard.png`, `docs/img/trail_wise0855.png`.
+- Next (if wanted): the model-based video (option C in the research note).
+
 ---
 
 ## Optional (final version): sharp tile level for the whole sky  `[ ]`

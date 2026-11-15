@@ -123,11 +123,12 @@ export function registerDefaultCommands(commands, store) {
   const opCommand = (op) => () => set({ op: s().op === op ? 'none' : op, playing: false });
   register('set_op', ({ op }) => set({ op, playing: false }), {
     label: 'Compare dates',
-    args: { op: 'none (time-lapse) | blink | add | subtract' },
+    args: { op: 'none (time-lapse) | blink | add | subtract | trail' },
   });
   register('toggle_blink', opCommand('blink'), { label: 'Blink two dates', keys: ['b'] });
   register('toggle_add', opCommand('add'), { label: 'Add dates (deeper image)', keys: ['m'] });
   register('toggle_subtract', opCommand('subtract'), { label: 'Difference of two dates', keys: ['d'] });
+  register('toggle_trail', opCommand('trail'), { label: 'Motion trail (all dates in one picture)', keys: ['r'] });
   register('show_timelapse', () => set({ op: 'none' }), { label: 'Back to time-lapse', keys: ['t'] });
 
   // --- layers -------------------------------------------------------------------
