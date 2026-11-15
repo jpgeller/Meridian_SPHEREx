@@ -45,8 +45,8 @@ export const field = createFieldView(document.querySelector('#field-root'), {
 });
 const player = createPlayer(field.stage, { store, commands });
 createContext(player, { store, commands });
-createSpectrum(player, { store, commands });
-window.guide = createGuide({ store, commands, sky, player, gaze: gazeParam }); // UI plan: registry (U2), overlay, pop-up, runner, attention…
+const spectrum = createSpectrum(player, { store, commands });
+window.guide = createGuide({ store, commands, sky, player, spectrum, gaze: gazeParam }); // UI plan: registry (U2), overlay, pop-up, runner, attention…
 store.subscribe(() => renderStatus());
 
 if (urlName) run('fly_to', { target: urlName, fov: store.get().fov < 5 ? store.get().fov : undefined }, 'url');
