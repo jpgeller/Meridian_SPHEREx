@@ -3,7 +3,9 @@
 //
 // Each run() also dispatches `meridian:command` on `target` (window in the browser) with
 // { name, args, source, ok, error? }, so the eye tracker and the guide can listen and react.
-// Async commands return { ok: true, pending: true, value: Promise } and emit when settled.
+// Async commands return { ok: true, pending: true, value: Promise } and emit when settled;
+// they also emit `meridian:command-start` (same detail, without ok) when they begin, so the
+// guide can stay quiet while e.g. a fly_to is still looking up a name.
 
 /**
  * @typedef {Object} CommandMeta
@@ -11,6 +13,7 @@
  * @property {string[]} [keys]     KeyboardEvent.key values that trigger it (core/keys.js)
  * @property {Object} [args]       Argument names -> short description (for the AI guide)
  * @property {boolean} [stub]      Not implemented yet; logs instead of acting
+ * @property {boolean} [personOnly] Only the person may run it (e.g. the eye-control mode); the AI guide never can
  */
 
 export function createCommands({ target = globalThis.window } = {}) {
@@ -55,6 +58,7 @@ export function createCommands({ target = globalThis.window } = {}) {
         },
       );
       settled.catch(() => {});
+      target?.dispatchEvent?.(new CustomEvent('meridian:command-start', { detail: { name, args, source } }));
       return { ok: true, pending: true, value: settled };
     }
     emit(true);

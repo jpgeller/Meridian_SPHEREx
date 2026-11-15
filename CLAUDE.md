@@ -40,8 +40,12 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   Console: `meridian.run(...)`, `meridian.store.get()`, `meridian.commands.list()`.
 - The backend never sends full 65 MB SPHEREx files. Always use cutouts (`access_url + ?center=RA,DECd&size=DEG`) and cache them in `api/cache/`.
 - Show uncertainty and limits honestly. Never claim discoveries.
-- Eye tracking is NOT built here: Yassin's team integrates it through the command bridge (`web/src/core/messages.js`).
-  Keep every control a real `<button>` running a command, so their gaze layer can find and press it. See docs/EYE_TRACKING.md.
+- The eye tracker itself is NOT built here: Yassin's team runs it outside the app. The gaze *contract* and the face panel
+  do live here: eye tracking is merged through `postMessage` types `gaze` and `face` on the command bridge
+  (`web/src/core/messages.js`; docs/UI_AND_GUIDE_PLAN.md, U9). Keep every control a real `<button>` running a command,
+  so their gaze layer can find and press it. See docs/EYE_TRACKING.md.
+- UI and guide live in `web/src/ui/` and `web/src/guide/` (plan: docs/UI_AND_GUIDE_PLAN.md). They only call `run(...)`
+  and read `store`. `ANTHROPIC_API_KEY` stays in `api/.env` (git-ignored; see `api/.env.example`), never in the browser.
 
 ## Verified data facts (Nov 2026). Do not re-derive these.
 - SPHEREx HiPS cube: `https://irsa.ipac.caltech.edu/data/hips/SPHEREx/spherex_allsky_cube`. 102 frames, PNG tiles,

@@ -39,6 +39,7 @@ export function createSpectrum(player, { store, commands }) {
   });
 
   let token = 0;
+  let last = null; // the last spectrum drawn (the guide reads its blends, UI plan U7)
 
   async function measure(ra, dec) {
     const s = store.get();
@@ -62,6 +63,7 @@ export function createSpectrum(player, { store, commands }) {
         return;
       }
       if (my !== token) return;
+      last = data;
       draw(data);
       statusEl.textContent = data.complete
         ? `${data.points.length} measurements from ${data.n_frames} images${data.n_saturated ? ` (${data.n_saturated} too bright to measure)` : ''}`
@@ -167,4 +169,6 @@ export function createSpectrum(player, { store, commands }) {
     commands.run('select_point', { ra: (ra + 360) % 360, dec }, 'pointer');
   });
   player.elements.canvas.style.cursor = 'crosshair';
+  // For the AI guide (UI plan U7): the spectrum on screen, or null when the panel is closed.
+  return { getLast: () => (panel.hidden ? null : last) };
 }

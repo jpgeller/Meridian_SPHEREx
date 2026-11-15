@@ -31,9 +31,9 @@ export function createFieldView(root, { store, commands, getWavelengths = () => 
           ).join('')}
         </div>
         <div class="row wrap" role="group" aria-label="Infrared band">
-          <button type="button" id="field-band-prev" aria-label="Previous band"><kbd>[</kbd> Shorter λ</button>
+          <button type="button" id="field-band-prev" aria-label="Shorter λ: previous band" aria-keyshortcuts="["><kbd>[</kbd> Shorter λ</button>
           <span id="field-band" class="band-readout"></span>
-          <button type="button" id="field-band-next" aria-label="Next band">Longer λ <kbd>]</kbd></button>
+          <button type="button" id="field-band-next" aria-label="Longer λ: next band" aria-keyshortcuts="]">Longer λ <kbd>]</kbd></button>
           <span class="sep" aria-hidden="true"></span>
           <div role="radiogroup" aria-label="Band mode" class="row wrap" id="band-modes">
             <button type="button" role="radio" data-mode="single" title="One of the 102 bands">One band</button>

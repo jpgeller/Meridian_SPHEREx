@@ -8,6 +8,12 @@
 //        -> { type: 'world2pix_result', id, points: [{ x, y, pageX, pageY, inView } | null, ...] }
 //   { type: 'pix2world', id, points: [{ x, y }, ...] } -> { type: 'pix2world_result', id, points: [{ ra, dec } | null] }
 //   { type: 'get_state', id }               -> { type: 'state', id, state: { ra, dec, fov, view, ... } }
+//   { type: 'face', landmarks: [[x, y] x 68], ear?: [l, r], mar?, pose?: { yaw, pitch, roll }, confidence? }
+//        -> no reply; re-sent in the page as the window event `meridian:face` (ui/facePanel.js validates it)
+//   { type: 'gaze', x, y, t?, confidence? }  viewport px, ~30 per second (UI plan U9)
+//        -> re-sent as the window event `meridian:gaze` { x, y, t, confidence, reply, source } for
+//           input/gaze.js, which answers this sender with { type: 'targets', items: [{ id, x, y, w, h, kind, label? }] }
+//           (throttled, when the list changes). What gaze may do depends on the input mode (state.input).
 // RA/Dec are ICRS degrees; x, y are pixels inside the sky view (sky/skyCoords.js). `id` is echoed back.
 //
 // Only messages from allowed origins are accepted. By default: this page's own origin and
@@ -56,6 +62,19 @@ export function startMessages(
         e.source?.postMessage?.({ type: `${msg.type}_result`, id: msg.id ?? null, points: pts.map(fn) }, { targetOrigin: e.origin });
         break;
       }
+      case 'gaze': {
+        if (!Number.isFinite(msg.x) || !Number.isFinite(msg.y)) return;
+        const source = e.source ?? null;
+        const reply = (data) => source?.postMessage?.(data, { targetOrigin: e.origin });
+        const confidence = Number.isFinite(msg.confidence) ? msg.confidence : 1;
+        target.dispatchEvent?.(
+          new CustomEvent('meridian:gaze', { detail: { x: msg.x, y: msg.y, t: Number(msg.t) || null, confidence, reply, source } }),
+        );
+        break;
+      }
+      case 'face':
+        target.dispatchEvent?.(new CustomEvent('meridian:face', { detail: msg }));
+        break;
       case 'get_state':
         e.source?.postMessage?.({ type: 'state', id: msg.id ?? null, state: getState() }, { targetOrigin: e.origin });
         break;
