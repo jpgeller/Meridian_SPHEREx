@@ -55,17 +55,36 @@ export function measureAround(img, w, h, x, y, r, minPeak = 0.25) {
     }
   }
   if (bx < 0 || best < minPeak) return null;
-  // Weighted centroid, re-centred a few times. Bright stars are clipped flat by the
-  // normalisation, so the box grows with the flat core (else it sticks to the core's edge).
-  let flat = 0;
-  for (let j = Math.max(0, by - 10); j <= Math.min(h - 1, by + 10); j++) {
-    for (let i = Math.max(0, bx - 10); i <= Math.min(w - 1, bx + 10); i++) if (img[j * w + i] >= best * 0.97) flat++;
+  // Bright stars are clipped flat by the normalisation. A flat core of any size: its centre is
+  // the star (a fixed box sticks to the core's edge). Flood-fill the connected flat pixels.
+  const flat = [];
+  const seen = new Set([by * w + bx]);
+  const queue = [[bx, by]];
+  while (queue.length && flat.length < 4000) {
+    const [i, j] = queue.pop();
+    flat.push([i, j]);
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const ni = i + di;
+      const nj = j + dj;
+      const k = nj * w + ni;
+      if (ni < 0 || nj < 0 || ni >= w || nj >= h || seen.has(k)) continue;
+      seen.add(k);
+      if (img[k] >= best * 0.97 && Math.hypot(ni - bx, nj - by) < 60) queue.push([ni, nj]);
+    }
   }
-  const hw = Math.min(10, Math.max(2, Math.ceil(Math.sqrt(flat) / 2) + 1));
-  if (bx < hw || by < hw || bx >= w - hw || by >= h - hw) return null; // cut by the image edge: unreliable
+  if (flat.length >= 6) {
+    const touchesEdge = flat.some(([i, j]) => i === 0 || j === 0 || i === w - 1 || j === h - 1);
+    if (touchesEdge) return null; // cut by the image edge: unreliable
+    const cx = flat.reduce((a, [i]) => a + i, 0) / flat.length;
+    const cy = flat.reduce((a, [, j]) => a + j, 0) / flat.length;
+    return { x: cx, y: cy, peak: best };
+  }
+  // Ordinary star: weighted centroid in a 5x5 box above half the peak, re-centred twice.
+  const hw = 2;
+  if (bx < hw || by < hw || bx >= w - hw || by >= h - hw) return null;
   let cx = bx;
   let cy = by;
-  for (let pass = 0; pass < 4; pass++) {
+  for (let pass = 0; pass < 2; pass++) {
     const ix = Math.min(w - 1 - hw, Math.max(hw, Math.round(cx)));
     const iy = Math.min(h - 1 - hw, Math.max(hw, Math.round(cy)));
     let sw = 0;

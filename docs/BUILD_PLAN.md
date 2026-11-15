@@ -379,6 +379,10 @@ SPHEREx's own pixels are 6.15″, twice as fine.
 
 ---
 
+> **Switched off 15 Nov 2026** (`NATIVE_LAYER_ENABLED = false` in `web/src/sky/nativeLayer.js`): only the patch you zoom into
+> became sharp, so it looked different from the rest of the map (e.g. Barnard's Star in grey). The code stays; turn it on
+> again together with the whole-sky sharp level (Optional, below), so every place has the same quality.
+
 ## Step 14 — Colour views of the full map  `[x]`
 **Files:** `web/src/sky/colorViews.js`, `api/colormix.py`, `/api/hips/mix/{R-G-B}/…`; state `color` + `mix` (URL `color=`, `mix=`).
 
@@ -438,6 +442,10 @@ in `player.js`; command `toggle_trail` (key `r`, URL `op=trail`). Background: `d
 - Results: WISE 0855 tracked at 8.2″/yr (catalogue ~8.1″/yr), ending in the 2026 target ring; Barnard's Star at Gaia's 10.4″/yr.
   A dashed cyan ring and dotted path mark each mover (switchable): 0855 is faint in single WISE images.
 - IRSA's CatWISE cone search fails or times out above ~0.1° radius (Nov 2026): capped at 0.08° around the target.
+- Fixes after first use (15 Nov 2026): opened from the sky the field is 0.5° wide, and Barnard's clipped flat core was wider
+  than the centroid box, so every measurement stuck to its edge and the star was rejected (the video only cross-faded).
+  Flat cores are now measured by flood-filling the clipped pixels. The video waits on its first image until WISE and the
+  motion catalogue have loaded, and no longer jumps back to 2010 when they arrive.
 - Images: `docs/img/video_wise0855_frames.png`, `docs/img/video_barnard_frames.png`.
 
 ## Optional (final version): repair the black blotches in the all-sky map  `[ ]`

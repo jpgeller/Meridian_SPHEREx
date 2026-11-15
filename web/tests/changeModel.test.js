@@ -67,3 +67,12 @@ test('real dates are shown untouched; in between, the mover sits on its path, no
   assert.ok(img[30 * W + 10] > 0.8);
   assert.deepEqual(bracket(model.mjds, T0 - 5), { k: 0, u: 0 });
 });
+
+test('a saturated star with a wide flat core is measured at its centre, not its edge', async () => {
+  const { measureAround } = await import('../src/field/changeModel.js');
+  const w = 80;
+  const img = new Float32Array(w * w);
+  for (let y = 0; y < w; y++) for (let x = 0; x < w; x++) img[y * w + x] = Math.min(1, 3 * Math.exp(-((x - 40.5) ** 2 + (y - 37) ** 2) / 200));
+  const m = measureAround(img, w, w, 38, 33, 5);
+  assert.ok(Math.abs(m.x - 40.5) < 0.6 && Math.abs(m.y - 37) < 0.6, JSON.stringify(m));
+});

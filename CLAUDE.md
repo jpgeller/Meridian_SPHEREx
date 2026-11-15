@@ -59,7 +59,8 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   `web/src/sky/levels.js` mirrors it to state `level`. Black blotches near the Galactic centre are masked pixels in IRSA's
   all-sky tiles, not missing SPHEREx data (the full-resolution layer fills them).
 - The HiPS cube stops at order 5 (12.9″/px) and Aladin draws tiles with NEAREST filtering (hard-coded), so deep zoom looks
-  blocky. `web/src/sky/nativeLayer.js` + `/api/skypatch` overlay full-resolution (6.15″) patches below 1.5°. PNG overlays via
+  blocky. `web/src/sky/nativeLayer.js` + `/api/skypatch` overlay full-resolution (6.15″) patches below 1.5°: **switched off**
+  (`NATIVE_LAYER_ENABLED = false`) until the whole sky can have that quality, as only the zoomed patch looked different. PNG overlays via
   `A.image(url, {imgFormat:'png', wcs})` need CD1_1 < 0 and CD2_2 > 0 (rows top = north).
 - Time series: `Irsa.query_sia(pos=(coord, r), collection=['spherex_dr1','spherex_qr3'])` (+ `_deep`). Each row is
   one exposure of one detector (D1–D6). Columns: `access_url`, `t_min` (MJD), `energy_bandpassname` (`SPHEREx-D1`…).

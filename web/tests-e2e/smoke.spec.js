@@ -109,14 +109,12 @@ test('a cached field opens its time-lapse', async ({ page }) => {
   expect(errors()).toEqual([]);
 });
 
-test('zooming in replaces the blocky all-sky tiles with the full-resolution layer', async ({ page }) => {
-  test.setTimeout(240_000);
-  await page.goto('/?ra=269.44627&dec=4.7682&fov=0.3&band=37');
+test('zooming in keeps the same all-sky images everywhere (full-resolution layer is off)', async ({ page }) => {
+  await page.goto('/?ra=269.44627&dec=4.7682&fov=0.3&band=37&color=grey');
   await ready(page);
-  await expect(page.locator('#status')).toContainText('Full-resolution SPHEREx', { timeout: 200_000 });
-  // zooming back out removes it
-  await page.evaluate(() => meridian.run('set_projection', { proj: 'AIT' }));
-  await expect(page.locator('#status')).not.toContainText('Full-resolution SPHEREx ·', { timeout: 10_000 });
+  await page.waitForTimeout(2000);
+  await expect(page.locator('#status')).not.toContainText('Full-resolution');
+  expect(await page.evaluate(() => meridian.commands.list().some((c) => c.name === 'toggle_native'))).toBe(false);
 });
 
 test('three view types: globe, planetarium and whole sky', async ({ page }) => {

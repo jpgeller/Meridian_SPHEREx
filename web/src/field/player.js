@@ -344,11 +344,8 @@ export function createPlayer(stage, { store, commands }) {
 
   function videoView(s) {
     const model = videoModel(s);
-    if (vid.model !== model) {
-      // a new model (WISE or the motion catalogue just arrived): start again from its first image
-      vid.model = model;
-      vid.mjd = null;
-    }
+    // a new model (WISE or the motion catalogue just arrived) keeps the current date if it can
+    vid.model = model;
     if (vid.mjd == null || vid.mjd < model.t0 || vid.mjd > model.t1) vid.mjd = model.t0;
     if (!vid.out || vid.out.length !== model.w * model.h) vid.out = new Float32Array(model.w * model.h);
     const data = renderAt(model, vid.mjd, vid.out);
@@ -444,6 +441,13 @@ export function createPlayer(stage, { store, commands }) {
     const dt = vid.last ? Math.min(0.1, (now - vid.last) / 1000) : 0;
     vid.last = now;
     const model = videoModel(st);
+    if ((local.trailWise && wise.loading) || movers.loading) {
+      // wait on the first image until WISE 2010–2024 and the motion catalogue are in
+      vid.mjd = null;
+      show(st);
+      vid.raf = requestAnimationFrame(videoTick);
+      return;
+    }
     if (vid.hold > 0) {
       vid.hold -= dt;
     } else {
@@ -677,6 +681,7 @@ export function createPlayer(stage, { store, commands }) {
     getSequence: () => seq,
     getStretch: () => stretch,
     getShownFrame: () => shownFrame,
+    getVideoModel: () => vid.model ?? null, // tests and debugging
     onShow: (fn) => showListeners.push(fn),
     elements: {
       view: stage.querySelector('.player-view'),

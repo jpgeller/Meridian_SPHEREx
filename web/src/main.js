@@ -41,6 +41,7 @@ export const field = createFieldView(document.querySelector('#field-root'), {
   getWavelengths: () => sky.wavelengths,
 });
 const player = createPlayer(field.stage, { store, commands });
+window.meridian.player = player; // debugging and tests
 createContext(player, { store, commands });
 createSpectrum(player, { store, commands });
 store.subscribe(() => renderStatus());
