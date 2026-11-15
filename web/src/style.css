@@ -36,7 +36,10 @@
   --control-h: 40px; /* everything else */
   --focus-ring: 3px solid var(--accent);
   /* layout */
-  --edge: 12px;
+  --edge: 12px; /* gap between panels */
+  /* Eye tracking: nothing clickable within 6% of the screen's edges (gaze is least accurate there). */
+  --edge-x: calc(6vw + 4px);
+  --edge-y: calc(6vh + 4px);
   --left-top: 116px; /* below Aladin's own top-left buttons (frame, layers, grid) */
   --left-w: 264px;
   --tools-top: 148px; /* the top-right corner above this is the guide pop-up's (U4) */
@@ -46,6 +49,12 @@
   --dock-w: 820px;
   --dock-h: 132px; /* approximate height, so the tools column and hand-off button stay above it */
   --logo-clear: 112px; /* bottom-right corner: Aladin logo (licence) */
+}
+
+/* `hidden` always wins: a class with display: flex/grid must not show an element marked hidden
+   (this showed the change-video options in every mode). */
+[hidden] {
+  display: none !important;
 }
 
 html,
@@ -81,10 +90,10 @@ body {
   z-index: 20;
 }
 .shell-top {
-  top: var(--edge);
+  top: var(--edge-y);
   /* right of Aladin's top-left readout, left of the guide card's top-right spot (never under it) */
-  right: calc(var(--popup-w) + 2 * var(--edge) + var(--space-3));
-  width: min(620px, calc(100vw - var(--popup-w) - 3 * var(--edge) - var(--space-3) - var(--aladin-tl)));
+  right: calc(var(--popup-w) + var(--edge-x) + var(--edge) + var(--space-3));
+  width: min(620px, calc(100vw - var(--popup-w) - var(--edge-x) - 2 * var(--edge) - var(--space-3) - var(--aladin-tl)));
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -111,20 +120,20 @@ body {
   min-width: 0;
 }
 .shell-left {
-  top: var(--left-top);
-  left: var(--edge);
+  top: max(var(--left-top), var(--edge-y));
+  left: var(--edge-x);
   width: var(--left-w);
-  max-height: calc(100vh - var(--left-top) - 72px);
+  max-height: calc(100vh - max(var(--left-top), var(--edge-y)) - var(--edge-y));
   overflow: auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 .shell-tools {
-  top: var(--tools-top);
-  right: var(--edge);
+  top: max(var(--tools-top), var(--edge-y));
+  right: var(--edge-x);
   width: var(--tools-w);
-  max-height: calc(100vh - var(--tools-top) - var(--dock-h) - 3 * var(--edge));
+  max-height: calc(100vh - max(var(--tools-top), var(--edge-y)) - var(--dock-h) - var(--edge-y) - 2 * var(--edge));
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -151,9 +160,9 @@ body {
   display: none;
 }
 .shell-dock {
-  bottom: var(--edge);
-  left: calc(2 * var(--edge) + var(--left-w));
-  right: var(--logo-clear);
+  bottom: var(--edge-y);
+  left: calc(var(--edge-x) + var(--edge) + var(--left-w));
+  right: max(var(--logo-clear), var(--edge-x));
   max-width: var(--dock-w);
   margin: 0 auto;
   padding: var(--space-2) var(--space-3) var(--space-3);
@@ -407,7 +416,7 @@ kbd {
   position: absolute;
   z-index: 20;
   left: 50%;
-  bottom: calc(var(--dock-h) + 2 * var(--edge));
+  bottom: calc(var(--dock-h) + var(--edge-y) + var(--edge));
   transform: translateX(-50%);
   min-height: var(--target); /* large target */
   padding: 10px 18px;
@@ -427,7 +436,7 @@ kbd {
 .field {
   position: absolute;
   z-index: 30;
-  inset: 12px 12px 48px 12px;
+  inset: var(--edge-y) var(--edge-x);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -998,9 +1007,9 @@ body.field-open .handoff {
 .guide-popup {
   position: fixed;
   z-index: 50; /* above the guide overlay (40) */
-  top: var(--edge);
-  right: var(--edge);
-  width: min(var(--popup-w), calc(100vw - 2 * var(--edge)));
+  top: var(--edge-y);
+  right: var(--edge-x);
+  width: min(var(--popup-w), calc(100vw - 2 * var(--edge-x)));
   box-sizing: border-box;
   padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
   border: 1px solid var(--accent);

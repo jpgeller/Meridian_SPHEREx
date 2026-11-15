@@ -1,6 +1,7 @@
 // App entry: core (state, commands, URL, inputs) -> sky -> controls -> status.
 import './style.css';
 import { store, commands, run, startCore, setSkyCoords } from './core/index.js';
+import { formatSexagesimal } from './core/coords.js';
 import { createSky } from './sky/sky.js';
 import { createControls } from './ui/controls.js';
 import { createHandoff } from './sky/handoff.js';
@@ -26,7 +27,9 @@ function renderStatus(msg) {
   const s = store.get();
   const loading = sky && !sky.ready ? ' · loading sky…' : '';
   const api = apiOk === false ? ' · API not reachable' : '';
-  statusEl.textContent = `${message || `SPHEREx DR1 · ${s.view} view`}${loading}${api}`;
+  // the view centre (Aladin's own coordinate box is off: it sat in the screen corner)
+  const where = s.view === 'sky' ? ` · ${formatSexagesimal(s.ra, s.dec)} · ${s.fov >= 10 ? Math.round(s.fov) : s.fov.toFixed(2)}° wide` : '';
+  statusEl.textContent = `${message || `SPHEREx DR1 · ${s.view} view`}${where}${loading}${api}`;
 }
 
 // Report command failures (e.g. unknown names) in the status line for everyone,

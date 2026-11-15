@@ -57,3 +57,14 @@ function rotate(m, [lon, lat], transpose) {
 export const icrsToGalactic = (radec) => rotate(ICRS_TO_GAL, radec, false);
 /** [l, b] (galactic degrees) -> [ra, dec] (ICRS degrees) */
 export const galacticToIcrs = (lb) => rotate(ICRS_TO_GAL, lb, true);
+
+/** RA/Dec degrees -> '17h57m47.1s +04°46′06″' */
+export function formatSexagesimal(ra, dec) {
+  const h = ra / 15;
+  const hh = Math.floor(h), mm = Math.floor((h - hh) * 60), ss = ((h - hh) * 60 - mm) * 60;
+  const sign = dec < 0 ? '−' : '+';
+  const d = Math.abs(dec);
+  const dd = Math.floor(d), dm = Math.floor((d - dd) * 60), ds = ((d - dd) * 60 - dm) * 60;
+  const p = (n, w = 2) => String(n).padStart(w, '0');
+  return `${p(hh)}h${p(mm)}m${ss.toFixed(1).padStart(4, '0')}s ${sign}${p(dd)}°${p(dm)}′${ds.toFixed(0).padStart(2, '0')}″`;
+}

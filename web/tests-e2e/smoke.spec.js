@@ -452,9 +452,14 @@ test('guide pop-up: an offer is first in the Tab order, Esc dismisses it, the sa
   await expect(page.locator('[role="status"][aria-live="polite"]').filter({ hasText: 'Guide:' })).toHaveText('Guide: Want help identifying this?');
   expect(await page.evaluate(() => [guide.popup.isOpen(), guide.popup.kind()])).toEqual([true, 'offer']);
   // top right, above the overlay
-  const b = await card.boundingBox();
-  expect(b.x + b.width).toBeGreaterThan(1200);
-  expect(b.y).toBeLessThan(40);
+  let b = await card.boundingBox();
+  // top right, 6% clear of the screen edges (eye tracking): 1280 x 800 -> about 81 px and 52 px
+  await expect.poll(async () => (await card.boundingBox()).y).toBeGreaterThanOrEqual(800 * 0.06); // after the slide-in
+  b = await card.boundingBox();
+  expect(b.x + b.width).toBeGreaterThan(1280 * 0.94 - 8);
+  expect(b.x + b.width).toBeLessThanOrEqual(1280 * 0.94);
+  expect(b.y).toBeGreaterThanOrEqual(800 * 0.06);
+  expect(b.y).toBeLessThan(800 * 0.06 + 20);
   expect(await card.evaluate((el) => +getComputedStyle(el).zIndex)).toBeGreaterThanOrEqual(50);
   // Tab from the page reaches Yes, then No thanks (real buttons)
   await page.keyboard.press('Tab');
@@ -523,7 +528,7 @@ test('guide pop-up: Yes opens a step, answers resolve say(), a step over its tar
   await expect.poll(() => page.evaluate(() => guide.popup.spot())).toBe('top-left');
   await expect(card.locator('.gp-text')).toHaveText(long);
   // after the slide: clear of the target and the search bar, same height (nothing cut)
-  await expect.poll(async () => (await card.boundingBox()).x).toBeLessThan(20);
+  await expect.poll(async () => (await card.boundingBox()).x).toBeLessThan(1280 * 0.06 + 8); // left, 6% clear of the edge
   const moved = await card.boundingBox();
   const under = await page.locator('[data-guide="test-under-card"]').boundingBox();
   expect(moved.x + moved.width).toBeLessThan(under.x);
@@ -814,3 +819,45 @@ test('side by side with Gaia: a picture drawn from the catalogue, clearly labell
   await expect(page.locator('#gaia-canvas')).toBeHidden();
   expect(errors()).toEqual([]);
 });
+
+// Eye tracking is least accurate near the screen edges: nothing clickable within 6% of them.
+// (Aladin's logo link is exempt: its licence asks for it in the corner.)
+async function controlsNearEdges(page) {
+  return page.evaluate(() => {
+    const W = innerWidth;
+    const H = innerHeight;
+    return [...document.querySelectorAll('button, input, select, textarea, a[href], [role="button"], [role="radio"], [role="slider"]')]
+      .filter((e) => e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && !e.closest('.aladin-logo, .aladin-logo-container'))
+      .map((e) => {
+        // only the part you can see: clip by scrolling panels
+        let r = e.getBoundingClientRect();
+        let box = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+        for (let a = e.parentElement; a; a = a.parentElement) {
+          if (getComputedStyle(a).overflow === 'visible') continue;
+          const c = a.getBoundingClientRect();
+          box = { left: Math.max(box.left, c.left), top: Math.max(box.top, c.top), right: Math.min(box.right, c.right), bottom: Math.min(box.bottom, c.bottom) };
+        }
+        return { e, r: { ...box, width: box.right - box.left, height: box.bottom - box.top } };
+      })
+      .filter(({ r }) => r.width > 0 && r.height > 0)
+      .filter(({ r }) => r.left < W * 0.06 - 0.5 || r.top < H * 0.06 - 0.5 || r.right > W * 0.94 + 0.5 || r.bottom > H * 0.94 + 0.5)
+      .map(({ e, r }) => `${(e.getAttribute('aria-label') || e.textContent || e.id || e.className || e.tagName).trim().slice(0, 30)} @ ${Math.round(r.left)},${Math.round(r.top)}`);
+  });
+}
+
+for (const [w, h] of [[1280, 800], [1920, 1080]]) {
+  test(`eye tracking: no control within 6% of the screen edges (${w}x${h})`, async ({ page }) => {
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto('/');
+    await ready(page);
+    expect(await controlsNearEdges(page), 'sky view').toEqual([]);
+    await page.goto('/?ra=269.44627&dec=4.7682&fov=0.5&band=92&view=field&ffov=0.1&mode=detector');
+    await ready(page);
+    await expect(page.locator('.epoch').first()).toBeVisible({ timeout: 60_000 });
+    for (const op of ['none', 'blink', 'add', 'subtract', 'trail', 'video']) {
+      await page.evaluate((op) => meridian.run('set_op', { op }), op);
+      await page.waitForTimeout(300);
+      expect(await controlsNearEdges(page), `field view, ${op}`).toEqual([]);
+    }
+  });
+}

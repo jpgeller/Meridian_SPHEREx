@@ -64,6 +64,10 @@ export function createControls(root, { store, commands, getWavelengths }) {
           <button type="button" data-proj="STG" title="As if standing inside the sky: shapes stay the same as they move">Planetarium</button>
           <button type="button" data-proj="AIT">Whole sky</button>
         </div>
+        <div class="row wrap" role="group" aria-label="Zoom">
+          <button type="button" data-cmd="zoom_out">Zoom out <kbd>−</kbd></button>
+          <button type="button" data-cmd="zoom_in">Zoom in <kbd>+</kbd></button>
+        </div>
       </section>
 
       <section class="card" data-guide="colour-views">

@@ -3,18 +3,9 @@
 // compare modes (7), band tools (8), context (9) and spectra (10) render into #field-stage.
 import { FIELD_FOVS } from '../core/state.js';
 import { detectorOf } from '../core/bands.js';
+import { formatSexagesimal } from '../core/coords.js';
 
 const fmt = (v, d) => Number(v).toFixed(d);
-
-function sexagesimal(ra, dec) {
-  const h = ra / 15;
-  const hh = Math.floor(h), mm = Math.floor((h - hh) * 60), ss = ((h - hh) * 60 - mm) * 60;
-  const sign = dec < 0 ? '−' : '+';
-  const d = Math.abs(dec);
-  const dd = Math.floor(d), dm = Math.floor((d - dd) * 60), ds = ((d - dd) * 60 - dm) * 60;
-  const p = (n, w = 2) => String(n).padStart(w, '0');
-  return `${p(hh)}h${p(mm)}m${ss.toFixed(1).padStart(4, '0')}s ${sign}${p(dd)}°${p(dm)}′${ds.toFixed(0).padStart(2, '0')}″`;
-}
 
 export function createFieldView(root, { store, commands, getWavelengths = () => null }) {
   root.innerHTML = `
@@ -90,7 +81,7 @@ export function createFieldView(root, { store, commands, getWavelengths = () => 
     panel.hidden = !open;
     document.body.classList.toggle('field-open', open);
     root.querySelector('#field-pos').textContent =
-      `${sexagesimal(state.ra, state.dec)}  ·  RA ${fmt(state.ra, 4)}°, Dec ${fmt(state.dec, 4)}°  ·  ${state.ffov * 60}′ wide`;
+      `${formatSexagesimal(state.ra, state.dec)}  ·  RA ${fmt(state.ra, 4)}°, Dec ${fmt(state.dec, 4)}°  ·  ${state.ffov * 60}′ wide`;
     root.querySelectorAll('[data-ffov]').forEach((b) =>
       b.setAttribute('aria-checked', String(Number(b.dataset.ffov) === state.ffov)),
     );

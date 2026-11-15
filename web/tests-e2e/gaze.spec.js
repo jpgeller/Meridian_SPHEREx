@@ -101,7 +101,13 @@ test('mode B: a replay of recorded-like samples drives the dwell ring and the co
   await page.evaluate(() => guide.attention.configure({ ringDelayMs: 300, dwellMs: 3000 }));
   const ring = page.locator('#guide-attention');
   await page.evaluate((data) => {
-    window.__replay = meridian.gaze.replay(data);
+    // The recording fixates D6 at about (1071, 715) in the layout it was made for; layouts move
+    // (e.g. the 6% edge margin), so shift it onto D6 wherever it is now.
+    const r = document.querySelector('[data-guide="band-d6"]').getBoundingClientRect();
+    const dx = r.left + r.width / 2 - 1071;
+    const dy = r.top + r.height / 2 - 715;
+    const samples = data.samples.map((p) => (p.x == null ? p : { ...p, x: p.x + dx, y: p.y + dy }));
+    window.__replay = meridian.gaze.replay({ ...data, samples });
   }, SAMPLES);
   await expect(ring).toHaveClass(/is-on/, { timeout: 4000 });
   await expect(ring).toHaveAttribute('data-target', 'band-d6');
@@ -157,7 +163,7 @@ test('mode C: a glance does nothing, a 0.8 s look opens the time-lapse, and the 
   expect(errors()).toEqual([]);
 });
 
-test('mode C: sky edges pan (panels do not), a colour button presses and still asks about colours, the rest zone pauses and resumes, dwell time is a command', async ({ page }) => {
+test('mode C: sky edges pan (panels stay 6% clear of them), a colour button presses and still asks about colours, the rest zone pauses and resumes, dwell time is a command', async ({ page }) => {
   const errors = collectErrors(page);
   await setup(page, '/?ra=100&dec=0&fov=10&input=gaze');
   const pos = () => page.evaluate(() => [meridian.store.get().ra, meridian.store.get().dec]);
@@ -166,8 +172,10 @@ test('mode C: sky edges pan (panels do not), a colour button presses and still a
   await page.evaluate(() => __gaze(1265, 700, 2000)); // right edge, over the sky
   const after = await pos();
   expect(after[0]).toBeLessThan(before[0]); // pan right = towards smaller RA
-  await page.evaluate(() => __gaze(20, 300, 2000)); // left edge, but over the places panel
-  expect(await pos()).toEqual(after);
+  // panels are 6% clear of the screen edges, so the edge band is always sky: the left edge pans left
+  await page.evaluate(() => __gaze(20, 300, 2000));
+  const afterLeft = await pos();
+  expect(afterLeft[0]).toBeGreaterThan(after[0]); // pan left = towards larger RA
   // a colour control is a button: pressed at 0.8 s, and the guide's dwell keeps counting -> colours offer
   await page.evaluate(() => guide.attention.configure({ ringDelayMs: 300, dwellMs: 2500 }));
   await page.evaluate(() => __gaze(...__centre('[data-guide="band-d6"]'), 3200));
@@ -179,7 +187,7 @@ test('mode C: sky edges pan (panels do not), a colour button presses and still a
   await expect(page.locator('.gaze-rest')).toContainText('Paused');
   await page.evaluate(() => __gaze(...__centre('[data-preset="r_dra"]'), 1500));
   await page.waitForTimeout(800);
-  expect(await pos()).toEqual(after); // nothing pressed while paused
+  expect(await pos()).toEqual(afterLeft); // nothing pressed while paused
   await page.evaluate(async () => {
     await __gaze(640, 400, 200);
     await __gaze(30, 790, 1300);

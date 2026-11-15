@@ -93,21 +93,24 @@ export function spotRects({ viewport, size, field = false, layout = {} }) {
   const { w, h } = size;
   const L = { edge: 12, leftTop: 116, leftW: 264, toolsW: 284, ...layout };
   const e = L.edge;
-  const dockTop = L.dockTop ?? vh - e - 132;
-  const dockLeft = L.dockLeft ?? 2 * e + L.leftW;
+  // distance from the screen edges (6% for eye tracking; `edge` when not given)
+  const ex = L.edgeX ?? e;
+  const ey = L.edgeY ?? e;
+  const dockTop = L.dockTop ?? vh - ey - 132;
+  const dockLeft = L.dockLeft ?? ex + e + L.leftW;
   const dockRight = L.dockRight ?? vw - 112;
-  const clampX = (x) => Math.max(e, Math.min(vw - e - w, x));
-  const clampY = (y) => Math.max(e, Math.min(vh - e - h, y));
+  const clampX = (x) => Math.max(ex, Math.min(vw - ex - w, x));
+  const clampY = (y) => Math.max(ey, Math.min(vh - ey - h, y));
   const at = (id, x, y) => ({ id, rect: { x: clampX(x), y: clampY(y), w, h } });
   if (field) {
     const mid = (vh - h) / 2;
-    return [at('top-right', vw - 28 - w, 72), at('right', vw - 28 - w, mid), at('left', 28, mid)];
+    return [at('top-right', vw - ex - 16 - w, ey + 60), at('right', vw - ex - 16 - w, mid), at('left', ex + 16, mid)];
   }
   const aboveDock = dockTop - e - h;
   return [
-    at('top-right', vw - e - w, e),
-    at('top-left', e, L.leftTop),
-    at('bottom-right', Math.min(dockRight, vw - 2 * e - L.toolsW) - w, aboveDock),
+    at('top-right', vw - ex - w, ey),
+    at('top-left', ex, Math.max(L.leftTop, ey)),
+    at('bottom-right', Math.min(dockRight, vw - ex - e - L.toolsW) - w, aboveDock),
     at('bottom-left', dockLeft, aboveDock),
   ];
 }
@@ -279,10 +282,11 @@ export function createPopup({ doc = document, resolve = () => null, getCentre = 
     const cs = win.getComputedStyle(doc.documentElement);
     const v = (name, d) => parseFloat(cs.getPropertyValue(name)) || d;
     const edge = v('--edge', 12);
-    const out = { edge, leftTop: v('--left-top', 116), leftW: v('--left-w', 264), toolsW: v('--tools-w', 284) };
+    // --edge-x/-y are calc(6vw/6vh + 4px): compute them here (parseFloat cannot)
+    const out = { edge, edgeX: 0.06 * vw + 4, edgeY: 0.06 * vh + 4, leftTop: v('--left-top', 116), leftW: v('--left-w', 264), toolsW: v('--tools-w', 284) };
     const dock = doc.querySelector('[data-region="dock"]')?.getBoundingClientRect();
     if (dock?.width > 0) Object.assign(out, { dockTop: dock.top, dockLeft: dock.left, dockRight: dock.right });
-    else Object.assign(out, { dockTop: vh - edge - v('--dock-h', 132), dockRight: vw - v('--logo-clear', 112) });
+    else Object.assign(out, { dockTop: vh - out.edgeY - v('--dock-h', 132), dockRight: vw - v('--logo-clear', 112) });
     return out;
   }
 

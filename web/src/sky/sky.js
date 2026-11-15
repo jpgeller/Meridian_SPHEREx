@@ -28,10 +28,16 @@ export async function createSky(container, { store, commands, onStatus = () => {
     fov: s0.fov,
     target: `${s0.ra} ${s0.dec}`,
     showReticle: true,
+    // Aladin's own buttons sit in the screen corners, where eye tracking is least accurate:
+    // everything they do is in our panels (zoom, view type), as commands.
     showFullscreenControl: false,
-    showCooGridControl: true,
+    showCooGridControl: false,
     showProjectionControl: false, // projection goes through our command (state + URL)
-    showFrame: true,
+    showFrame: false,
+    showLayersControl: false,
+    showZoomControl: false,
+    showSettingsControl: false,
+    showCooLocation: false, // its copy button and text box sat in the corner; the status line shows the centre
   });
 
   const sky = { aladin, wavelengths: null, layer: null, ready: false };

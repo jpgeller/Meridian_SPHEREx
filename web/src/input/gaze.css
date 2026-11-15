@@ -144,8 +144,8 @@ button.input-mode[data-mode='gaze'] {
 /* field view: the shell hides, so the button floats in the time-lapse header, left of "Back to sky" */
 button.input-mode.is-floating {
   position: fixed;
-  top: 16px;
-  right: 172px;
+  top: calc(var(--edge-y) + 4px); /* inside the time-lapse header, 6% clear of the screen edges */
+  right: calc(var(--edge-x) + 160px);
   width: auto;
   min-width: 190px;
   z-index: 35;
