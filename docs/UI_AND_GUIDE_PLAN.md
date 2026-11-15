@@ -84,7 +84,7 @@ Setup: the system `python3` here is 3.9 (too old). Use `uv venv --python 3.12 .v
 
 ---
 
-## Step U1 — Shell and visual design  `[ ]`  P1
+## Step U1 — Shell and visual design  `[x]`  P1
 **Files:** `web/src/ui/controls.js` (restyle), `web/src/ui/shell.js` (new), `web/src/style.css`
 
 Today `controls.js` is one temporary panel ("the final UI design is merged later"). Replace its layout, not its logic.
@@ -101,6 +101,15 @@ Today `controls.js` is one temporary panel ("the final UI design is merged later
 - The time player (`field/player.js`) is an overlay of the field view. Restyle it; do not move its logic.
 
 **Done when:** the app looks like the wireframe, `npm run test:e2e` still passes (Tab reaches every control), and nothing in `core/`, `sky/`, `field/` changed except CSS class names.
+
+Progress (Nov 14): there was no wireframe. Chosen layout: search on top (centred, clear of Aladin's top-left widgets), left = `#face-slot`
+(hidden until U8) + presets in a 2-column grid of 64 px buttons, bottom dock = six real detector buttons (`set_band` to the
+middle channel, 17 ticks each, current channel marked, wavelength range per detector) + the slider, **right column = "Sky tools"**
+(view type, colours, brightness), collapsible through the new command `toggle_tools`. Look: the existing navy + amber, refined;
+all tokens on `:root` in `style.css` (`--target: 64px`, `--left-top`, `--tools-top`, `--dock-h`…). Regions in `ui/shell.js`;
+`#controls` is still the shell root (e2e waits for it, field view hides it). `data-guide` ids for U2 already set: `search`, `presets`,
+`band-ribbon`, `band-d1`…`band-d6`, `colour-views`, `face-panel`. Field view and player: tokens + hover only, no logic moved.
+At 1280×800 the tools column scrolls (brightness is below the fold); at 1440×900 everything fits. `test:e2e` 13/13 (new: shell test).
 
 ---
 

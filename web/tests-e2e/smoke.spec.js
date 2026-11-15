@@ -96,6 +96,35 @@ test('main controls are reachable with the keyboard', async ({ page }) => {
   }
 });
 
+test('shell: Tab reaches every control, detector buttons set the band, tools fold away', async ({ page }) => {
+  await page.goto('/?band=40');
+  await ready(page);
+  const want = await page.evaluate(() =>
+    [...document.querySelectorAll('#controls button, #controls input')]
+      .filter((el) => el.offsetParent && !el.disabled)
+      .map((el, i) => (el.dataset.tabId = String(i))),
+  );
+  const seen = new Set();
+  for (let i = 0; i < 80 && seen.size < want.length; i++) {
+    await page.keyboard.press('Tab');
+    const id = await page.evaluate(() => document.activeElement.dataset.tabId);
+    if (id) seen.add(id);
+  }
+  expect([...seen].sort()).toEqual([...want].sort());
+  // every dock and preset target is gaze-sized
+  const small = await page.evaluate(() =>
+    [...document.querySelectorAll('#controls .det, #controls [data-preset]')].filter((el) => el.offsetHeight < 64).length,
+  );
+  expect(small).toBe(0);
+  await page.getByRole('button', { name: /Detector D6/ }).click();
+  await expect(page).toHaveURL(/band=93/);
+  await expect(page.locator('[data-detector="6"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Sky tools' }).click();
+  await expect(page.getByRole('button', { name: 'Planetarium' })).toBeHidden();
+  await page.evaluate(() => meridian.run('toggle_tools'));
+  await expect(page.getByRole('button', { name: 'Planetarium' })).toBeVisible();
+});
+
 test('a cached field opens its time-lapse', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto('/?ra=133.7578&dec=-7.242&fov=0.5&band=92&view=field&ffov=0.1&mode=detector');
