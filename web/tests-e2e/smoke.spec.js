@@ -1014,3 +1014,30 @@ test('not in Gaia: WISE 0855 in D6 is a candidate at the target; the same patch 
   await page.evaluate(() => meridian.run('set_detector', { detector: 1 }));
   await expect(caption).toContainText('Every source here has a Gaia star', { timeout: 60_000 });
 });
+
+test('mouse mode: a yellow "!" on each button explains it on hover; none in the eye-control modes', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/?fov=60');
+  await ready(page);
+  const zoomIn = page.locator('[data-cmd="zoom_in"]');
+  await expect(zoomIn).toBeVisible();
+  // the badge sits on the button's top-right corner
+  await expect.poll(() => page.locator('.hint-badge').count()).toBeGreaterThan(20);
+  const zb = await zoomIn.boundingBox();
+  const hit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.className, { x: zb.x + zb.width - 4, y: zb.y + 1 });
+  expect(hit).toBe('hint-badge');
+  // hovering it shows what the button does; it is not a control (a click does not zoom)
+  const fov = await page.evaluate(() => meridian.store.get().fov);
+  await page.mouse.move(zb.x + zb.width - 4, zb.y + 1);
+  await expect(page.locator('.hint-bubble')).toHaveText(/Zoom in on the centre/);
+  await page.mouse.click(zb.x + zb.width - 4, zb.y + 1);
+  expect(await page.evaluate(() => meridian.store.get().fov)).toBe(fov);
+  await page.mouse.move(640, 400);
+  await expect(page.locator('.hint-bubble')).toBeHidden();
+  // full gaze control and guide-only: no badges
+  await page.evaluate(() => meridian.run('set_input_mode', { mode: 'gaze' }));
+  await expect(page.locator('#hints')).toBeHidden();
+  await expect(page.locator('.hint-badge')).toHaveCount(0);
+  await page.evaluate(() => meridian.run('set_input_mode', { mode: 'mouse' }));
+  await expect.poll(() => page.locator('.hint-badge').count()).toBeGreaterThan(20);
+});

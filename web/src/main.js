@@ -13,6 +13,7 @@ import { createSpectrum } from './field/spectrum.js';
 import { createGuide } from './guide/index.js';
 import { startGaze } from './input/gaze.js';
 import { createInputModeButton } from './ui/inputModeButton.js';
+import { createHints } from './ui/hints.js';
 import { startGazeSocket } from './input/gazeSocket.js';
 
 const statusEl = document.querySelector('#status');
@@ -61,6 +62,8 @@ window.guide = createGuide({ store, commands, sky, player, spectrum, gaze: gazeP
 // Eye tracking (U9): gaze messages -> the face panel's dot, the guide (mode B) and dwell-to-press (mode C).
 window.meridian.gaze = startGaze({ store, commands, guide: window.guide, mouseParam: gazeParam !== 'off', face: () => window.meridian.face });
 createInputModeButton({ store, commands });
+// mouse mode (A): a yellow "!" on each button; hovering it explains what the button does
+window.meridian.hints = createHints({ store });
 // ?gaze_ws=8765: a native eye tracker on this machine streams gaze over a WebSocket (docs/EYE_TRACKING.md)
 window.meridian.gazeSocket = startGazeSocket(new URLSearchParams(window.location.search).get('gaze_ws'), {
   getInput: () => store.get().input,
