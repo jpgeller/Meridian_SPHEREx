@@ -296,7 +296,7 @@ const TICK_MS = 100;
  * @param {Object} o.store
  * @param {Object} [o.sky]   { ready }
  * @param {Object} [o.player] { isLoading() }
- * @param {boolean} [o.mouse]  feed the mouse position as gaze (?gaze=mouse)
+ * @param {boolean} [o.mouse]  feed the mouse position as gaze (?gaze=mouse); setMouse() changes it later
  */
 export function startAttention({ guide, startGuide, store, sky, player, mouse = false, doc = document, win = window }) {
   let dragging = false;
@@ -373,23 +373,26 @@ export function startAttention({ guide, startGuide, store, sky, player, mouse = 
   win.addEventListener('pointerdown', () => (dragging = true), true);
   for (const ev of ['pointerup', 'pointercancel', 'blur']) win.addEventListener(ev, () => (dragging = false), true);
 
+  // The mouse source (?gaze=mouse) can be switched off and on: the input mode (U9) turns it off
+  // while gaze feeds the guide, so two sources never fight over one dwell.
   let pos = null;
-  if (mouse) {
-    win.addEventListener('pointermove', (e) => {
-      if (e.pointerType === 'touch') return;
-      pos = { x: e.clientX, y: e.clientY };
-      dragging = e.buttons !== 0;
-      attention.feed(pos);
-    });
-    // the mouse left the window
-    doc.addEventListener('mouseout', (e) => {
-      if (e.relatedTarget) return;
-      pos = null;
-      attention.lose();
-    });
-  }
+  let mouseOn = Boolean(mouse);
+  let gazeOn = false; // only a label: gaze samples come through feed()
+  win.addEventListener('pointermove', (e) => {
+    if (e.pointerType === 'touch') return;
+    pos = { x: e.clientX, y: e.clientY };
+    if (!mouseOn) return;
+    dragging = e.buttons !== 0;
+    attention.feed(pos);
+  });
+  // the mouse left the window
+  doc.addEventListener('mouseout', (e) => {
+    if (e.relatedTarget) return;
+    pos = null;
+    if (mouseOn) attention.lose();
+  });
   // the sky moves under a still mouse, and the dwell clock runs on: re-check ~10 times a second
-  setInterval(() => (mouse && pos ? attention.feed(pos) : attention.tick()), TICK_MS);
+  setInterval(() => (mouseOn && pos ? attention.feed(pos) : attention.tick()), TICK_MS);
 
   return {
     feed: attention.feed, // U9: gaze samples { x, y, t, confidence }
@@ -397,7 +400,17 @@ export function startAttention({ guide, startGuide, store, sky, player, mouse = 
     configure: attention.configure,
     snapshot: attention.snapshot,
     reset: attention.reset,
-    source: mouse ? 'mouse' : 'none',
+    /** 'mouse' (?gaze=mouse in mode A), 'gaze' (modes B and C) or 'none' */
+    get source() {
+      return mouseOn ? 'mouse' : gazeOn ? 'gaze' : 'none';
+    },
+    setMouse(on) {
+      if (mouseOn && !on) attention.lose();
+      mouseOn = Boolean(on);
+    },
+    setGaze(on) {
+      gazeOn = Boolean(on);
+    },
     element: layer,
   };
 }

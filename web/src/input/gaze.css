@@ -1,0 +1,155 @@
+/* Gaze feedback (UI plan U9): dot, press bar, rest zone, simulator note. Never takes clicks. */
+.gaze-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60; /* above the guide pop-up (50), so the dot and bar show over its buttons */
+}
+.gaze-dot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 181, 71, 0.85);
+  background: rgba(255, 181, 71, 0.15);
+  will-change: transform;
+}
+.gaze-bar {
+  position: absolute;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(233, 238, 251, 0.25);
+  overflow: hidden;
+}
+.gaze-bar-fill {
+  height: 100%;
+  background: var(--accent);
+}
+/* matches gazeCore DEFAULTS.rest: bottom-left, 160 x 40 (Aladin's zoom buttons; the logo is bottom-right) */
+.gaze-rest {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 160px;
+  height: 40px;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-top-right-radius: var(--radius);
+  border: 1px dashed var(--border-strong);
+  background: var(--surface-solid);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.gaze-rest strong {
+  color: var(--text);
+  font-size: 13px;
+}
+.gaze-rest.paused {
+  border: 2px solid var(--accent);
+  color: var(--accent);
+}
+.gaze-rest[hidden],
+.gaze-dot[hidden],
+.gaze-bar[hidden],
+.gaze-sim[hidden] {
+  display: none;
+}
+.gaze-sim {
+  position: absolute;
+  top: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--surface-solid);
+  color: var(--accent);
+  font-size: 12px;
+}
+.gaze-pressed {
+  outline: 3px solid var(--accent) !important;
+}
+
+/* --- the eye-control button (ui/inputModeButton.js): left column, or floating in the field view --- */
+button.input-mode {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--target);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+button.input-mode:hover {
+  background: var(--control-hover);
+}
+button.input-mode:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+button.input-mode .im-eye {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  font-weight: 700;
+}
+button.input-mode .im-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+button.input-mode .im-k,
+button.input-mode .im-v {
+  white-space: nowrap;
+}
+button.input-mode .im-k {
+  font-size: var(--fs-s);
+  color: var(--muted);
+}
+button.input-mode .im-v {
+  font-weight: 600;
+}
+button.input-mode .im-next {
+  margin-left: auto;
+  font-size: var(--fs-s);
+  color: var(--muted);
+}
+button.input-mode[data-mode='assist'] .im-eye,
+button.input-mode[data-mode='gaze'] .im-eye {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+button.input-mode[data-mode='gaze'] {
+  border-color: var(--accent);
+}
+/* field view: the shell hides, so the button floats in the time-lapse header, left of "Back to sky" */
+button.input-mode.is-floating {
+  position: fixed;
+  top: 16px;
+  right: 172px;
+  width: auto;
+  min-width: 190px;
+  z-index: 35;
+}
+button.input-mode.is-floating .im-next {
+  display: none;
+}

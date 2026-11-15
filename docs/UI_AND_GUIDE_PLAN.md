@@ -382,7 +382,7 @@ bridge; fixture `tests-e2e/fixtures/face-sample.json`. `npm test` 109/109 (12 ne
 
 ---
 
-## Step U9 — Eye-tracker contract and input modes  `[ ]`  P0
+## Step U9 — Eye-tracker contract and input modes  `[x]`  P0
 **Files:** `web/src/core/messages.js` (add two message types), `web/src/input/` (restore from commit `89f89ae` for mode C), `docs/EYE_TRACKING.md` (update)
 
 New `postMessage` types, same origin allow-list as `command`:
@@ -399,6 +399,38 @@ Two different dwell times, on purpose: **0.8 s presses a button**, **7 s over th
 Keep the rest zone away from the bottom-right corner (Aladin logo).
 
 **Done when:** the real tracker (or a replay file of samples) drives the dwell ring in mode B; switching to C lets a person open the field view and answer the guide with eyes only; mode A still works with no tracker.
+
+Progress (Nov 14): `web/src/input/` restored from `89f89ae` and extended: `gazeCore.js` (pure, dwell-to-press), `gaze.js` (DOM
+adapter), new `inputMode.js` (pure mode table), `targets.js` (pure `targets` reply + throttle), `gaze.css`; `ui/inputModeButton.js`.
+**Bridge:** `{type:'gaze', x, y, t?, confidence?}` (viewport px, origin allow-list of `command`) → window event `meridian:gaze`
+`{x, y, t, confidence, reply, source}`; non-numeric x/y dropped, missing confidence = 1. Timing uses the page's clock on arrival (the
+tracker's `t` is informational). **Reply:** `{type:'targets', items:[{id, x, y, w, h, kind, label?}]}` to the window that sent the
+latest sample, when the list changes, at most 4/s: `kind:'button'` = pressable buttons (shown, enabled, not covered, e.g. by the
+card; id = `data-guide`, else `preset:` / `cmd:` / `detector:` / `proj:` / `color:`, else per-element `t<n>`), then `kind:'target'` =
+`registry.list()` (points as a box of radius r). **Setting:** `state.input` = `mouse` (A, default) | `assist` (B) | `gaze` (C), URL
+`?input=` (hook in its own commit). **A:** gaze only moves the face panel's dot (`meridian.face.setGaze`, every mode); no presses, no
+guide; the guide's dwell follows the mouse with `?gaze=mouse` as before; offers auto-hide. **B:** gaze → `guide.attention.feed`,
+never presses, `popup.setAutoHide(false)`, a gaze dot. **C:** B plus `gazeCore`: 0.8 s press (bar under the button; adjustable
+400–1500 ms), 24 px snap, 120 ms smoothing, edge panning only over `#sky` and never while the card is open or a script runs (people
+look at what the guide points at). **Rest zone moved to the bottom-left** (160 × 40, over Aladin's zoom buttons, labelled "Rest"):
+top-right is the card's, bottom-right the logo's, top-left has the time-lapse size buttons; paused = no presses and no guide gaze.
+Pressable: `#ui`, `#handoff`, `#field-root` buttons, the card's answers, the eye-control button, `[data-gaze]`. **Colours in C:** the
+detector buttons press at 0.8 s (idempotent `set_band`, repeats every ~1.8 s) and attention keeps counting, so 7 s still offers
+colours (plain buttons: press only). **New guard in gazeCore:** a *different* button appearing in the spot just pressed ("Yes" →
+"Got it") waits until the gaze leaves it, so staring never runs through the guide's steps (the card's answers get per-element ids
+for this). `guide.attention` gains `setMouse(on)` / `setGaze(on)` and a live `source` (`mouse` | `gaze` | `none`): the mouse source is
+off in B/C so two sources never share one dwell. **Switch:** the eye-control button (64 px, top of the left column above the face
+panel; floats left of "Back to sky" in the time-lapse) cycles A → B → C → A (from C one look turns eye control off); key `G`;
+commands `set_input_mode {mode}` (names or A/B/C), `cycle_input_mode`, plus restored `set_dwell`, `dwell_longer/shorter`,
+`toggle_gaze_pause`, `toggle_gaze_sim`. New command meta **`personOnly`**: the runner drops these and `client.js` does not offer them
+to Claude (the guide can never change how the person controls the app). **Replay:** `meridian.gaze.replay(data)` (samples or
+`{viewport, samples}`, scaled to the window; also `.stop()`, `.targets()`, `.core`), fixture `web/tests-e2e/fixtures/gaze-sample.json`
+(synthetic 30 Hz: sky, saccade, 6 s on D6 with noise and a blink). docs/EYE_TRACKING.md: message, reply, modes, switching, replay.
+`npm test` 127/127 (18 new: 9 restored gazeCore + chain guard, targets/throttle, bridge, modes, store/URL, personOnly), `test:e2e`
+34/34 (4 new in `gaze.spec.js`: A with no tracker + throttled targets + button/key cycle; B fixture replay → ring on `band-d6` →
+colours offer, no press, no auto-hide; C glance vs 0.8 s press opens the cached WISE 0855 time-lapse, field-target dwell → offer →
+Yes → (mocked `/api/guide`) step → Got it by eyes only, chain guard, button turns eye control off; C edge pan vs panel, D6 press +
+colours offer, rest zone pause/resume, `set_dwell`).
 
 ---
 

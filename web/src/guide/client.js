@@ -99,7 +99,7 @@ export function gatherFacts({ state = {}, target = null, player = null, spectrum
   return facts;
 }
 
-/** The POST body. `commands` = commands.list() (stubs are left out), `ids` = registry ids in the page. */
+/** The POST body. `commands` = commands.list() (stubs and personOnly commands are left out), `ids` = registry ids in the page. */
 export function buildRequest({ trigger, target, state = {}, facts = {}, commands = [], ids = [] }) {
   const s = {};
   for (const k of STATE_KEYS) if (state[k] !== undefined) s[k] = state[k];
@@ -108,7 +108,7 @@ export function buildRequest({ trigger, target, state = {}, facts = {}, commands
     target: describeTarget(target),
     state: s,
     facts,
-    commands: commands.filter((c) => c && !c.stub).map((c) => c.name),
+    commands: commands.filter((c) => c && !c.stub && !c.personOnly).map((c) => c.name),
     ids: [...new Set(ids.filter((i) => typeof i === 'string'))].slice(0, 200),
   };
 }

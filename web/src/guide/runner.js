@@ -12,7 +12,7 @@
 //        else calls guide.say over our card). Nothing valid to show -> 'empty'.
 //   isRunning()  stop()
 //
-// Whitelist: an action's command must be in commands.list() (and not a stub); its args must be
+// Whitelist: an action's command must be in commands.list() (and not a stub, nor personOnly); its args must be
 // named in that command's own arg spec, and every value that maps to a state field must survive
 // the store's sanitize() (the same validation every command's state change goes through).
 // Anything else is dropped with a console log. A step keeps its text even if all its actions are
@@ -77,6 +77,7 @@ export function validateAction(action, { commands, sanitize, state }) {
   const spec = typeof name === 'string' ? commands.find((c) => c.name === name) : null;
   if (!spec) return { ok: false, reason: `command not on the whitelist: ${name}` };
   if (spec.stub) return { ok: false, reason: `command not implemented yet: ${name}` };
+  if (spec.personOnly) return { ok: false, reason: `only the person can run ${name}` }; // e.g. the eye-control mode (U9)
   const args = action.args ?? {};
   if (!isObj(args)) return { ok: false, reason: `${name}: args must be an object` };
   const allowed = Object.keys(spec.args ?? {});

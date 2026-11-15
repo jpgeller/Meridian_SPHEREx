@@ -9,9 +9,11 @@ import { createPlayer } from './field/player.js';
 import { createContext } from './field/context.js';
 import { createSpectrum } from './field/spectrum.js';
 import { createGuide } from './guide/index.js';
+import { startGaze } from './input/gaze.js';
+import { createInputModeButton } from './ui/inputModeButton.js';
 
 const statusEl = document.querySelector('#status');
-// ?gaze=mouse: the guide's attention follows the mouse (UI plan U6/U9). Read before the URL sync rewrites the URL.
+// ?gaze=mouse: the guide's attention follows the mouse in input mode A (UI plan U6/U9). Read before the URL sync rewrites the URL.
 const gazeParam = new URLSearchParams(window.location.search).get('gaze');
 const { name: urlName } = startCore();
 
@@ -47,6 +49,9 @@ const player = createPlayer(field.stage, { store, commands });
 createContext(player, { store, commands });
 const spectrum = createSpectrum(player, { store, commands });
 window.guide = createGuide({ store, commands, sky, player, spectrum, gaze: gazeParam }); // UI plan: registry (U2), overlay, pop-up, runner, attention…
+// Eye tracking (U9): gaze messages -> the face panel's dot, the guide (mode B) and dwell-to-press (mode C).
+window.meridian.gaze = startGaze({ store, commands, guide: window.guide, mouseParam: gazeParam === 'mouse', face: () => window.meridian.face });
+createInputModeButton({ store, commands });
 store.subscribe(() => renderStatus());
 
 if (urlName) run('fly_to', { target: urlName, fov: store.get().fov < 5 ? store.get().fov : undefined }, 'url');
