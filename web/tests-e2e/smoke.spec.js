@@ -269,3 +269,22 @@ test('overlays: world2pix / pix2world in every view, in the page and through the
   await page.mouse.up();
   await expect.poll(() => page.evaluate(() => meridian.store.get().dec)).toBeGreaterThan(-45); // was -57.9 (wrong frame)
 });
+
+test('side by side with Gaia: a picture drawn from the catalogue, clearly labelled', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?ra=269.44627&dec=4.7682&fov=0.5&band=92&view=field&ffov=0.1&mode=detector');
+  await ready(page);
+  await expect(page.locator('.epoch')).toHaveCount(5, { timeout: 60_000 });
+  await page.getByRole('radio', { name: 'Side by side with Gaia' }).click();
+  await expect(page).toHaveURL(/compare=gaia/);
+  const label = page.locator('#wise-label');
+  await expect(label).toContainText('drawn from the catalogue, not a photograph', { timeout: 60_000 });
+  await expect(label).toContainText(/\d+ stars at .*2025/);
+  await expect(page.locator('#gaia-canvas')).toBeVisible();
+  await expect(page.locator('#wise-img')).toBeHidden();
+  expect(Number(await page.locator('#gaia-canvas').getAttribute('data-drawn'))).toBeGreaterThan(100);
+  await page.getByRole('radio', { name: 'Side by side with WISE' }).click();
+  await expect(page.locator('#wise-img')).toBeVisible();
+  await expect(page.locator('#gaia-canvas')).toBeHidden();
+  expect(errors()).toEqual([]);
+});

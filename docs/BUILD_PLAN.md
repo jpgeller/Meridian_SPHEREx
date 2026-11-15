@@ -448,6 +448,18 @@ in `player.js`; command `toggle_trail` (key `r`, URL `op=trail`). Background: `d
   motion catalogue have loaded, and no longer jumps back to 2010 when they arrive.
 - Images: `docs/img/video_wise0855_frames.png`, `docs/img/video_barnard_frames.png`.
 
+## Step 17 — Side by side with Gaia  `[x]`
+**Files:** `web/src/field/gaiaPicture.js` (pure, `tests/gaiaPicture.test.js`), compare mode `gaia` in `context.js`
+(`set_compare {compare: 'gaia'}`, URL `compare=gaia`).
+- Gaia publishes no images: it measures stars. The picture is **drawn from the Gaia DR3 catalogue** on WISE's 2.75″ grid of the
+  same patch: each star at its position on the date of the SPHEREx image on screen (proper motion from 2016.0), as a soft dot
+  with its G brightness (asinh stretch: G≈20 just visible, G≈10 near white) and a colour from BP − RP (hot blue-white,
+  cool orange-red). Brighter stars get wider dots, like a photograph's halo.
+- The label says so every time: "Gaia DR3 · drawn from the catalogue, not a photograph · visible light 0.33–1.05 µm · N stars at
+  <date>"; the API keeps the 3,000 brightest stars per field, noted when the cap is hit.
+- Teaching point: WISE 0855 does not appear (too cold for Gaia's visible light); Barnard's Star sits on the target ring.
+- Image: `docs/img/gaia_side_barnard.png`.
+
 ## Optional (final version): repair the black blotches in the all-sky map  `[ ]`
 IRSA's all-sky tiles mask pixels in the bright, crowded Galactic centre (black blotches); SPHEREx has hundreds of images there
 and the full-resolution layer below 1.5° shows them. A fix: proxy the tiles of that region through the API and fill masked

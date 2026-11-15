@@ -365,6 +365,7 @@ body.field-open .handoff {
 .canvas-wrap[hidden] {
   display: none;
 }
+#gaia-canvas,
 #wise-img {
   width: 100%;
   height: 100%;
@@ -586,4 +587,11 @@ body.field-open .handoff {
   stroke-width: 1.5;
   stroke-dasharray: 3 2;
   vector-effect: non-scaling-stroke;
+}
+#gaia-canvas[hidden],
+#wise-img[hidden] {
+  display: none;
+}
+#gaia-canvas {
+  image-rendering: auto; /* drawn stars, not detector pixels */
 }

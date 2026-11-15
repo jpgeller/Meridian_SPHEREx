@@ -126,7 +126,7 @@ export function registerDefaultCommands(commands, store) {
   });
   register('set_compare', ({ compare }) => set({ compare }), {
     label: 'Compare mode',
-    args: { compare: 'off | side | timeline | blink' },
+    args: { compare: 'off | side (WISE) | timeline | blink | gaia (picture drawn from the Gaia catalogue)' },
   });
   register('set_epochs', ({ t }) => set({ t }), { label: 'Choose dates to compare', args: { t: 'frame indexes' } });
   register('toggle_epoch', ({ index }) => {
