@@ -12,8 +12,15 @@ export function normaliseFrame(data, { lo = 50, hi = 99.5 } = {}) {
   if (vals.length < 3) return out;
   vals.sort((a, b) => a - b);
   const pick = (p) => vals[Math.min(vals.length - 1, Math.round((p / 100) * (vals.length - 1)))];
-  const bg = pick(lo);
-  const top = Math.max(pick(hi), bg + 1e-12);
+  let bg = pick(lo);
+  let top = pick(hi);
+  // A frame mostly at one value (glare filling a WISE image) has no range between its median and its
+  // top: scaling by it turned the whole frame black. Use its full range instead.
+  if (!(top - bg > 1e-6 * Math.max(1, Math.abs(top)))) {
+    bg = vals[0];
+    top = vals[vals.length - 1];
+  }
+  top = Math.max(top, bg + 1e-12);
   for (let i = 0; i < data.length; i++) {
     const v = data[i];
     // saturated cores count as fully bright; missing data counts as background

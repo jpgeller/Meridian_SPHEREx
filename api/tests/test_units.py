@@ -154,3 +154,22 @@ def test_gaia_vizier_parser(monkeypatch):
     assert rows[0]["source_id"] == "4472832130942575872"
     assert abs(rows[0]["pmdec"] - 10362.394) < 1e-6 and abs(rows[0]["g_mag"] - 8.193974) < 1e-6
     assert rows[1]["pmra"] is None and rows[1]["bp_rp"] is None
+
+
+def test_movers_one_catalogue_answering_with_none_is_not_a_failure(monkeypatch):
+    """15 Nov 2026: Gaia answered with no fast stars while CatWISE was down, and the API said 503."""
+    import movers
+
+    monkeypatch.setattr(movers, "_gaia_cone", lambda *a: [])
+
+    def down(*a):
+        raise RuntimeError("CatWISE unavailable (HTTPStatusError)")
+
+    monkeypatch.setattr(movers, "_catwise_cone", down)
+    got = movers.field_movers(127.42493, -6.3222, 0.1)
+    assert got["movers"] == [] and "CatWISE" in got["notes"][0]
+    monkeypatch.setattr(movers, "_gaia_cone", down)
+    import pytest
+
+    with pytest.raises(RuntimeError):
+        movers.field_movers(127.42493, -6.3222, 0.1)

@@ -68,7 +68,6 @@ export function createPlayer(stage, { store, commands }) {
       <div class="player-bar video-options" role="group" aria-label="Change video options">
         <span class="row wrap" id="video-marks-wrap" hidden>
           <button type="button" role="switch" aria-checked="true" id="video-marks-on">Mark moving objects</button>
-          <button type="button" role="switch" aria-checked="true" id="video-steady">Steady background</button>
           <button type="button" role="switch" aria-checked="false" id="video-hold">Pause on real images</button>
         </span>
         <span id="trail-wise-wrap" hidden><button type="button" role="switch" aria-checked="true" id="trail-wise">Include WISE 2010–2024</button></span>
@@ -99,7 +98,7 @@ export function createPlayer(stage, { store, commands }) {
   const ring = stage.querySelector('.target-ring');
   const epochsEl = $('#epochs');
 
-  const local = { speed: 2, perVisit: false, colormap: 'grey', trailWise: true, videoMarks: true, videoSteady: true, videoHold: false };
+  const local = { speed: 2, perVisit: false, colormap: 'grey', trailWise: true, videoMarks: true, videoHold: false };
   let seq = []; // the images of the current sequence (aligned frames)
   let stretch = null; // grey: one stretch; colour: three (one per channel)
   let kind = 'grey';
@@ -164,10 +163,6 @@ export function createPlayer(stage, { store, commands }) {
       e.currentTarget.textContent = label(next);
       fn(next);
     });
-  onSwitch('#video-steady', (on) => {
-    local.videoSteady = on;
-    show(store.get());
-  });
   onSwitch('#video-hold', (on) => {
     local.videoHold = on;
     vid.hold = 0;
@@ -385,7 +380,9 @@ export function createPlayer(stage, { store, commands }) {
     vid.model = model;
     if (vid.mjd == null || vid.mjd < model.t0 || vid.mjd > model.t1) vid.mjd = model.t0;
     if (!vid.out || vid.out.length !== model.w * model.h) vid.out = new Float32Array(model.w * model.h);
-    const data = renderAt(model, vid.mjd, vid.out, { steady: local.videoSteady });
+    // (A "Steady background" option, a still average background with only the movers changing, was removed
+    // on 16 Nov 2026: in patches without a fast mover it froze the whole video.)
+    const data = renderAt(model, vid.mjd, vid.out);
     const { k, u } = bracket(model.mjds, vid.mjd);
     const real = u === 0 ? model.frames[k] : null;
     const frame = {
@@ -409,14 +406,10 @@ export function createPlayer(stage, { store, commands }) {
     let when;
     const waiting = !store.get().playing && vid.mjd === model.t0;
     const prompt = waiting ? 'Press Play (Space) to start the video. ' : '';
-    if (local.videoSteady) when = `~${monthYear(vid.mjd)}${real ? `, moving objects from the real ${missionOf(real)} image of this date` : `, ${between}`}`;
-    else if (real) when = `Real image ${k + 1} of ${f.length}: ${missionOf(real)} · ${fmtDate(real.meta.date_iso ?? mjdToIso(real.meta.mjd))}`;
+    if (real) when = `Real image ${k + 1} of ${f.length}: ${missionOf(real)} · ${fmtDate(real.meta.date_iso ?? mjdToIso(real.meta.mjd))}`;
     else when = `Model frame ~${monthYear(vid.mjd)}, ${between}`;
-    const how = local.videoSteady
-      ? `Steady background: everything that doesn't move is the average of all ${f.length} images, so it stays still; ` +
-        "only the moving objects change, each shown with its own real image from the nearest dates, slid along its motion. " +
-        'Turn it off to see each real image as it is (stars then shimmer: every image has its own noise, sharpness and scaling).'
-      : "In-between frames are a model: everything cross-fades, and each moving object's own image slides along its " +
+    const how =
+      "In-between frames are a model: everything cross-fades, and each moving object's own image slides along its " +
         'straight-line motion. Each image is scaled on its own, and WISE (2.75″ pixels) is sharper than SPHEREx (6.15″), so stars shimmer between images.';
     const t = model.tracks;
     const moving = t.length
@@ -431,6 +424,10 @@ export function createPlayer(stage, { store, commands }) {
     let wiseNote = '';
     if (local.trailWise && !model.nWise) {
       wiseNote = wise.loading ? ' Loading WISE 2010–2024…' : wise.error ? ` WISE not available here (${wise.error}).` : '';
+    }
+    const glare = local.trailWise ? (wise.frames?.saturated ?? 0) : 0;
+    if (glare) {
+      wiseNote += ` ${glare} WISE image${glare > 1 ? 's' : ''} left out: a bright star's glare fills ${glare > 1 ? 'them' : 'it'} at this field size (try a wider field).`;
     }
     return (
       `${prompt}${when}. ${moving} ${how}${wiseNote}`
@@ -477,7 +474,7 @@ export function createPlayer(stage, { store, commands }) {
     $('#video-from').textContent = String(year(model.t0));
     $('#video-to').textContent = String(year(model.t1));
     const badge = $('#video-badge');
-    const isReal = Boolean(real) && !local.videoSteady; // with a steady background no frame is a whole real image
+    const isReal = Boolean(real);
     badge.textContent = isReal ? `REAL · ${missionOf(real)} · ${monthYear(real.meta.mjd)}` : `MODEL · ${monthYear(vid.mjd)}`;
     badge.classList.toggle('real', isReal);
   }
@@ -523,7 +520,9 @@ export function createPlayer(stage, { store, commands }) {
       if (waited < VIDEO_WAIT_MS) {
         vid.mjd = null;
         show(st);
-        setProgress(`Getting the change video ready: ${waitingFor.join(' and ')}…`, waited / VIDEO_WAIT_MS);
+        // a busy bar, not a fill: the wait ends when the data arrive, which can be any moment
+        const left = Math.ceil((VIDEO_WAIT_MS - waited) / 1000);
+        setProgress(`Getting the change video ready: ${waitingFor.join(' and ')}… (starts in ${left} s at most)`, null);
         vid.raf = requestAnimationFrame(vid.tick);
         return;
       }

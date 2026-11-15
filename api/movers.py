@@ -91,8 +91,11 @@ def field_movers(ra: float, dec: float, fov: float) -> dict:
     radius = fov * 0.75 + 0.06  # fast movers may have been outside the field in 2010
     found: list[dict] = []
     notes = []
+    answered = 0  # catalogues that answered (an answer with no fast movers is still an answer)
     try:
-        for g in _gaia_cone(round(ra, 4), round(dec, 4), round(radius, 4)):
+        gaia = _gaia_cone(round(ra, 4), round(dec, 4), round(radius, 4))
+        answered += 1
+        for g in gaia:
             if g["pmra"] is None or g["pmdec"] is None or math.hypot(g["pmra"], g["pmdec"]) < MIN_PM_MAS:
                 continue
             ra2, dec2 = _move(g["ra"], g["dec"], g["pmra"], g["pmdec"], GAIA_EPOCH_MJD, EPOCH_MJD)
@@ -101,7 +104,9 @@ def field_movers(ra: float, dec: float, fov: float) -> dict:
     except Exception as err:  # one catalogue down should not hide the other
         notes.append(f"Gaia unavailable: {err}")
     try:
-        for c in _catwise_cone(round(ra, 4), round(dec, 4), round(min(radius, CATWISE_MAX_RADIUS), 4)):
+        cat = _catwise_cone(round(ra, 4), round(dec, 4), round(min(radius, CATWISE_MAX_RADIUS), 4))
+        answered += 1
+        for c in cat:
             pmra, pmdec = c["pmra"] * 1000, c["pmdec"] * 1000
             pm = math.hypot(pmra, pmdec)
             err = 1000 * math.hypot(c["sigpmra"], c["sigpmdec"]) / math.sqrt(2)
@@ -112,7 +117,7 @@ def field_movers(ra: float, dec: float, fov: float) -> dict:
                           "pmra": pmra, "pmdec": pmdec, "pm_err_mas": err, "mag": c["w2mpro_pm"], "band": "W2"})
     except Exception as err:
         notes.append(f"CatWISE unavailable: {err}")
-    if notes and not found:
+    if not answered:  # 15 Nov 2026: Gaia answered with no movers while CatWISE was down, and this said 503
         raise RuntimeError("; ".join(notes))
     movers = merge_movers(found)
     return {"ra": ra, "dec": dec, "fov": fov, "epoch_mjd": EPOCH_MJD, "min_pm_mas": MIN_PM_MAS,

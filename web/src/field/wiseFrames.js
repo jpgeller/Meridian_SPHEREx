@@ -19,10 +19,22 @@ async function pngToFrame(url, meta) {
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) out[(h - 1 - y) * w + x] = data[(y * w + x) * 4];
   }
-  return { id: `wise:${meta.index}`, data: out, w, h, meta: { ...meta, mission: 'WISE' } };
+  return { id: `wise:${meta.index}`, data: out, w, h, meta: { ...meta, mission: 'WISE', saturatedFraction: saturatedFraction(out) } };
 }
 
-/** All WISE epochs of the field as frames, oldest first. Throws if WISE is unavailable. */
+// WiseView's PNGs use one fixed brightness scale, so a bright star can turn most of a small field
+// white (255): RA 127.42°, Dec −6.32° at 6′, 15 Nov 2026. Such a frame shows only glare.
+export const WISE_SATURATED_MAX = 0.4;
+export function saturatedFraction(data) {
+  let n = 0;
+  for (const v of data) if (v >= 254.5) n++;
+  return data.length ? n / data.length : 0;
+}
+
+/**
+ * All WISE epochs of the field as frames, oldest first (frames.saturated = how many were left out because
+ * glare fills them, see WISE_SATURATED_MAX). Throws if WISE is unavailable.
+ */
 export function loadWiseFrames(ra, dec, fov) {
   const key = `${ra.toFixed(5)},${dec.toFixed(5)}|${fov}`;
   if (!cache.has(key)) {
@@ -31,8 +43,10 @@ export function loadWiseFrames(ra, dec, fov) {
       const r = await fetch(`/api/context/wise?${q}`);
       if (!r.ok) throw new Error(`WISE images unavailable (${r.status})`);
       const info = await r.json();
-      const frames = await Promise.all(info.frames.map((f) => pngToFrame(f.url, f)));
-      return frames.sort((a, b) => a.meta.mjd - b.meta.mjd);
+      const all = await Promise.all(info.frames.map((f) => pngToFrame(f.url, f)));
+      const frames = all.filter((f) => f.meta.saturatedFraction <= WISE_SATURATED_MAX).sort((a, b) => a.meta.mjd - b.meta.mjd);
+      frames.saturated = all.length - frames.length;
+      return frames;
     })();
     p.catch(() => cache.delete(key));
     cache.set(key, p);
