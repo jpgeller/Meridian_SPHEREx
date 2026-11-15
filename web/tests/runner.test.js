@@ -427,3 +427,32 @@ test('B3: a closing card after custom answers shows no marks from the last step'
   await t.answer('got_it');
   assert.equal(await done, 'done');
 });
+
+test('B2: answering the last step while its actions still run ends the script at once and stops them', async () => {
+  for (const [script, id, outcome] of [
+    [{ steps: [{ say: 'Slow', actions: [{ wait: 'frames' }, { cmd: 'set_band', args: { band: 93 } }] }], end: { answers: ['got_it', 'again'] } }, 'got_it', 'done'],
+    [{ steps: [{ say: 'Slow', actions: [{ wait: 'frames' }, { cmd: 'set_band', args: { band: 93 } }] }], end: { answers: ['got_it', 'again'] } }, 'again', 'again'],
+    [[{ say: 'Slow', actions: [{ wait: 'frames' }, { cmd: 'set_band', args: { band: 93 } }] }], 'got_it', 'done'],
+  ]) {
+    const ran = [];
+    let answerFn;
+    const runner = createRunner({
+      say: () => new Promise((res) => (answerFn = res)),
+      overlay: { pointAt() {}, circle() {}, highlight() {}, trail() {}, clear() {} },
+      run: (name) => (ran.push(name), {}),
+      list: createCommandsList(),
+      sanitize,
+      getState: () => createStore().get(),
+      log: () => {},
+      waitFor: () => new Promise(() => {}), // the frames never arrive
+    });
+    const done = runner.runScript(script);
+    await tick();
+    answerFn(id);
+    const r = await Promise.race([done, new Promise((res) => setTimeout(() => res('timeout'), 200))]);
+    assert.equal(r, outcome, `${id}: resolves at once`);
+    assert.equal(runner.isRunning(), false);
+    await tick();
+    assert.deepEqual(ran, [], 'no action after the answer');
+  }
+});

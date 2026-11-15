@@ -372,6 +372,9 @@ export function createRunner({
           answer.then((id) => {
             if (id === 'close' || id === 'dismissed' || id === 'stop') me.end('closed');
             else if (id === 'replaced') me.end('replaced');
+            // the last step's choice (end-card answer, or "Got it" with no end) ends the tour at once,
+            // so its still-running actions stop driving the app
+            else if (merged || waitsForGotIt) me.end(id === 'got_it' ? 'done' : id);
           });
           await runActions(step.actions, alive);
           if (!alive()) return;
