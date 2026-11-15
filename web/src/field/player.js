@@ -13,6 +13,7 @@ import { resampleToGrid } from './trail.js';
 import { buildModel, renderAt, bracket } from './changeModel.js';
 import { loadWiseFrames, WISE_PIXEL_ARCSEC } from './wiseFrames.js';
 import { groupByVisit } from './sequence.js';
+import { showOf } from '../core/state.js';
 
 const SPEEDS = [1, 2, 4, 6, 10]; // frames per second
 const BLINK_HZ = 2;
@@ -44,10 +45,14 @@ export function createPlayer(stage, { store, commands }) {
       <div class="video-line" id="video-line" data-guide="video-line" hidden aria-hidden="true">
         <span id="video-from"></span><div class="video-track" id="video-track"><div class="video-head" id="video-head"></div></div><span id="video-to"></span>
       </div>
-      <div class="player-bar" role="group" aria-label="Compare dates">
-        <button type="button" data-op="none">Time-lapse <kbd>t</kbd></button>
-        <button type="button" data-op="blink">Blink <kbd>b</kbd></button>
-        <button type="button" data-op="video">Change video <kbd>v</kbd></button>
+      <div class="player-bar" role="radiogroup" aria-label="What to show" data-guide="show-modes">
+        <button type="button" role="radio" data-show="timelapse">Time-lapse <kbd>t</kbd></button>
+        <button type="button" role="radio" data-show="video">Change video <kbd>v</kbd></button>
+        <button type="button" role="radio" data-show="blink">Blink two dates <kbd>b</kbd></button>
+        <button type="button" role="radio" data-show="wise">Side by side with WISE <kbd>w</kbd></button>
+        <button type="button" role="radio" data-show="gaia">Side by side with Gaia</button>
+      </div>
+      <div class="player-bar video-options" role="group" aria-label="Change video options">
         <span class="row wrap" id="video-marks-wrap" hidden>
           <label class="inline"><input type="checkbox" id="video-marks-on" checked /> Mark moving objects</label>
           <label class="inline"><input type="checkbox" id="video-steady" checked /> Steady background</label>
@@ -104,8 +109,8 @@ export function createPlayer(stage, { store, commands }) {
   $('#p-prev').addEventListener('click', () => commands.run('step_prev', {}, 'ui'));
   $('#p-next').addEventListener('click', () => commands.run('step_next', {}, 'ui'));
   $('#p-play').addEventListener('click', () => commands.run('toggle_play', {}, 'ui'));
-  stage.querySelectorAll('[data-op]').forEach((b) =>
-    b.addEventListener('click', () => commands.run('set_op', { op: b.dataset.op }, 'ui')),
+  stage.querySelectorAll('[data-show]').forEach((b) =>
+    b.addEventListener('click', () => commands.run('set_show', { show: b.dataset.show }, 'ui')),
   );
   scrub.addEventListener('input', () => {
     const st = store.get();
@@ -530,10 +535,14 @@ export function createPlayer(stage, { store, commands }) {
     const timelapse = s.op === 'none' || s.op === 'video'; // the video plays, pauses and steps too
     for (const id of ['#p-prev', '#p-play', '#p-next']) $(id).disabled = !many || !timelapse;
     scrub.disabled = !many || !timelapse;
-    stage.querySelectorAll('[data-op]').forEach((b) => {
-      b.setAttribute('aria-pressed', String(b.dataset.op === s.op));
-      b.disabled = (b.dataset.op !== 'none' && !many) || (b.dataset.op === 'video' && kind === 'rgb');
+    const chosen = showOf(s);
+    stage.querySelectorAll('[data-show]').forEach((b) => {
+      b.setAttribute('aria-checked', String(b.dataset.show === chosen));
+      b.disabled = (['video', 'blink'].includes(b.dataset.show) && !many) || (b.dataset.show === 'video' && kind === 'rgb');
     });
+    // the options row only has content in the video (its options) or blink (its hint)
+    $('.video-options').hidden = !['video', 'blink'].includes(s.op);
+    epochsEl.hidden = s.op === 'video'; // the video has its own time line; the date buttons are for time-lapse and blink
     $('#trail-wise-wrap').hidden = s.op !== 'video';
     $('#video-marks-wrap').hidden = s.op !== 'video';
     $('#p-visit').disabled = s.mode !== 'single'; // other modes are already one per visit

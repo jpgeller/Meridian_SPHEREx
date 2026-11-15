@@ -617,7 +617,7 @@ body.field-open .handoff {
 .field .epoch.current {
   box-shadow: inset 0 -3px 0 var(--text);
 }
-.field button[data-op][aria-pressed='true'] {
+.field button[data-show][aria-checked='true'] {
   border-color: var(--accent);
   color: var(--accent);
 }

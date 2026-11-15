@@ -491,6 +491,10 @@ Decided with the team on 16 Nov 2026.
 - **Readable coordinates in the URL**: `?ra=17h57m47.105s&dec=4d46m05.52s` (no '+': URLs turn it into a space). 1 ms of RA
   and 0.01″ of Dec keep the exact 5-decimal degrees the API caches by (unit test: 20,000 random round trips). Plain degrees
   in old links still work.
+- **One list of what to show** (replaces the two rows of modes, which combined in odd ways): Time-lapse `t`, Change video `v`,
+  Blink two dates `b`, Side by side with WISE `w`, Side by side with Gaia. One choice at a time (`set_show`; `SHOWS` and
+  `showOf` in `core/state.js`; `set_op` / `set_compare` now reset each other). The timeline and WISE-blink modes have no
+  button (the change video covers them) but still open from links and `set_compare`. The video hides the date buttons.
 - Gaia is not on the "Timeline 2010→2026": the timeline steps through real images (WISE, SPHEREx); Gaia has none. The drawn
   Gaia picture is in "Side by side with Gaia".
 

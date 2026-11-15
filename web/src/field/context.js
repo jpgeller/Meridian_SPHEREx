@@ -38,17 +38,9 @@ export function createContext(player, { store, commands }) {
   const { view: viewEl, canvasWrap, canvas, bar } = player.elements;
 
   // --- DOM ---------------------------------------------------------------------------
-  bar.insertAdjacentHTML(
-    'beforeend',
-    `<span class="sep" aria-hidden="true"></span>
-     <div role="radiogroup" aria-label="Other missions" class="row wrap" id="ctx-modes">
-       <button type="button" role="radio" data-compare="off">SPHEREx only</button>
-       <button type="button" role="radio" data-compare="side">Side by side with WISE</button>
-       <button type="button" role="radio" data-compare="timeline">Timeline 2010→2026</button>
-       <button type="button" role="radio" data-compare="blink">Blink WISE / SPHEREx</button>
-       <button type="button" role="radio" data-compare="gaia">Side by side with Gaia</button>
-     </div>`,
-  );
+  // The WISE / Gaia buttons are in the player's single "What to show" list. The timeline and the
+  // WISE-blink modes have no button any more (the change video covers them) but still work from
+  // links and commands (set_compare).
   const side = document.createElement('div');
   side.className = 'canvas-wrap ctx-wrap';
   side.hidden = true;
@@ -206,7 +198,6 @@ export function createContext(player, { store, commands }) {
       gaiaCanvas.hidden = true;
     }
     timeline.hidden = s.compare !== 'timeline';
-    document.querySelectorAll('[data-compare]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.compare === s.compare)));
 
     const seq = player.getSequence();
     const shown = player.getShownFrame();
@@ -267,9 +258,6 @@ export function createContext(player, { store, commands }) {
   }
 
   // --- controls -> commands --------------------------------------------------------
-  document.querySelectorAll('[data-compare]').forEach((b) =>
-    b.addEventListener('click', () => commands.run('set_compare', { compare: b.dataset.compare }, 'ui')),
-  );
   scrubEl.addEventListener('input', () => {
     tlIndex = Number(scrubEl.value);
     render();

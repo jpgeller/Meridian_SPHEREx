@@ -10,6 +10,19 @@ export const MODES = ['single', 'detector', 'rgb', 'custom'];
 export const COMPARES = ['off', 'side', 'timeline', 'blink', 'gaia'];
 // Operations on SPHEREx frames of different dates (field view)
 export const OPS = ['none', 'blink', 'video']; // Add, Difference, Motion trail removed 16 Nov 2026
+// The 2D view's one list of what to show (one choice at a time). Each sets op + compare.
+export const SHOWS = {
+  timelapse: { op: 'none', compare: 'off' },
+  video: { op: 'video', compare: 'off' },
+  blink: { op: 'blink', compare: 'off' },
+  wise: { op: 'none', compare: 'side' },
+  gaia: { op: 'none', compare: 'gaia' },
+};
+/** Which entry of SHOWS the state is in, or null (e.g. the older timeline / WISE-blink modes from a link). */
+export function showOf(s) {
+  for (const [name, v] of Object.entries(SHOWS)) if (v.op === s.op && v.compare === s.compare) return name;
+  return null;
+}
 export const LAYERS = ['gaia', 'wise', 'flags', 'simbad'];
 // Colour views of the full map: one band in grey or tinted, or a false-colour mix of three bands
 export const COLORS = ['grey', 'tint', 'ir', 'dust', 'ice', 'custom'];

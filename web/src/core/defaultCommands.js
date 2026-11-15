@@ -3,7 +3,7 @@
 // with a richer implementation (e.g. fly_to with name lookup).
 import { stepBand, middleBand } from './bands.js';
 import { parseCoordinates } from './coords.js';
-import { snapFieldFov, FIELD_FOVS } from './state.js';
+import { snapFieldFov, FIELD_FOVS, SHOWS } from './state.js';
 
 const PAN_FRACTION = 1 / 8; // pan by 1/8 of the field of view
 const ZOOM_FACTOR = 1.5;
@@ -130,7 +130,8 @@ export function registerDefaultCommands(commands, store) {
     label: 'Previous frame',
     keys: [','],
   });
-  register('set_compare', ({ compare }) => set({ compare }), {
+  // other missions and date operations are one choice at a time (the 2D view's single list)
+  register('set_compare', ({ compare }) => set(compare === 'off' ? { compare } : { compare, op: 'none' }), {
     label: 'Compare mode',
     args: { compare: 'off | side (WISE) | timeline | blink | gaia (picture drawn from the Gaia catalogue)' },
   });
@@ -140,14 +141,22 @@ export function registerDefaultCommands(commands, store) {
     t.has(index) ? t.delete(index) : t.add(index);
     set({ t: [...t].sort((a, b) => a - b) });
   }, { label: 'Select / unselect a date', args: { index: 'frame index' } });
-  const opCommand = (op) => () => set({ op: s().op === op ? 'none' : op, playing: false });
-  register('set_op', ({ op }) => set({ op, playing: false }), {
+  const opCommand = (op) => () => set({ op: s().op === op ? 'none' : op, compare: 'off', playing: false });
+  register('set_op', ({ op }) => set({ op, compare: 'off', playing: false }), {
     label: 'Compare dates',
     args: { op: 'none (time-lapse) | blink | video (change video)' },
   });
   register('toggle_blink', opCommand('blink'), { label: 'Blink two dates', keys: ['b'] });
   register('toggle_video', opCommand('video'), { label: 'Change video (real images + model in between)', keys: ['v'] });
-  register('show_timelapse', () => set({ op: 'none' }), { label: 'Back to time-lapse', keys: ['t'] });
+  register('show_timelapse', () => set({ op: 'none', compare: 'off' }), { label: 'Back to time-lapse', keys: ['t'] });
+  register('set_show', ({ show }) => {
+    if (!SHOWS[show]) throw new Error(`show must be one of: ${Object.keys(SHOWS).join(', ')}`);
+    set({ ...SHOWS[show], playing: false });
+  }, { label: 'What the 2D view shows', args: { show: Object.keys(SHOWS).join(' | ') } });
+  register('toggle_wise', () => set(s().compare === 'side' ? { compare: 'off' } : { ...SHOWS.wise, playing: false }), {
+    label: 'Side by side with WISE',
+    keys: ['w'],
+  });
 
   // --- layers -------------------------------------------------------------------
   register('toggle_layer', ({ layer }) => {
