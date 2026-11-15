@@ -40,6 +40,9 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   Console: `meridian.run(...)`, `meridian.store.get()`, `meridian.commands.list()`.
 - The backend never sends full 65 MB SPHEREx files. Always use cutouts (`access_url + ?center=RA,DECd&size=DEG`) and cache them in `api/cache/`.
 - Show uncertainty and limits honestly. Never claim discoveries.
+- **2D images are always SPHEREx's own resolution**: every frame on the 6.15″/px grid (`cutouts.target_wcs`), one canvas
+  pixel per SPHEREx pixel, scaled with `image-rendering: pixelated`. Never smooth, upsample or AI-enhance them (the 3D
+  sky's smoothing and any artist's impressions stay out of the 2D view). Test: "a cached field opens its time-lapse".
 - The eye tracker itself is NOT built here: Yassin's team runs it outside the app. The gaze *contract* and the face panel
   do live here: eye tracking is merged through `postMessage` types `gaze` and `face` on the command bridge
   (`web/src/core/messages.js`; docs/UI_AND_GUIDE_PLAN.md, U9). Keep every control a real `<button>` running a command,

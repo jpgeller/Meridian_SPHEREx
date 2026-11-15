@@ -154,6 +154,19 @@ test('a cached field opens its time-lapse', async ({ page }) => {
   await ready(page);
   await expect(page.locator('#player-caption')).toContainText('Detector D6', { timeout: 60_000 });
   await expect(page.locator('.epoch')).toHaveCount(4);
+  // 2D images are always SPHEREx's own resolution: every frame on the 6.15"/px grid (0.1° -> 59 px),
+  // one canvas pixel per SPHEREx pixel, scaled up as hard squares (no smoothing, unlike the 3D sky)
+  const res = await page.evaluate(() => {
+    const c = document.querySelector('#frame-canvas');
+    return {
+      frames: meridian.player.getSequence().map((f) => [f.w, f.h, f.meta?.pixel_scale_arcsec]),
+      canvas: [c.width, c.height],
+      rendering: getComputedStyle(c).imageRendering,
+    };
+  });
+  for (const f of res.frames) expect(f).toEqual([59, 59, 6.15]);
+  expect(res.canvas).toEqual([59, 59]);
+  expect(res.rendering).toBe('pixelated');
   // keyboard: Escape back to the sky
   await page.locator('#field-title').focus();
   await page.keyboard.press('Escape');
