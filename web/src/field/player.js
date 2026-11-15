@@ -61,7 +61,7 @@ export function createPlayer(stage, { store, commands }) {
       <div class="epochs" id="epochs" role="group" aria-label="Dates (select two to compare)"></div>
       <div class="player-bar">
         <button type="button" id="p-prev" aria-label="Previous frame">◀︎ <kbd>,</kbd></button>
-        <button type="button" id="p-play" aria-label="Play">Play <kbd>Space</kbd></button>
+        <button type="button" id="p-play" aria-keyshortcuts="Space">Play <kbd>Space</kbd></button>
         <button type="button" id="p-next" aria-label="Next frame"><kbd>.</kbd> ▶︎</button>
         <input type="range" id="p-scrub" min="0" max="0" value="0" aria-label="Frame" />
         <label class="inline">Speed
@@ -599,7 +599,7 @@ export function createPlayer(stage, { store, commands }) {
   function render(s) {
     const playBtn = $('#p-play');
     playBtn.firstChild.textContent = s.playing ? 'Pause ' : 'Play ';
-    playBtn.setAttribute('aria-label', s.playing ? 'Pause' : 'Play');
+    // no aria-label: the name is what is on screen ("Play Space" / "Pause Space")
     const many = seq.length > 1;
     const timelapse = s.op === 'none' || s.op === 'video'; // the video plays, pauses and steps too
     for (const id of ['#p-prev', '#p-play', '#p-next']) $(id).disabled = !many || !timelapse;
