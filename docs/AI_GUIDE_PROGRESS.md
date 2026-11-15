@@ -13,7 +13,7 @@ Decisions (Nov 15, 2026):
 - [x] B2 — Last step label
 - [x] B3 — Clear overlays on end
 - [x] B4 — Stable card layout (body sized for title + ~5 lines so no current step scrolls)
-- [ ] B5 — Hint placement
+- [x] B5 — Hint placement
 - [ ] B7 — Object explanations via Claude (non-Place objects)
 
 ## P0 guide presence

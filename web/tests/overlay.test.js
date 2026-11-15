@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { easeOutCubic, flyPoint, aimFor, ringFor, edgePoint, placeLabel, hits, trailPath, createOverlay } from '../src/guide/overlay.js';
+import { easeOutCubic, flyPoint, aimFor, ringFor, edgePoint, placeLabel, hits, trailPath, createOverlay, boxOf, unionBox, arrowBox, LABEL_GAP } from '../src/guide/overlay.js';
 
 const VIEW = { w: 1440, h: 900 };
 const close = (a, b, eps = 1e-6) => Math.abs(a - b) < eps;
@@ -85,6 +85,81 @@ test('placeLabel: behind the arrow when free, never off screen, steps around the
   // the target itself is avoided
   const target = { x: 600, y: 400, r: 30 };
   assert.equal(hits({ ...placeLabel(tip, up, size, VIEW, [target]), ...size }, target), false);
+});
+
+// B5: below -> above -> right -> left of the target (its ring + the arrow), clear of every control
+test('B5 placeLabel: below the target when free, then above, right, left; never on a button when a free spot exists', () => {
+  const size = { w: 140, h: 30 };
+  const target = { x: 700, y: 400, rect: { x: 650, y: 370, w: 100, h: 60 } };
+  const { tip, angle } = aimFor(target, VIEW);
+  const ring = ringFor(target, 6);
+  const anchor = unionBox(boxOf(ring), arrowBox(tip, angle));
+  const base = [ring];
+  const lab = (p) => ({ ...p, ...size });
+  const below = (p) => p.y >= anchor.y + anchor.h;
+  const above = (p) => p.y + size.h <= anchor.y;
+  const right = (p) => p.x >= anchor.x + anchor.w;
+  const left = (p) => p.x + size.w <= anchor.x;
+
+  const p1 = placeLabel(tip, angle, size, VIEW, base, anchor);
+  assert.ok(below(p1), 'below when free');
+  assert.equal(p1.y, anchor.y + anchor.h + LABEL_GAP);
+  assert.ok(close(p1.x + size.w / 2, anchor.x + anchor.w / 2), 'centred under the target');
+  assert.ok(!hits(lab(p1), ring), 'off the target itself');
+
+  // a button right below -> above
+  const btnBelow = { rect: { x: 560, y: anchor.y + anchor.h, w: 280, h: 80 } };
+  const p2 = placeLabel(tip, angle, size, VIEW, [...base, btnBelow], anchor);
+  assert.ok(above(p2), 'above when below hits a button');
+  assert.ok(!hits(lab(p2), btnBelow));
+
+  // buttons below and above -> right
+  const btnAbove = { rect: { x: 560, y: anchor.y - 80, w: 280, h: 80 } };
+  const p3 = placeLabel(tip, angle, size, VIEW, [...base, btnBelow, btnAbove], anchor);
+  assert.ok(right(p3), 'right next');
+  // and a button on the right too -> left
+  const btnRight = { rect: { x: anchor.x + anchor.w, y: anchor.y - 100, w: 300, h: anchor.h + 200 } };
+  const p4 = placeLabel(tip, angle, size, VIEW, [...base, btnBelow, btnAbove, btnRight], anchor);
+  assert.ok(left(p4), 'left after that');
+  for (const b of [btnBelow, btnAbove, btnRight]) assert.ok(!hits(lab(p4), b));
+
+  // a dense row of buttons: whatever spot it picks, it never covers one while a free spot exists
+  const row = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => ({ rect: { x: 400 + i * 72, y: anchor.y + anchor.h, w: 64, h: 64 } }));
+  const p5 = placeLabel(tip, angle, size, VIEW, [...base, ...row, btnAbove], anchor);
+  assert.ok(row.every((b) => !hits(lab(p5), b)) && !hits(lab(p5), btnAbove), 'no button covered');
+  // still on screen near the bottom edge: below is off screen, so it goes above
+  const low = { x: 700, y: 850, rect: { x: 650, y: 830, w: 100, h: 60 } };
+  const la = aimFor(low, VIEW);
+  const lAnchor = unionBox(boxOf(ringFor(low, 6)), arrowBox(la.tip, la.angle));
+  const p6 = placeLabel(la.tip, la.angle, size, VIEW, [ringFor(low, 6)], lAnchor);
+  assert.ok(p6.y + size.h <= VIEW.h && p6.y >= 0, 'on screen');
+});
+
+test('B5: the dwell ring from setAvoid still applies alongside the control boxes read from the page', () => {
+  const d = fakeDom();
+  const target = { x: 700, y: 400, rect: { x: 650, y: 370, w: 100, h: 60 } };
+  const ring = ringFor(target, 6);
+  const { tip, angle } = aimFor(target, VIEW);
+  const anchor = unionBox(boxOf(ring), arrowBox(tip, angle));
+  // a page button right above the target, the dwell ring right below it
+  const btn = { left: 600, top: anchor.y - 70, width: 200, height: 64 };
+  btn.right = btn.left + btn.width;
+  btn.bottom = btn.top + btn.height;
+  const button = { getBoundingClientRect: () => btn, closest: () => null };
+  const target2 = { getBoundingClientRect: () => ({ left: 650, top: 370, width: 100, height: 60, right: 750, bottom: 430 }), closest: () => null };
+  d.doc.querySelectorAll = () => [button, target2];
+  const o = createOverlay({ locate: (id) => (id === 'btn' ? target : null), doc: d.doc, events: new EventTarget() });
+  const dwell = { x: 700, y: anchor.y + anchor.h + 40, r: 60 };
+  o.setAvoid(() => [dwell]);
+  const label = () => d.visible((e) => e.classList.contains('go-label') && e.textContent)[0];
+  o.pointAt('btn', 'Colour views');
+  d.frame(performance.now() + 10000);
+  const m = /translate\(([-\d.]+)px, ([-\d.]+)px\)/.exec(label().style.transform);
+  const box = { x: Number(m[1]), y: Number(m[2]), w: 120, h: 28 }; // the fake DOM measures labels as 120 x 28
+  assert.ok(!hits(box, dwell), 'clear of the dwell ring (setAvoid)');
+  assert.ok(!hits(box, { rect: { x: btn.left, y: btn.top, w: btn.width, h: btn.height } }), 'clear of the page button');
+  assert.ok(!hits(box, ring), 'clear of the target');
+  assert.ok(box.x >= anchor.x + anchor.w || box.x + box.w <= anchor.x, 'so it goes to the side');
 });
 
 test('hits: rect vs circle and rect vs box', () => {

@@ -121,27 +121,102 @@ export function hits(rect, shape) {
   return Math.hypot(dx, dy) < (shape.r ?? 0);
 }
 
+/** The bounding box of a shape: a circle {x, y, r} or a box {rect}. -> {x, y, w, h} | null */
+export function boxOf(shape) {
+  if (!shape) return null;
+  if (shape.rect) return { ...shape.rect };
+  const r = shape.r ?? 0;
+  return { x: shape.x - r, y: shape.y - r, w: 2 * r, h: 2 * r };
+}
+
+/** The smallest box holding all the given boxes (nulls skipped). */
+export function unionBox(...boxes) {
+  const bs = boxes.filter(Boolean);
+  if (!bs.length) return null;
+  const x0 = Math.min(...bs.map((b) => b.x));
+  const y0 = Math.min(...bs.map((b) => b.y));
+  const x1 = Math.max(...bs.map((b) => b.x + b.w));
+  const y1 = Math.max(...bs.map((b) => b.y + b.h));
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+/** The box around the arrow's body: from its tip back along `angle` (+ a little padding). */
+export function arrowBox(tip, angle, pad = 6) {
+  const ex = tip.x + Math.cos(angle + Math.PI) * ARROW_LEN;
+  const ey = tip.y + Math.sin(angle + Math.PI) * ARROW_LEN;
+  const x = Math.min(tip.x, ex) - pad;
+  const y = Math.min(tip.y, ey) - pad;
+  return { x, y, w: Math.abs(ex - tip.x) + 2 * pad, h: Math.abs(ey - tip.y) + 2 * pad };
+}
+
+export const LABEL_GAP = 8; // px between the label and the target (+ pointer) it names
+
 /**
- * Place the pointer's label: try eight spots around the tip, starting on the side away from where
- * the arrow points (behind its body), and take the first that stays on screen and touches nothing
- * in `avoid` (the target, the arrow, the dwell ring). Otherwise the least bad one.
+ * Place the pointer's label (B5). With `anchor` (the box around the target's ring and the arrow):
+ * try below -> above -> right -> left of it (centred, then aligned to either end), and take the first
+ * spot that stays on screen and touches nothing in `avoid` (the target, the arrow, the guide card,
+ * the dwell ring, every button and band label on screen). Then the eight spots around the tip,
+ * starting behind the arrow (the only candidates without an anchor). Otherwise the least bad one:
+ * on screen first, then the fewest shapes covered.
  * -> { x, y } top-left of the label.
  */
-export function placeLabel(tip, angle, size, viewport, avoid = []) {
+export function placeLabel(tip, angle, size, viewport, avoid = [], anchor = null) {
   const { w, h } = size;
-  const back = angle + Math.PI;
-  const order = [0, 1, -1, 2, -2, 3, -3, 4].map((k) => back + (k * Math.PI) / 4);
   const bounds = { x: 4, y: 4, w: viewport.w - 8, h: viewport.h - 8 };
-  let best = null;
-  order.forEach((a, i) => {
-    const ux = Math.cos(a);
-    const uy = Math.sin(a);
+  const cands = [];
+  if (anchor) {
+    const a = anchor;
+    const g = LABEL_GAP;
+    const cx = a.x + a.w / 2 - w / 2;
+    const cy = a.y + a.h / 2 - h / 2;
+    const below = a.y + a.h + g;
+    const above = a.y - g - h;
+    const right = a.x + a.w + g;
+    const left = a.x - g - w;
+    // centred on each side first, in the spec's order; then the same sides aligned to an end
+    cands.push({ x: cx, y: below }, { x: cx, y: above }, { x: right, y: cy }, { x: left, y: cy });
+    cands.push({ x: a.x, y: below }, { x: a.x + a.w - w, y: below }, { x: a.x, y: above }, { x: a.x + a.w - w, y: above });
+    cands.push({ x: right, y: a.y }, { x: right, y: a.y + a.h - h }, { x: left, y: a.y }, { x: left, y: a.y + a.h - h });
+  }
+  const back = angle + Math.PI;
+  [0, 1, -1, 2, -2, 3, -3, 4].forEach((k) => {
+    const ang = back + (k * Math.PI) / 4;
+    const ux = Math.cos(ang);
+    const uy = Math.sin(ang);
     const d = ARROW_LEN + 10 + Math.abs(ux) * (w / 2) + Math.abs(uy) * (h / 2);
-    const rect = { x: tip.x + ux * d - w / 2, y: tip.y + uy * d - h / 2, w, h };
-    const score = overflow(rect, bounds) * 10 + avoid.filter((s) => hits(rect, s)).length * 3 + i * 0.01;
-    if (!best || score < best.score) best = { score, x: rect.x, y: rect.y };
+    cands.push({ x: tip.x + ux * d - w / 2, y: tip.y + uy * d - h / 2 });
   });
+  let best = null;
+  for (let i = 0; i < cands.length; i++) {
+    const rect = { ...cands[i], w, h };
+    const score = overflow(rect, bounds) * 1000 + avoid.filter((s) => hits(rect, s)).length * 3 + i * 0.01;
+    if (!best || score < best.score) best = { score, x: rect.x, y: rect.y };
+    if (score < 1) break; // on screen and touching nothing: the first such spot wins
+  }
   return { x: best.x, y: best.y };
+}
+
+// what the label must not cover: anything pressable, plus the band ribbon's detector labels
+export const CONTROL_SELECTOR = [
+  'button',
+  'a[href]',
+  'input:not([type="hidden"])',
+  'select',
+  'textarea',
+  '[role="button"]',
+  '[role="switch"]',
+  '[role="radio"]',
+  '[role="tab"]',
+  '[role="slider"]',
+  '[role="checkbox"]',
+  '[data-guide^="band-"]',
+  '.ribbon .det',
+].join(',');
+export const CONTROLS_REFRESH_MS = 400;
+
+/** Is box `inner` inside box `outer` (within `tol` px)? */
+function inside(inner, outer, tol = 2) {
+  return inner.x >= outer.x - tol && inner.y >= outer.y - tol && inner.x + inner.w <= outer.x + outer.w + tol && inner.y + inner.h <= outer.y + outer.h + tol;
 }
 
 /** A gently curved path from a to b (SVG d), bowing to the left of the direction of travel. */
@@ -209,6 +284,38 @@ export function createOverlay({ locate: locateTarget, doc = document, events = w
   doc.body.append(root);
 
   let avoidFn = () => [];
+
+  // B5: the boxes of every visible control and band label, read from the DOM at most every
+  // CONTROLS_REFRESH_MS (and when the label or its target changes), never every frame.
+  const controlCache = { at: -Infinity, key: null, boxes: [] };
+  function readControls() {
+    const out = [];
+    const vp = viewport();
+    let els = [];
+    try {
+      els = doc.querySelectorAll?.(CONTROL_SELECTOR) ?? [];
+    } catch {
+      return out;
+    }
+    for (const el of els) {
+      if (root.contains?.(el) || el.closest?.('[hidden], [data-guide="guide-popup"]')) continue; // the card is avoided as one box
+      const b = el.getBoundingClientRect?.();
+      if (!b || !(b.width > 0) || !(b.height > 0)) continue; // display: none, collapsed
+      if (b.right <= 0 || b.bottom <= 0 || b.left >= vp.w || b.top >= vp.h) continue;
+      const cs = win.getComputedStyle?.(el);
+      if (cs && (cs.visibility === 'hidden' || cs.visibility === 'collapse' || Number(cs.opacity) === 0)) continue;
+      out.push({ x: b.left, y: b.top, w: b.width, h: b.height });
+    }
+    return out;
+  }
+  function controlBoxes(now, key) {
+    if (key !== controlCache.key || now - controlCache.at > CONTROLS_REFRESH_MS) {
+      controlCache.boxes = readControls();
+      controlCache.at = now;
+      controlCache.key = key;
+    }
+    return controlCache.boxes;
+  }
   const items = new Map(); // key -> annotation
   let frame = 0;
 
@@ -362,7 +469,15 @@ export function createOverlay({ locate: locateTarget, doc = document, events = w
           const b = label.getBoundingClientRect();
           p.labelSize = { w: b.width || 120, h: b.height || 28 };
         }
-        const avoid = [...(at && !off ? [ringFor(at, 6)] : []), { x: pos.x + Math.cos(angle + Math.PI) * 16, y: pos.y + Math.sin(angle + Math.PI) * 16, r: 20 }];
+        const ring = at && !off ? ringFor(at, 6) : null;
+        const avoid = [...(ring ? [ring] : []), { x: pos.x + Math.cos(angle + Math.PI) * 16, y: pos.y + Math.sin(angle + Math.PI) * 16, r: 20 }];
+        // every visible control and band label, except the target itself (and what is inside it:
+        // the ring above already keeps the label off it)
+        const tbox = at?.rect ?? null;
+        for (const b of controlBoxes(now, `${p.id}\n${label.textContent}`)) {
+          if (tbox && (inside(b, tbox) || inside(tbox, b))) continue;
+          avoid.push({ rect: b });
+        }
         const cb = cardBox(); // the card sits above the overlay: a label under it is unreadable
         if (cb) avoid.push({ rect: { x: cb.left, y: cb.top, w: cb.width, h: cb.height } });
         try {
@@ -370,7 +485,9 @@ export function createOverlay({ locate: locateTarget, doc = document, events = w
         } catch {
           /* a broken avoid hook must not stop the pointer */
         }
-        const lp = placeLabel(pos, angle, p.labelSize, vp, avoid);
+        // anchor: the target's ring and the arrow together, so the label sits clear of both
+        const anchor = unionBox(boxOf(ring), arrowBox(pos, angle));
+        const lp = placeLabel(pos, angle, p.labelSize, vp, avoid, anchor);
         label.style.transform = `translate(${lp.x.toFixed(1)}px, ${lp.y.toFixed(1)}px)`;
       },
     };
