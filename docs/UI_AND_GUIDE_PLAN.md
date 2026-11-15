@@ -352,7 +352,7 @@ now mock `/api/guide` (deterministic, no tokens spent). `pytest -q` 33 passed (1
 
 ---
 
-## Step U8 — Face-tracking panel  `[ ]`  P0
+## Step U8 — Face-tracking panel  `[x]`  P0
 **Files:** `web/src/ui/facePanel.js` (new), `web/tests/face.test.js`
 
 Goal: judges see that the system detects the person's face and eyes.
@@ -364,6 +364,21 @@ Goal: judges see that the system detects the person's face and eyes.
 - Collapsible (a button), so it does not crowd the sky. A privacy line: "Video stays on this computer."
 
 **Done when:** feeding recorded `face` messages animates the mesh and readouts; with no tracker, demo mode runs and is labelled "simulated".
+
+Progress (Nov 14): `ui/faceCore.js` (pure, unit-tested) + `ui/facePanel.js` (DOM, styles in `ui/facePanel.css`), mounted in
+`#face-slot` by `controls.js`. The bridge (`core/messages.js`) accepts `{type:'face', …}` from the same origins as `command` and
+re-emits it in the page as the window event `meridian:face`. Validation: exactly 68 finite points, `[x,y]` or `{x,y}`; anything
+else is ignored. Missing `ear` / `mar` / `pose` are computed from the landmarks. EAR = (|p2−p6|+|p3−p5|)/(2|p1−p4|), `ear[0]` =
+points 36–41. **MAR uses the inner lips** (60–67): about 0 closed, 0.7 wide open (with outer lips a closed mouth is already ~0.3).
+Pose is a rough estimate from the eye line and nose tip. **Coordinates:** any unit with y down (camera px or 0..1), unmirrored;
+the mesh is fitted by its bounding box (shape only, not position in the frame). Readouts: EAR l/r (**blink** both < 0.16, one eye
+= **wink**), MAR (**open** > 0.30), turn (yaw, pitch), tilt (roll), and a gaze dot (`meridian.face.setGaze`, viewport px; hollow
+= simulated; "no gaze" when stale > 0.5 s or confidence < 0.5). **Live / Simulated:** "Live" while valid messages arrive; after 2 s
+of silence a 13.5 s scripted loop (look left/right, blink ×2, mouth open, head up/down, tilt) on a neutral template, labelled
+"Simulated" in the header badge and on the canvas. Commands `toggle_face_panel` (header button) and `toggle_face_demo` (force demo),
+both 64 px; starts expanded. Privacy line: "Video stays on this computer." The rAF loop runs only while expanded, on screen and the
+tab is visible; reduced motion holds each phase's pose. Testing: `meridian.face.replay(frames, {fps, loop})` posts through the real
+bridge; fixture `tests-e2e/fixtures/face-sample.json`. `npm test` 109/109 (12 new), `test:e2e` 30/30 (2 new in `face.spec.js`).
 
 ---
 

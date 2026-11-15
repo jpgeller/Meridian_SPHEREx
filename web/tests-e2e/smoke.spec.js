@@ -322,7 +322,7 @@ test('guide registry: controls and sky objects have screen positions, null when 
   });
   expect(d6.r.rect).toEqual(d6.b);
   expect(await page.evaluate(() => guide.targetAt(guide.resolve('band-d6').x, guide.resolve('band-d6').y))).toBe('band-d6');
-  expect(await page.evaluate(() => guide.resolve('face-panel'))).toBeNull(); // hidden until U8
+  expect(await page.evaluate(() => guide.resolve('face-panel'))).not.toBeNull(); // U8 face panel
   expect(await page.evaluate(() => guide.resolve('colour:D6'))).not.toBeNull();
   // Barnard's Star near the middle of the view (the name lookup runs in the background)
   await expect.poll(() => page.evaluate(() => guide.resolve('sky:barnard')), { timeout: 15000 }).not.toBeNull();
