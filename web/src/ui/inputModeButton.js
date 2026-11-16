@@ -16,7 +16,14 @@ export function createInputModeButton({ store, commands, doc = document }) {
     <span class="im-text"><span class="im-k">Eye control</span><span class="im-v"></span></span>
     <span class="im-next"></span>`;
   btn.setAttribute('aria-keyshortcuts', 'g');
-  btn.addEventListener('click', () => commands.run('cycle_input_mode', {}, 'ui'));
+  btn.addEventListener('click', () => {
+    if (opensEyePage(store.get().input)) {
+      // deployed site: turning eye control on opens /eye.html (camera + gaze engine), same view
+      window.location.href = `/eye.html${window.location.search}`;
+      return;
+    }
+    commands.run('cycle_input_mode', {}, 'ui');
+  });
 
   const place = (view) => {
     const left = doc.querySelector('[data-region="left"]');
@@ -44,4 +51,20 @@ export function createInputModeButton({ store, commands, doc = document }) {
   });
   render(store.get());
   return { element: btn };
+}
+
+// The plain deployed page has no eye tracker, so "turn eye control on" sends visitors to /eye.html,
+// which wraps this same page with the camera and the gaze engine. Unchanged (cycles A -> B -> C) when:
+// already inside /eye.html (an iframe), a local tracker is connected (?gaze_ws), eye control is
+// already on, or on localhost (local development, tests and meridian_live.py).
+function opensEyePage(mode, win = window) {
+  if (mode !== 'mouse') return false;
+  try {
+    if (win.top !== win) return false;
+  } catch {
+    return false;
+  }
+  const host = win.location.hostname;
+  if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') return false;
+  return !new URLSearchParams(win.location.search).has('gaze_ws');
 }
