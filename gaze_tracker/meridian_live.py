@@ -156,6 +156,10 @@ def main() -> int:
         from src.config import load_config
         W, H = load_config(WS / "training_config.yaml").screen_px
     out_dir = WS / "results" / "live_demo"
+    if a.simulate:  # simulated calibrations are not a person's: keep them out of the results folder
+        import tempfile
+
+        out_dir = Path(tempfile.gettempdir()) / "meridian_live_simulated"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     bridge = MeridianBridge(port=a.port, screen_w=W, screen_h=H).start()
