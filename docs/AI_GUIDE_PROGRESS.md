@@ -23,7 +23,7 @@ Decisions (Nov 15, 2026):
 - [x] Fact cards for the 7 Places, sent as `facts.preset`; richer local Place tours
 
 ## P1
-- [ ] Insight-first copy
+- [x] Insight-first copy
 - [ ] New budgets + 5-min "Not now" + teaser auto-collapse
 - [ ] Pill states
 - [ ] Dynamic pill menu

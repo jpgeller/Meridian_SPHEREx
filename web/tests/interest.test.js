@@ -211,7 +211,7 @@ test('B7: an object moment with no Claude offer shows a local offer naming it; "
   assert.equal(await s.n.handle({ moment: 'object', target: VEGA }), 'done');
   const card = s.shown[0];
   assert.equal(card.title, 'Vega');
-  assert.match(card.say, /looking at Vega/);
+  assert.match(card.say, /Look here: Vega/);
   assert.deepEqual(card.answers.map((a) => a.label), ['Yes, tell me', 'Not now']);
   assert.deepEqual(s.marks.slice(0, 3), [['clear'], ['circle', 'sky:target'], ['point', 'sky:target']]);
   assert.deepEqual(s.explains, [{ trigger: 'object', target: VEGA, moment: 'object' }]);

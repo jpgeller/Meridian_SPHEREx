@@ -34,19 +34,19 @@ const STORE_KEY = 'meridian.guide.nudges';
 
 // Local offers when Claude is not available (or the budget is spent). Same shape as a Claude reply.
 export const FALLBACK = {
-  bands: { title: '102 infrared colours', line: 'You are trying different bands. Want a quick tour of what each detector shows?', point: 'band-ribbon',
+  bands: { title: '102 infrared colours', line: 'Notice how the sky changes from D1 to D6: cold dust and ices only glow at the long end. Tour the bands?', point: 'band-ribbon',
     options: [{ label: 'Tour the bands', kind: 'tour', tour: 'colours' }, { label: 'Try D6 (coldest)', kind: 'apply', actions: [{ click: 'band-d6' }] }] },
-  colours: { title: 'Colours are a choice', line: 'These colours paint infrared light. The Ices view shows cold, icy places well.', point: 'colour-views',
+  colours: { title: 'Colours are a choice', line: 'These colours paint invisible infrared light. See how the Ices view lights up cold, icy places?', point: 'colour-views',
     options: [{ label: 'Try the Ices view', kind: 'apply', actions: [{ cmd: 'set_color', args: { color: 'ice' } }] }, { label: 'Tour the colours', kind: 'tour', tour: 'colours' }] },
-  timelapse_start: { title: 'Real pictures, real dates', line: 'Each frame is a real SPHEREx picture of this spot. The change video makes motion easy to follow.', point: 'op-video',
+  timelapse_start: { title: 'Real pictures, real dates', line: 'Each frame is a real SPHEREx picture, taken on its own date. Watch the change video?', point: 'op-video',
     options: [{ label: 'Play the change video', kind: 'apply', actions: [{ click: 'op-video' }, { click: 'play' }] }, { label: 'Play the pictures', kind: 'apply', actions: [{ click: 'play' }] }] },
-  compare: { title: 'Ways to compare dates', line: 'Blink flips two dates to catch brightness changes; the change video follows things that move.', point: 'op-blink',
+  compare: { title: 'Ways to compare dates', line: 'Blink flips two dates, so brightness changes jump out. Try it?', point: 'op-blink',
     options: [{ label: 'Try Blink', kind: 'apply', actions: [{ click: 'op-blink' }] }, { label: 'Try the change video', kind: 'apply', actions: [{ click: 'op-video' }] }] },
-  motion: { title: 'Looking for a change?', line: 'The change video slides between the real pictures from 2010 to 2026, so motion is easy to see.', point: 'op-video',
+  motion: { title: 'Looking for a change?', line: 'Something here may move between frames. The change video spans 2010 to 2026. Play it?', point: 'op-video',
     options: [{ label: 'Play the change video', kind: 'apply', actions: [{ click: 'op-video' }, { click: 'play' }] }, { label: 'Show a moving star', kind: 'tour', tour: 'motion:barnard' }] },
-  zoomed: { title: 'See the real pictures', line: 'You are zoomed in. The real SPHEREx pictures of this spot are sharper, one per visit.', point: 'open-field',
+  zoomed: { title: 'See the real pictures', line: 'The real SPHEREx pictures of this spot are sharper, one per visit. Open them?', point: 'open-field',
     options: [{ label: 'Open the pictures', kind: 'apply', actions: [{ click: 'open-field' }] }, { label: 'Show a moving star', kind: 'tour', tour: 'motion:barnard' }] },
-  object_search: { title: 'Found it', line: 'This is where your search points. Zoom in and open the real pictures to see it in SPHEREx.', point: 'sky:target',
+  object_search: { title: 'Found it', line: 'Look here: this is where your search points. Open its real SPHEREx pictures?', point: 'sky:target',
     options: [{ label: 'Open the pictures', kind: 'apply', actions: [{ click: 'open-field' }] }, { label: 'What am I seeing?', kind: 'tour', tour: 'where' }] },
 };
 // a moment's topic: features share one per control, objects one per object
@@ -56,7 +56,7 @@ export function objectOffer(target) {
   const name = typeof target?.name === 'string' && target.name.trim() ? target.name.trim() : null;
   return {
     title: name ?? 'This star',
-    line: `You've been looking at ${name ?? 'this star'}. Tell you what catalogs say about it?`,
+    line: `Look here: ${name ?? 'this star'}. Show you what catalogs list for it?`,
     point: target?.id ?? '',
     options: [{ label: 'Yes, tell me', kind: 'explain' }],
   };
