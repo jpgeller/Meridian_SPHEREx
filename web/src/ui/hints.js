@@ -95,10 +95,10 @@ export function createHints({ store, doc = document, win = window }) {
 
   /** The box of a title's words (not the whole heading's width): the star goes right after them. */
   function titleRect(el) {
+    // all of the title's words, small print included ("Colours · infrared translated": the star went on "inf")
     const words = el.querySelector('.fsec-text') ?? el;
-    const first = [...words.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim()) ?? words;
     const range = doc.createRange();
-    range.selectNodeContents(first);
+    range.selectNodeContents(words);
     const r = range.getBoundingClientRect();
     return r.width ? r : el.getBoundingClientRect();
   }

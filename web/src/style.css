@@ -864,6 +864,13 @@ body.field-open .handoff {
 .spectrum[hidden] {
   display: none;
 }
+/* in the 2D view the panel shares the image's column: cap it (it scrolls inside) so the image stays large */
+.player-left .spectrum {
+  flex: none;
+  max-height: 44%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .spectrum header {
   align-items: baseline;
   gap: 12px;
