@@ -39,10 +39,20 @@ export function createSpectrum(player, { store, commands }) {
   const statusEl = panel.querySelector('#spec-status');
   const summaryEl = panel.querySelector('#spec-summary');
   const tableEl = panel.querySelector('#spec-table');
-  panel.querySelector('#spec-close').addEventListener('click', () => {
+  panel.querySelector('#spec-close').addEventListener('click', () => commands.run('close_spectrum', {}, 'ui'));
+  // the 2D controls' Measure buttons (player.js): open this panel on that graph, or close it if it is showing
+  const measureButtons = () => document.querySelectorAll('[data-measure]');
+  measureButtons().forEach((b) =>
+    b.addEventListener('click', () => commands.run('toggle_measure', { view: b.dataset.measure }, 'ui')),
+  );
+  function syncButtons() {
+    measureButtons().forEach((b) => b.setAttribute('aria-pressed', String(!panel.hidden && b.dataset.measure === view)));
+  }
+  function closePanel() {
     token++;
     panel.hidden = true;
-  });
+    syncButtons();
+  }
 
   let token = 0;
   let last = null; // the last spectrum drawn (the guide reads its blends, UI plan U7)
@@ -78,6 +88,7 @@ export function createSpectrum(player, { store, commands }) {
   }
 
   function redraw() {
+    syncButtons();
     panel.querySelectorAll('[data-spec-view]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.specView === view)));
     panel.querySelector('#spec-title').textContent = view === 'sed' ? 'Energy distribution (SED)' : 'Spectrum';
     if (view === 'sed') drawSed();
@@ -106,6 +117,7 @@ export function createSpectrum(player, { store, commands }) {
     const my = ++token;
     point = { ra, dec };
     panel.hidden = false;
+    syncButtons();
     svg.innerHTML = '';
     tableEl.innerHTML = '';
     summaryEl.textContent = '';
@@ -232,6 +244,19 @@ export function createSpectrum(player, { store, commands }) {
     },
     { label: 'Spectrum graph: SPHEREx spectrum or SED with Gaia', args: { view: 'spectrum | sed' } },
   );
+  commands.register(
+    'toggle_measure',
+    ({ view: v = 'spectrum' } = {}) => {
+      if (store.get().view !== 'field') return false; // the buttons live in the 2D view; nothing to measure elsewhere
+      if (!panel.hidden && view === v) {
+        closePanel();
+        return 'closed';
+      }
+      return commands.run('set_spectrum_view', { view: v }, 'ui').value;
+    },
+    { label: 'Spectrum or SED of the target (press again to close)', args: { view: 'spectrum | sed' } },
+  );
+  commands.register('close_spectrum', () => closePanel(), { label: 'Close the spectrum' });
   commands.register('show_sed', () => commands.run('set_spectrum_view', { view: 'sed' }), {
     label: 'SED: Gaia and SPHEREx on one graph, with a temperature',
     keys: ['e'],

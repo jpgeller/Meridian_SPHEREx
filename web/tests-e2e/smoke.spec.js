@@ -956,9 +956,9 @@ async function smallOrCovered(page, min = 64) {
   );
 }
 
-// Sizes: 64 px everywhere, except the 2D view in mouse mode on screens under 1000 px tall (48 px; 44 px
-// under 780 px), so its five titled sections fit (mouse users first, 16 Nov 2026). Eye control keeps 64 px.
-for (const [w, h, min2d] of [[1280, 800, 48], [1920, 1080, 64]]) {
+// Sizes: 64 px everywhere, except the 2D view in mouse mode, sized by the screen's height so its six titled
+// sections fit (36-64 px; mouse users first, 16 Nov 2026). Eye control keeps 64 px or more.
+for (const [w, h, min2d] of [[1280, 800, 40], [1920, 1080, 60]]) {
   test(`every control is big enough and reachable: sky 64 px, 2D ${min2d} px (${w}x${h})`, async ({ page }) => {
     await page.setViewportSize({ width: w, height: h });
     await page.goto('/');
@@ -1036,8 +1036,8 @@ test('mouse mode: a white star on each section title explains the section on hov
   await page.goto('/?ra=269.44627&dec=4.7682&fov=2.3&band=40&view=field&ffov=0.1&mode=detector');
   await ready(page);
   await expect(page.locator('.epoch').first()).toBeVisible({ timeout: 60_000 });
-  // one star per titled section of the 2D view: Zoom, Detector, View, Dates, Playback
-  await expect.poll(() => page.locator('.hint-badge').count()).toBe(5);
+  // one star per titled section of the 2D view: Zoom, Detector, View, Measure, Dates, Playback
+  await expect.poll(() => page.locator('.hint-badge').count()).toBe(6);
   const title = await page.locator('#fsec-zoom .fsec-text').boundingBox();
   const star = await page.evaluate(() => [...document.querySelectorAll('.hint-badge')].map((b) => b.getBoundingClientRect()).find(Boolean));
   const badges = await page.evaluate(() => [...document.querySelectorAll('.hint-badge')].map((b) => { const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }));
@@ -1062,7 +1062,7 @@ test('mouse mode: a white star on each section title explains the section on hov
   await page.evaluate(() => meridian.run('set_input_mode', { mode: 'gaze' }));
   await expect(page.locator('.hint-badge')).toHaveCount(0);
   await page.evaluate(() => meridian.run('set_input_mode', { mode: 'mouse' }));
-  await expect.poll(() => page.locator('.hint-badge').count()).toBe(5);
+  await expect.poll(() => page.locator('.hint-badge').count()).toBe(6);
   // the sky panel's sections have theirs too (Places, View, Colours)
   await page.evaluate(() => meridian.run('close_field'));
   await page.evaluate(() => meridian.run('toggle_panel', { open: true }));
@@ -1102,7 +1102,7 @@ test('Calibrate button: next to Controls while the panel is open; says what is m
   await expect(btn).toBeHidden();
 });
 
-test('full eye control: bigger buttons (sky ~80 px, 2D ~90 px at 1920x1080), the 2D controls still fit', async ({ page }) => {
+test('full eye control: bigger buttons (sky ~80 px, 2D ~74 px at 1920x1080), the 2D controls still fit', async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto('/?fov=60&input=gaze');
   await ready(page);
@@ -1115,7 +1115,7 @@ test('full eye control: bigger buttons (sky ~80 px, 2D ~90 px at 1920x1080), the
   for (const show of ['timelapse', 'video', 'blink', 'nogaia']) {
     await page.evaluate((s) => meridian.run('set_show', { show: s }), show);
     await page.waitForTimeout(300);
-    expect(await minSize(), `2D ${show}`).toBeGreaterThanOrEqual(88);
+    expect(await minSize(), `2D ${show}`).toBeGreaterThanOrEqual(72);
     expect(await page.evaluate(() => { const r = document.querySelector('.player-right'); return r.scrollHeight - r.clientHeight; }), `2D ${show} scroll`).toBeLessThanOrEqual(1);
   }
 });

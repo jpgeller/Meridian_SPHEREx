@@ -54,8 +54,8 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   options are `role="switch"` buttons and choices are stepping buttons (no checkboxes or drop-downs: they can't be 64 px and
   gaze presses buttons). Exception (16 Nov 2026, mouse users first): the 2D view in mouse mode on screens under 1000 px tall
   uses 48 px (44 px under 780 px) so its five titled sections (Zoom, Detector, View, Dates, Playback) fit; eye control keeps
-  64 px. Full eye control (mode C) is bigger: sky `clamp(64px, 7.5vh, 88px)`; 2D view sized to fit 7 rows
-  (≈90 px at 1707×1067 and 1920×1080), section titles beside their buttons, detectors in one row; below ~1000 px
+  64 px. 2D view in mouse mode: sized by height to fit 8 button rows (36–64 px). Full eye control (mode C) is
+  bigger: sky `clamp(64px, 7.5vh, 88px)`; 2D view sized to fit 8 rows (≈73 px at 1707×1067 and 1920×1080), section titles beside their buttons, detectors in one row; below ~1000 px
   tall the 2D controls column overflows in mode C (64 px minimum). The 2D view is two columns (image | controls)
   and fits without scrolling at ≥1280×800 in mouse mode. The test
   "every control is big enough and reachable" checks the sky view and every 2D mode.

@@ -81,6 +81,13 @@ export function createPlayer(stage, { store, commands }) {
         <span class="muted hint" id="op-hint"></span>
       </div>
       </section>
+      <section class="fsec" aria-labelledby="fsec-measure">
+      ${sectionTitle('fsec-measure', 'measure', 'Measure', "Measure the target's light under the image. Spectrum: its brightness in SPHEREx's 102 colours (click the image to measure another spot). SED with Gaia: Gaia's visible light and SPHEREx's infrared on one graph, aligned where both see the same light, with a temperature from a blackbody fit. Press again to close.")}
+      <div class="player-bar measure-row" role="group" aria-label="Measure">
+        <button type="button" data-measure="spectrum" data-guide="measure-spectrum" aria-pressed="false">Spectrum <kbd>s</kbd></button>
+        <button type="button" data-measure="sed" data-guide="measure-sed" aria-pressed="false">SED with Gaia <kbd>e</kbd></button>
+      </div>
+      </section>
       <section class="fsec" id="fsec-dates-sec" aria-labelledby="fsec-dates">
       ${sectionTitle('fsec-dates', 'dates', 'Dates', 'The dates SPHEREx photographed this patch (in brackets: how many images that visit). Press one to jump to it; in Blink, pick the two dates to compare.')}
       <div class="epochs" id="epochs" data-guide="dates" role="group" aria-label="Dates (select two to compare)"></div>
@@ -766,7 +773,7 @@ export function createPlayer(stage, { store, commands }) {
     $('#p-visit').disabled = s.mode !== 'single'; // other modes are already one per visit
     // Blink's instruction rides in the Dates title (a row of its own did not fit small screens)
     $('#op-hint').textContent = '';
-    $('#fsec-dates .fsec-text').textContent = s.op === 'blink' ? 'Dates · pick two to compare (or it uses the first and last)' : 'Dates';
+    $('#fsec-dates .fsec-text').textContent = s.op === 'blink' ? 'Dates · pick two' : 'Dates'; // (else first and last)
     epochsEl.querySelectorAll('[data-epoch]').forEach((b) =>
       b.setAttribute('aria-pressed', String(s.t.includes(Number(b.dataset.epoch)))),
     );

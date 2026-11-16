@@ -1591,26 +1591,27 @@ body[data-input='gaze'] .guide-pill {
 :root {
   --hit: 64px;
 }
-/* Mouse mode (eye control off) on screens under 1000 px tall: 48 px targets, so the 2D view's five
-   titled sections fit (team decision, 16 Nov 2026: this version is for mouse users first). Any eye-control
-   mode (B, C) keeps 64 px. */
-@media (max-height: 999px) {
+/* Mouse mode (eye control off), 2D view: smaller targets than the 64 px minimum where the screen is short, so
+   the titled sections fit (team decision, 16 Nov 2026: this version is for mouse users first). Eye control
+   (B, C) keeps 64 px or more.
+   Mouse mode, 2D view: the controls column holds 8 rows of buttons (zoom, detectors x2, views x2, measure,
+   dates, playback) under 6 titles; the screen's height sets the button size, 36-64 px. */
+body.field-open[data-input='mouse'] {
+  --hit: clamp(36px, calc((100vh - 2 * var(--edge-y) - 450px) / 8), 64px);
+  --target: var(--hit);
+}
+@media (min-height: 790px) {
   body.field-open[data-input='mouse'] {
-    --hit: 48px;
-    --target: 48px;
+    --hit: clamp(40px, calc((100vh - 2 * var(--edge-y) - 450px) / 8), 64px); /* 1280 x 800 fits at 40 px */
   }
+}
+@media (max-height: 999px) {
   body.field-open[data-input='mouse'] .fsec {
     padding: 6px 10px 8px;
     gap: 4px;
   }
   body.field-open[data-input='mouse'] .fsec-title {
     font-size: 15px;
-  }
-}
-@media (max-height: 780px) {
-  body.field-open[data-input='mouse'] {
-    --hit: 44px;
-    --target: 44px;
   }
 }
 @media (max-height: 820px) {
@@ -1638,9 +1639,9 @@ body[data-input='gaze'] {
   --target: clamp(64px, 7.5vh, 88px);
 }
 body.field-open[data-input='gaze'] {
-  /* the controls column holds up to 7 rows of buttons (zoom, detectors, 2 of views, a video-options or dates
-     row, playback; titles sit beside them, below): its height decides the size */
-  --hit: clamp(64px, calc((100vh - 2 * var(--edge-y) - 265px) / 7.4), 112px);
+  /* the controls column holds up to 8 rows of buttons (zoom, detectors, 2 of views, measure, a video-options or
+     dates row, playback; titles sit beside them, below): its height decides the size */
+  --hit: clamp(64px, calc((100vh - 2 * var(--edge-y) - 290px) / 8.8), 112px);
   --target: var(--hit);
 }
 body.field-open[data-input='gaze'] .field .player {
@@ -1802,8 +1803,13 @@ button[role='switch'][aria-checked='true']::before {
   }
 }
 .fsec [data-guide='show-modes'] > button,
-.fsec .epochs > button {
+.fsec .epochs > button,
+.fsec .measure-row > button {
   flex: 1 1 auto;
+}
+.fsec .measure-row > button[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .fsec-title {
   display: flex;
