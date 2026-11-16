@@ -7,6 +7,7 @@
 //        state: the store's state (only `view` is read).
 
 import { presetById } from '../sky/presets.js';
+import { factsFor } from '../sky/presetFacts.js';
 import { CHANNELS_PER_DETECTOR } from '../core/bands.js';
 
 export const TRIGGERS = ['object', 'change', 'colours'];
@@ -16,7 +17,7 @@ function describe(target) {
   const t = typeof target === 'string' ? { id: target } : target ?? {};
   const id = typeof t.id === 'string' ? t.id : null;
   const preset = id && /^(sky|field):/.test(id) ? presetById(id.split(':')[1]) : null;
-  return { id, name: t.name || preset?.label || null, note: preset?.note || null };
+  return { id, name: t.name || preset?.label || null, note: preset?.note || null, card: preset ? factsFor(preset.id) : null };
 }
 
 // One sentence: "This is Barnard's Star, the fastest-moving star…" when the note is one sentence that
@@ -28,10 +29,12 @@ function firstLine(name, note) {
 }
 
 const objectScript = (target, state) => {
-  const { id, name, note } = describe(target);
+  const { id, name, note, card } = describe(target);
   const mark = id ? [{ point: id }, { circle: id }] : [];
+  // one of the 7 places: its fact card's hook and first fact, so the offline guide stays specific
+  const first = card ? { title: name, say: `This is ${name}. ${card.hook} ${card.facts[0]}`, actions: mark } : null;
   return [
-    { say: name ? firstLine(name, note) : 'This is the spot you were looking at.', actions: mark },
+    first ?? { say: name ? firstLine(name, note) : 'This is the spot you were looking at.', actions: mark },
     {
       say: 'SPHEREx photographs every part of the sky in 102 infrared colours, a few times a year. Each colour is a separate picture, taken on its own date.',
       actions: [],

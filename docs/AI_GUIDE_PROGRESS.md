@@ -20,7 +20,7 @@ Decisions (Nov 15, 2026):
 - [x] Remove idle arrow; orb docks in pill
 
 ## P0 preset fact cards
-- [ ] Fact cards for the 7 Places, sent as `facts.preset`; richer local Place tours
+- [x] Fact cards for the 7 Places, sent as `facts.preset`; richer local Place tours
 
 ## P1
 - [ ] Insight-first copy

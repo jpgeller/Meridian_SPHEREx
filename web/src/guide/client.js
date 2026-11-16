@@ -1,7 +1,10 @@
 // Guide API client (UI plan, U7): asks POST /api/guide (Claude, on the server) for a script.
 //
 //   gatherFacts({ state, target, player?, spectrum?, wavelengths? }) -> facts   (pure, small)
-//        Real numbers already loaded in the page: band/detector/wavelength, the preset's note,
+//        fieldPreset: the place id whose position is the time-lapse's target (index.js fieldPreset()), so
+//        a "field:target" also counts as that place.
+//        Real numbers already loaded in the page: band/detector/wavelength, ONLY the place's fact card as
+//        facts.preset (sky/presetFacts.js; never all 7, no source URLs),
 //        the time-lapse frames (count, dates, wavelengths, ″/px), fast movers and the Gaia/CatWISE
 //        match of the target, the spectrum's blends. Never gaze positions or anything about the person.
 //   buildRequest({ trigger, target, state, facts, commands, ids }) -> the POST body
@@ -11,6 +14,7 @@
 //        fallback script (fallback.js). The runner re-validates the steps (runner.js validateScript).
 
 import { presetById } from '../sky/presets.js';
+import { factsFor, promptCard } from '../sky/presetFacts.js';
 import { detectorOf } from '../core/bands.js';
 
 export const CLIENT_TIMEOUT_MS = 9000; // the server gives the model 8 s
@@ -34,11 +38,12 @@ export function describeTarget(target) {
 const sepArcsec = (ra, dec, ra0, dec0) => Math.hypot((ra - ra0) * Math.cos((dec0 * Math.PI) / 180), dec - dec0) * 3600;
 
 /** The small fact sheet the model explains from (see the header). */
-export function gatherFacts({ state = {}, target = null, player = null, spectrum = null, wavelengths = null } = {}) {
+export function gatherFacts({ state = {}, target = null, player = null, spectrum = null, wavelengths = null, fieldPreset = null } = {}) {
   const facts = {};
   const t = describeTarget(target);
-  const preset = t?.id && /^(sky|field):/.test(t.id) ? presetById(t.id.split(':')[1]) : null;
-  if (preset) facts.preset = { label: preset.label, note: preset.note };
+  // the place this is about: sky:<place> / field:<place>, or the time-lapse target when it is that place's field
+  const card = t?.id === 'field:target' && state.view === 'field' ? factsFor(fieldPreset) : t?.id && /^(sky|field):/.test(t.id) ? factsFor(t.id) : null;
+  if (card) facts.preset = promptCard(card);
 
   if (Number.isInteger(state.band)) {
     const { detector, channel } = detectorOf(state.band);

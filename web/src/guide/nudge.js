@@ -10,7 +10,9 @@
 //     that moment (FALLBACK below), so the guide never goes silent, at zero tokens.
 //   - options: apply (run the setup now: commands/clicks, local), tour (a built-in tour), explain
 //     (a short Claude tour about the offer: counted in the visit budget), plus "Not now".
-//   - objects (B7, moment "object", never one of the 7 places): explain asks for an object explanation
+//   - places (moment "object" with a sky:<place> target): no Claude offer -> presetOffer, the card's hook +
+//     first fact with its suggested tours (local, zero tokens).
+//   - objects (B7, moment "object", not one of the 7 places): explain asks for an object explanation
 //     (trigger "object" with the target); no Claude offer -> a local "Yes, tell me" offer naming it;
 //     visit budget spent -> the local object script (explain with local: true), no API call.
 //
@@ -18,6 +20,8 @@
 //   n.handle({ moment, target? }) -> Promise<outcome>   n.snapshot()   n.configure(o)   n.reset()
 //
 // Pure apart from what is injected (unit-tested in tests/interest.test.js with fakes).
+
+import { factsFor } from '../sky/presetFacts.js';
 
 export const DEFAULTS = Object.freeze({
   gapMs: 45000,
@@ -57,7 +61,16 @@ export function objectOffer(target) {
     options: [{ label: 'Yes, tell me', kind: 'explain' }],
   };
 }
-const fallbackFor = (m) => (m?.moment === 'object' ? objectOffer(m.target) : FALLBACK[m?.moment] ?? null); // features: stay quiet
+// One of the 7 places (sky:<place>): the local offer opens with its fact card's hook and first fact, and its
+// buttons are the card's suggested actions as local tours (zero tokens), plus its own tour ("Tell me more").
+export function presetOffer(target) {
+  const card = factsFor(target?.id);
+  if (!card) return null;
+  const tours = (card.suggested_actions ?? []).map((a) => ({ label: a.label, kind: 'tour', tour: `${a.tour}:${card.id}` }));
+  if (!tours.some((o) => o.tour === `identify:${card.id}`)) tours.push({ label: 'Tell me more', kind: 'tour', tour: `identify:${card.id}` });
+  return { title: card.name, line: `${card.hook} ${card.facts[0]}`, point: target.id, options: tours.slice(0, 2) };
+}
+const fallbackFor = (m) => (m?.moment === 'object' ? presetOffer(m.target) ?? objectOffer(m.target) : FALLBACK[m?.moment] ?? null); // features: stay quiet
 
 /**
  * @param {Object} o

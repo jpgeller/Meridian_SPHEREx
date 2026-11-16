@@ -151,7 +151,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
         trigger,
         target: t,
         state,
-        facts: gatherFacts({ state, target: t, player, spectrum, wavelengths: sky.wavelengths }),
+        facts: gatherFacts({ state, target: t, player, spectrum, wavelengths: sky.wavelengths, fieldPreset: t?.id === 'field:target' ? fieldPreset() : null }),
         commands: commands.list(),
         ids: registry.list().map((x) => x.id),
         offer,
@@ -334,7 +334,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
         target: t,
         state,
         profile: interest.profile(),
-        facts: gatherFacts({ state, target: t, player, spectrum, wavelengths: sky.wavelengths }),
+        facts: gatherFacts({ state, target: t, player, spectrum, wavelengths: sky.wavelengths, fieldPreset: t?.id === 'field:target' ? fieldPreset() : null }),
         commands: commands.list(),
         ids: registry.list().map((x) => x.id),
       });

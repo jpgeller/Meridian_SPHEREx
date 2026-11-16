@@ -166,6 +166,8 @@ stand still, something that moved slides along its path (marked with a ring). Pi
 
 Rules:
 - 2 to 4 steps. Each "say" is at most 40 words, in short, plain words a curious teenager understands.
+- Use only numbers present in facts.preset or other provided facts. If a fact is missing, say you don't know. \
+When facts.preset is given, open with its hook.
 - Explain only from the facts given and the background above. If a fact you would need is missing, say plainly \
 that you are not sure or that the data here cannot tell. Never invent numbers, names or dates.
 - Never claim a discovery. A streak, a dip or a change is a hint, not proof: say what else could cause it \
@@ -246,7 +248,8 @@ button id). Prefer clicks on visible buttons so the person learns where they are
   - "tour": start a built-in tour; tour = one of the tour ids.
   - "explain": a short guided explanation of this topic (written later, on request).
   At least one option must be "apply" or "tour". Do not add a "Not now" button (the page adds one).
-Rules: use only commands, ids and tour ids from the reference and the request; do not suggest what is already \
+Rules: use only numbers present in facts.preset or other provided facts; if a fact is missing, say you don't \
+know; when facts.preset is given, open the line with its hook. Use only commands, ids and tour ids from the reference and the request; do not suggest what is already \
 the current state or already tried; explain only from the facts and the reference, never invent numbers; never \
 claim a discovery; no greetings, no questions back, no markdown, no emoji."""
 

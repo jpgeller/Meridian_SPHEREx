@@ -4,7 +4,8 @@
 // card's answer ids are handled in index.js (e.g. 'show' -> motion tour, 'colours', 'again', 'example').
 //
 //   menuCard()                           the pill's question: What am I looking at? · Something moving · What the colours mean
-//   identifyTour(id, { inField })        name, what it is, a few facts (WISE 0855: the band goes to D6), "Want to see how it moves?"
+//   identifyTour(id, { inField })        hook, what it is, key numbers, what to look for (WISE 0855: the band goes to D6),
+//                                        "Want to see how it moves?" All facts come from the place's card (sky/presetFacts.js)
 //                                        (places that do not move: "Show me" leads to the colours tour)
 //   motionTour(id, { inField, atTarget }) fly there -> open the time-lapse -> first picture -> play -> change video / blink
 //   changeTour()                         (field view, replaying) first picture -> play -> change video, with the honest caveat
@@ -15,66 +16,44 @@
 // Facts are kept modest and checkable (CLAUDE.md: honest about limits, never claim discoveries).
 
 import { presetById } from '../sky/presets.js';
+import { factsFor } from '../sky/presetFacts.js';
 
+// How each place behaves in the tours. Its facts (name, kind, hook, numbers, what to look for) all come
+// from its fact card (sky/presetFacts.js), the single source of numbers; only the tour wiring lives here.
 export const NOTES = {
   milky_way: {
-    kind: 'Galaxy core',
-    blurb: 'The centre of our galaxy, around the black hole Sagittarius A*. Visible light is blocked by thick dust; infrared slips through it.',
-    facts: [['Distance', 'about 26,000 light-years'], ['Moves?', 'No, far too distant'], ['Best in', 'D4 to D6']],
     motion: 'none',
     colours: 'Here, dust lanes block much of the shorter infrared light, so the core looks patchy in D1. The longer bands, D4 to D6, see through more of that dust.',
   },
   solar_system: {
-    kind: 'Ecliptic pole',
-    blurb: 'Looking straight out of the plane the planets orbit in. SPHEREx never points at the Sun, and it revisits this part of the sky most often.',
-    facts: [['Planets', 'move along the ecliptic, not here'], ['Visits', 'many, near the poles']],
     motion: 'none',
     colours: 'Looking out of the galaxy’s dusty plane, little blocks the view here. Most dots are stars and distant galaxies; much of the faint background glow comes from dust in our own solar system.',
   },
-  barnard: {
-    kind: 'Red dwarf star',
-    blurb: 'A small, cool star and one of the Sun’s closest neighbours. It crosses our sky faster than any other star, fast enough to shift between SPHEREx visits.',
-    facts: [['Distance', '5.96 light-years'], ['Motion', '10.4 arcsec per year'], ['Best in', 'D1 to D3']],
-    motion: 'pm',
-    rate: '10 arcseconds',
-  },
-  eps_ind_b: {
-    kind: 'Pair of brown dwarfs',
-    blurb: 'Two brown dwarfs orbiting each other, travelling with the nearby star Epsilon Indi. They are cool, so they glow mostly in the longer bands.',
-    facts: [['Distance', 'about 12 light-years'], ['Motion', 'about 4.7 arcsec per year'], ['Best in', 'D4 to D6']],
-    motion: 'pm',
-    rate: 'almost 5 arcseconds',
-  },
-  wise_0855: {
-    kind: 'Brown dwarf',
-    blurb: 'A “failed star”, too small to shine by fusion and about as cold as a winter day. It gives off almost no light at short wavelengths.',
-    facts: [['Distance', 'about 7.4 light-years'], ['Temperature', 'near water’s freezing point'], ['Motion', 'about 8 arcsec per year']],
-    motion: 'pm',
-    rate: 'about 8 arcseconds',
-    longOnly: true,
-  },
-  rw_aur: {
-    kind: 'Young variable star',
-    blurb: 'A young star, a few million years old, still wrapped in gas and dust. Dust passing in front makes it fade and brighten.',
-    facts: [['Type', 'T Tauri star (very young)'], ['Changes', 'brightness, not position'], ['Distance', 'about 500 light-years']],
-    motion: 'var',
-  },
-  r_dra: {
-    kind: 'Mira variable star',
-    blurb: 'A giant star near the end of its life that swells and shrinks, brightening and fading over about eight months.',
-    facts: [['Type', 'pulsating red giant'], ['Changes', 'brightness, not position'], ['Cycle', 'about 245 days']],
-    motion: 'var',
-    saturated: true,
-  },
+  barnard: { motion: 'pm' },
+  eps_ind_b: { motion: 'pm' },
+  wise_0855: { motion: 'pm', longOnly: true },
+  rw_aur: { motion: 'var' },
+  r_dra: { motion: 'var', saturated: true },
 };
+
+// "10.4 arcseconds" / "about 4.7 arcseconds", from the card's proper motion (″/yr)
+function rateOf(card) {
+  if (!Number.isFinite(card?.moves)) return null;
+  const approx = Object.values(card.numbers ?? {}).some((v) => /^~[\d.]+″/.test(v));
+  return `${approx ? 'about ' : ''}${card.moves} arcseconds`;
+}
 
 const GOT = 'got_it';
 const AGAIN = { id: 'again', label: 'Show me again' };
 const clear = { title: 'Is that clear?' };
 
+/** A place's card plus its tour wiring: { id, name, type, hook, numbers, look_for, …, motion, rate?, colours? }. */
 export const noteFor = (id) => {
   const preset = presetById(id);
-  return preset && NOTES[id] ? { id, name: preset.label, ...NOTES[id] } : null;
+  const card = factsFor(id);
+  if (!preset || !NOTES[id] || !card) return null;
+  const rate = rateOf(card);
+  return { ...card, name: preset.label, ...NOTES[id], ...(rate ? { rate } : {}) };
 };
 
 /** 'sky:barnard' | 'field:target' | 'barnard' -> 'barnard' (a preset id), or null. */
@@ -97,20 +76,33 @@ export function menuCard() {
   };
 }
 
+/** The four facts rows of a place (the card's first four numbers). */
+export const keyNumbers = (card) => Object.entries(card?.numbers ?? {}).slice(0, 4);
+
+/**
+ * A place's local tour (zero tokens): its hook while the pointer circles it -> what it is and its parts ->
+ * key numbers -> what to look for in SPHEREx, honest about what the images cannot show (WISE 0855: the band
+ * goes to D6) -> "Want to see how it moves / changes?" (places that do not move: "Show me" -> colours).
+ */
 export function identifyTour(id, { inField = false } = {}) {
   const n = noteFor(id);
   if (!n) return null;
   const mark = inField ? 'field:target' : `sky:${id}`;
   const show = [{ point: mark, label: n.name }, { circle: mark }];
   const steps = [
-    { title: n.name, sub: n.kind, say: n.blurb, actions: show, ms: 10000 },
-    { title: n.name, say: 'A few facts:', facts: n.facts, actions: show, ms: 9000 },
+    { title: n.name, sub: n.type, say: n.hook, actions: show, ms: 10000 },
+    { title: n.name, say: n.summary, actions: [{ circle: mark }], ms: 11000 },
+    { title: n.name, say: 'Key numbers:', facts: keyNumbers(n), actions: [{ circle: mark }], ms: 9000 },
   ];
+  const look = n.look_for.join(' ');
   if (n.longOnly && !inField) {
     steps.push({
-      say: 'It only shows up at long wavelengths. That is why I put the band on D6.',
+      title: 'What to look for',
+      say: `${look} That is why I put the band on D6.`,
       actions: [{ click: 'band-d6' }, { circle: 'band-d6' }, { circle: mark }],
     });
+  } else {
+    steps.push({ title: 'What to look for', say: look, actions: [{ circle: mark }], ms: 10000 });
   }
   const q = n.motion === 'pm' ? 'Want to see how it moves?' : n.motion === 'var' ? 'Want to see how it changes?' : 'Want to see what the colours show here?';
   // a place that does not move: "Show me" opens the colours tour, not the motion tour
