@@ -16,6 +16,7 @@
 //   timelapse_start  the person opened the 2D view of real images for the first time
 //   object_search    they searched a name that is not one of the preset places
 //   zoomed           zoomed in on the sky (below 5°) for 20 s without opening the 2D view
+//   arrival          the person flew to one of the 7 places (go_preset): { target: { id: 'sky:<place>' } }, every time
 // Dwell moments (feature:<id>, object) come from attention.js, not from here.
 //
 // Pure: no DOM, clock injected, unit-tested (tests/interest.test.js).
@@ -107,7 +108,14 @@ export function createInterest({ now = () => Date.now(), onMoment = () => {}, is
       if (!topic) return;
       topics.set(topic, (topics.get(topic) ?? 0) + 1);
       recent = [...recent, describeCommand(d)].slice(-6);
-      if (d.name === 'go_preset' && typeof d.args?.id === 'string') tried.add(`place:${d.args.id}`);
+      if (d.name === 'go_preset' && typeof d.args?.id === 'string') {
+        tried.add(`place:${d.args.id}`);
+        try {
+          onMoment({ moment: 'arrival', target: { id: `sky:${d.args.id}` } }); // no cool-down: each arrival is new
+        } catch (err) {
+          console.warn('[guide] onMoment failed', err);
+        }
+      }
       if (BANDS.has(d.name)) bump('bands', o.bandsWindowMs, o.bandsCount, 'bands');
       else if (COLOURS.has(d.name)) bump('colours', o.coloursWindowMs, o.coloursCount, 'colours');
       else if (COMPARE.has(d.name)) bump('compare', o.compareWindowMs, o.compareCount, 'compare');

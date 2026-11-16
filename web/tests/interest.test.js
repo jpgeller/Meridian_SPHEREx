@@ -289,3 +289,17 @@ test('nudge.menu: the pill asks Claude for options (moment "menu", shared budget
   assert.equal(await b.n.menu({}), null);
   assert.equal(b.asked.length, 0);
 });
+
+test('arrival: go_preset by the person -> moment "arrival" every time; the nudge shows the hook + first action locally', async () => {
+  const moments = [];
+  const it = createInterest({ onMoment: (m) => moments.push(m) });
+  it.command({ name: 'go_preset', args: { id: 'barnard' }, source: 'ui', ok: true });
+  it.command({ name: 'go_preset', args: { id: 'barnard' }, source: 'guide', ok: true });
+  it.command({ name: 'go_preset', args: { id: 'wise_0855' }, source: 'ui', ok: true });
+  assert.deepEqual(moments.map((m) => m.target.id), ['sky:barnard', 'sky:wise_0855']);
+  const s = setup({ answer: 'not_now' });
+  await s.n.handle({ moment: 'arrival', target: { id: 'sky:barnard' } });
+  assert.equal(s.asked.length, 0, 'no Claude call');
+  assert.match(s.shown[0].say, /fastest-moving star/);
+  assert.match(s.shown[0].say, /\?$/);
+});

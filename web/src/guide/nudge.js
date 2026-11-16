@@ -52,7 +52,8 @@ export const FALLBACK = {
     options: [{ label: 'Open the pictures', kind: 'apply', actions: [{ click: 'open-field' }] }, { label: 'What am I seeing?', kind: 'tour', tour: 'where' }] },
 };
 // a moment's topic: features share one per control, objects one per object
-export const topicOf = ({ moment, target } = {}) => (moment === 'object' && target?.id ? `object:${target.id}` : String(moment ?? ''));
+export const topicOf = ({ moment, target } = {}) =>
+  (moment === 'object' || moment === 'arrival') && target?.id ? `${moment}:${target.id}` : String(moment ?? '');
 // B7: an object (not one of the places) always gets an offer to explain it, named when we know its name
 export function objectOffer(target) {
   const name = typeof target?.name === 'string' && target.name.trim() ? target.name.trim() : null;
@@ -71,6 +72,14 @@ export function presetOffer(target) {
   const tours = (card.suggested_actions ?? []).map((a) => ({ label: a.label, kind: 'tour', tour: `${a.tour}:${card.id}` }));
   if (!tours.some((o) => o.tour === `identify:${card.id}`)) tours.push({ label: 'Tell me more', kind: 'tour', tour: `identify:${card.id}` });
   return { title: card.name, line: `${card.hook} ${card.facts[0]}`, point: target.id, options: tours.slice(0, 2) };
+}
+// Arrival at a place (spec, "Arrival trigger"): the card's hook plus its first suggested action, local (zero tokens)
+export function arrivalOffer(target) {
+  const card = factsFor(target?.id);
+  const first = card?.suggested_actions?.[0];
+  if (!card || !first) return null;
+  const offer = presetOffer(target);
+  return { ...offer, line: `${card.hook} ${first.label}?` };
 }
 const fallbackFor = (m) => (m?.moment === 'object' ? presetOffer(m.target) ?? objectOffer(m.target) : FALLBACK[m?.moment] ?? null); // features: stay quiet
 
@@ -189,6 +198,13 @@ export function createNudge({
   async function handle(m) {
     const topic = topicOf(m);
     if (!m?.moment || (blocked.get(topic) ?? 0) > now() || (rested.get(topic) ?? 0) > now() || pending || isBusy()) return 'skip';
+    if (m.moment === 'arrival') {
+      // the person just chose this place: a local teaser at once (no Claude call, no offer gap)
+      const offer = arrivalOffer(m.target);
+      if (!offer) return 'skip';
+      rested.set(topic, now() + o.topicMs);
+      return show(offer, m);
+    }
     if (now() - lastShown < o.offerGapMs) return 'skip';
     rested.set(topic, now() + o.topicMs);
     let offer = null;

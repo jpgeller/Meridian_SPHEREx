@@ -378,7 +378,11 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
     isBusy: () => popup.isOpen() || runner.isRunning() || !!pending || popup.isMuted(),
     canShow: (id) => !!registry.resolve(id),
   });
-  const interest = createInterest({ onMoment: (m) => void nudge.handle(m), isPresetTarget });
+  // arrival: the teaser comes 0.5 s after landing (the sky has redrawn, so the pointer finds the place)
+  const interest = createInterest({
+    onMoment: (m) => (m.moment === 'arrival' ? setTimeout(() => !popup.isMuted() && void nudge.handle(m), 500) : void nudge.handle(m)),
+    isPresetTarget,
+  });
   window.addEventListener('meridian:command', (e) => interest.command(e.detail));
   store.subscribe((s) => interest.observe(s));
   interest.observe(store.get());
