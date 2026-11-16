@@ -2,10 +2,10 @@
 // offer in the top-right card, with 2-3 buttons, after the pointer has flown to what it is about.
 // Claude writes the offer (POST /api/guide/nudge, see api/guide.py); this module keeps it cheap:
 //
-//   - budget: at most one Claude call per `gapMs` (45 s), `maxPerVisit` (15) per visit (sessionStorage),
-//     never while a card, a tour or a request is busy, no two offers within `offerGapMs` (30 s);
-//     a moment's topic rests `topicMs` (3 min) after
-//     an offer; "Not now" blocks that topic for the visit.
+//   - budget: at most one Claude call per `gapMs` (15 s), `maxPerVisit` (40) per visit (sessionStorage),
+//     never while a card, a tour or a request is busy, no two offers within `offerGapMs` (15 s);
+//     a moment's topic rests `topicMs` (90 s) after an offer; "Not now" mutes that topic for 5 minutes;
+//     three "Not now" in a row -> one "Fewer suggestions?" (yes: half the rate). Ignored offers collapse after 8 s.
 //   - local fallback: no key, a timeout, an invalid reply or an empty budget -> a fixed local offer for
 //     that moment (FALLBACK below), so the guide never goes silent, at zero tokens.
 //   - options: apply (run the setup now: commands/clicks, local), tour (a built-in tour), explain
@@ -24,11 +24,13 @@
 import { factsFor } from '../sky/presetFacts.js';
 
 export const DEFAULTS = Object.freeze({
-  gapMs: 45000,
-  maxPerVisit: 15,
-  topicMs: 180000,
-  offerGapMs: 30000, // no two offers of any kind (Claude or local) closer than this
-  autoHideMs: 14000,
+  gapMs: 15000,
+  maxPerVisit: 40,
+  topicMs: 90000,
+  offerGapMs: 15000, // no two offers of any kind (Claude or local) closer than this
+  autoHideMs: 8000, // an ignored offer collapses after this, with no penalty
+  muteMs: 300000, // "Not now" mutes that topic for 5 minutes
+  fewerAfter: 3, // this many "Not now" in a row -> ask once "Fewer suggestions?"
 });
 const STORE_KEY = 'meridian.guide.nudges';
 
@@ -94,7 +96,9 @@ export function createNudge({
   let lastShown = -Infinity;
   let pending = false;
   const rested = new Map(); // topic -> until
-  const blocked = new Set(); // "Not now" for this visit
+  const blocked = new Map(); // topic -> muted until ("Not now": 5 minutes)
+  let declines = 0; // "Not now" in a row
+  let askedFewer = false;
   const readCount = () => {
     try {
       return Number(storage?.getItem?.(STORE_KEY)) || 0;
@@ -167,15 +171,24 @@ export function createNudge({
     const i = /^o(\d)$/.exec(answer)?.[1];
     if (i == null) {
       overlay.clear();
-      if (answer === 'not_now') blocked.add(topicOf(m));
+      if (answer === 'not_now') {
+        blocked.set(topicOf(m), now() + o.muteMs);
+        declines += 1;
+        if (declines >= o.fewerAfter && !askedFewer) {
+          askedFewer = true;
+          const a = await say({ title: 'Fewer suggestions?', say: 'I can offer things half as often.', answers: [{ id: 'fewer', label: 'Yes, fewer' }, { id: 'keep', label: 'Keep as is' }] });
+          if (a === 'fewer') o = { ...o, gapMs: o.gapMs * 2, offerGapMs: o.offerGapMs * 2, topicMs: o.topicMs * 2 };
+        }
+      }
       return answer;
     }
+    declines = 0;
     return act(opts[Number(i)], offer, m);
   }
 
   async function handle(m) {
     const topic = topicOf(m);
-    if (!m?.moment || blocked.has(topic) || (rested.get(topic) ?? 0) > now() || pending || isBusy()) return 'skip';
+    if (!m?.moment || (blocked.get(topic) ?? 0) > now() || (rested.get(topic) ?? 0) > now() || pending || isBusy()) return 'skip';
     if (now() - lastShown < o.offerGapMs) return 'skip';
     rested.set(topic, now() + o.topicMs);
     let offer = null;
@@ -201,7 +214,7 @@ export function createNudge({
 
   return {
     handle,
-    snapshot: () => ({ calls, lastCall, pending, blocked: [...blocked], rested: Object.fromEntries(rested), budget: budgetReason() }),
+    snapshot: () => ({ calls, lastCall, pending, blocked: Object.fromEntries(blocked), declines, rested: Object.fromEntries(rested), budget: budgetReason() }),
     configure: (x = {}) => (o = { ...o, ...x }),
     reset() {
       calls = 0;
@@ -210,6 +223,8 @@ export function createNudge({
       writeCount(0);
       rested.clear();
       blocked.clear();
+      declines = 0;
+      askedFewer = false;
     },
   };
 }

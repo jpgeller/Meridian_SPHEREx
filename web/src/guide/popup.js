@@ -12,7 +12,7 @@
 //   offer({ text, sub?, onYes, onNo?, target?, key? }) -> Promise<'yes'|'no'|'timeout'|'dismissed'|'replaced'|'cooling'|'busy'>
 //        A bold question + a muted line + "Yes, tell me" / "Not now". Hides itself after AUTO_HIDE_MS
 //        if ignored (unless auto-hide is off: gaze mode, U9); then the same target (or key, or text)
-//        is not offered again for COOLDOWN_MS. "Not now" (or ✕) blocks it for the whole session.
+//        is not offered again for COOLDOWN_MS. "Not now" (or ✕) rests it for 5 minutes.
 //        Not shown while another card is open ('busy'). Offers are local: nothing here calls the API.
 //   say(step) -> Promise<answer id>
 //        step = 'text' | { say, title?, sub?, facts?: [[term, value]], answers?, step?: '1 / 3',
@@ -35,8 +35,9 @@
 
 import { hits } from './overlay.js';
 
-export const AUTO_HIDE_MS = 14000; // an ignored offer leaves by itself (the bar along the bottom shows it)
+export const AUTO_HIDE_MS = 8000; // an ignored offer leaves by itself (the bar along the bottom shows it)
 export const COOLDOWN_MS = 60000;
+export const NOT_NOW_MS = 300000; // "Not now" (or ✕) rests that offer for 5 minutes
 export const MAX_WORDS = 45; // "about 40": longer steps are cut with an ellipsis
 export const MAX_ANSWERS = 3;
 export const ANSWERS = {
@@ -413,8 +414,8 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
     } else returnFocus = null;
     if (was.kind === 'offer') {
       const result = outcome === 'yes' ? 'yes' : outcome === 'close' ? 'dismissed' : outcome;
-      // "Not now" or ✕: not this object again in this session; ignored: a minute's rest
-      cooldown.mark(was.key, result === 'no' || result === 'dismissed' ? Infinity : COOLDOWN_MS);
+      // "Not now" or ✕: not this object again for 5 minutes; ignored: a minute's rest
+      cooldown.mark(was.key, result === 'no' || result === 'dismissed' ? NOT_NOW_MS : COOLDOWN_MS);
       const cb = result === 'yes' ? was.onYes : result === 'replaced' ? null : was.onNo;
       was.resolve(result);
       try {

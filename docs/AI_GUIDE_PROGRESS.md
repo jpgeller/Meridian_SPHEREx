@@ -24,7 +24,7 @@ Decisions (Nov 15, 2026):
 
 ## P1
 - [x] Insight-first copy
-- [ ] New budgets + 5-min "Not now" + teaser auto-collapse
+- [x] New budgets + 5-min "Not now" + teaser auto-collapse
 - [ ] Pill states
 - [ ] Dynamic pill menu
 - [ ] Arrival trigger

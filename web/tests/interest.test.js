@@ -147,13 +147,13 @@ test('nudge: the pointer goes first, then the offer with its options; "apply" ru
   const card = s.shown[0];
   assert.equal(card.title, 'Cold things glow in D6');
   assert.deepEqual(card.answers.map((a) => a.label), ['Show D6 with Ices', 'Tour the colours', 'Not now']);
-  assert.equal(card.auto, 14000);
+  assert.equal(card.auto, 8000);
   // "apply": one local step with the commands, and a "Tell me more" (Claude) option
   assert.deepEqual(s.scripts[0][0].actions, REPLY.options[0].actions);
   assert.deepEqual(s.scripts[0][0].answers, ['got_it', { id: 'explain', label: 'Tell me more' }]);
 });
 
-test('nudge: tour and explain options; "Not now" blocks the topic for the visit', async () => {
+test('nudge: tour and explain options; "Not now" mutes the topic for 5 minutes', async () => {
   const s = setup({ answer: 'o1' });
   await s.n.handle({ moment: 'bands' });
   assert.deepEqual(s.tours, [['colours', null]]);
@@ -163,31 +163,32 @@ test('nudge: tour and explain options; "Not now" blocks the topic for the visit'
   assert.equal(e.n.snapshot().calls, 2, 'the explanation counts in the visit budget');
   const no = setup({ answer: 'not_now' });
   await no.n.handle({ moment: 'bands' });
-  no.c.advance(10 * 60000);
+  no.c.advance(4 * 60000);
   assert.equal(await no.n.handle({ moment: 'bands' }), 'skip');
   assert.equal(no.asked.length, 1);
+  no.c.advance(2 * 60000);
+  assert.notEqual(await no.n.handle({ moment: 'bands' }), 'skip');
 });
 
-test('nudge: budget: offers 30 s apart, one call per 45 s, 15 per visit, a topic rests 3 min, nothing while busy', async () => {
+test('nudge: budget: offers 15 s apart, one call per 15 s, 40 per visit, a topic rests 90 s, nothing while busy', async () => {
   const s = setup({ answer: 'close' });
   await s.n.handle({ moment: 'bands' });
-  // another topic 10 s later: no offer at all (two pop-ups within 30 s would be too much)
+  // another topic 10 s later: no offer at all (two pop-ups within 15 s would be too much)
   s.c.advance(10000);
   assert.equal(await s.n.handle({ moment: 'colours' }), 'skip');
-  // 35 s after the first: an offer is fine again, but Claude is not asked yet (45 s): the local one
-  s.c.advance(25000);
+  // 16 s after the first: an offer and a Claude call are fine again
+  s.c.advance(6000);
   await s.n.handle({ moment: 'colours' });
-  assert.equal(s.asked.length, 1);
-  assert.equal(s.shown.at(-1).title, FALLBACK.colours.title);
-  // the same topic within 3 min: nothing at all
-  s.c.advance(60000);
+  assert.equal(s.asked.length, 2);
+  // the same topic within 90 s: nothing at all
+  s.c.advance(30000);
   assert.equal(await s.n.handle({ moment: 'bands' }), 'skip');
   // busy (a card or a tour): nothing
   s.setBusy(true);
   assert.equal(await s.n.handle({ moment: 'compare' }), 'skip');
   s.setBusy(false);
-  // 15 per visit, counted in sessionStorage (a reload keeps the count)
-  s.mem.set('meridian.guide.nudges', '15');
+  // 40 per visit, counted in sessionStorage (a reload keeps the count)
+  s.mem.set('meridian.guide.nudges', '40');
   const again = setup({ storage: { getItem: (k) => s.mem.get(k) ?? null, setItem: (k, v) => s.mem.set(k, v) } });
   await again.n.handle({ moment: 'motion' });
   assert.equal(again.asked.length, 0);
@@ -237,13 +238,13 @@ test('B7: an explain option of a Claude offer on an object uses trigger "object"
 });
 
 test('B7: visit budget spent -> no API call; "Yes, tell me" plays the local object script', async () => {
-  const mem = new Map([['meridian.guide.nudges', '15']]);
+  const mem = new Map([['meridian.guide.nudges', '40']]);
   const s = setup({ storage: { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) }, answer: 'o0' });
   await s.n.handle({ moment: 'object', target: VEGA });
   assert.equal(s.asked.length, 0);
   assert.equal(s.shown[0].title, 'Vega');
   assert.deepEqual(s.explains, [{ trigger: 'object', target: VEGA, moment: 'object', local: true }]);
-  assert.equal(s.n.snapshot().calls, 15, 'nothing more counted');
+  assert.equal(s.n.snapshot().calls, 40, 'nothing more counted');
 });
 
 test('B3: a nudge clears earlier marks before drawing its own, and clears on every non-option answer', async () => {
@@ -263,4 +264,15 @@ test('B3: a nudge clears earlier marks before drawing its own, and clears on eve
   });
   await hidden.handle({ moment: 'bands' });
   assert.deepEqual(s.marks, [['clear'], ['clear']]);
+});
+
+test('nudge: three "Not now" in a row ask once "Fewer suggestions?"; yes halves the rate', async () => {
+  const s = setup({ answer: 'not_now' });
+  for (const m of ['bands', 'colours', 'compare']) {
+    await s.n.handle({ moment: m });
+    s.c.advance(20000);
+  }
+  const ask = s.shown.find((c) => c.title === 'Fewer suggestions?');
+  assert.ok(ask, 'asked after three declines');
+  assert.equal(s.shown.filter((c) => c.title === 'Fewer suggestions?').length, 1);
 });
