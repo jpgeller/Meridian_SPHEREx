@@ -1,0 +1,64 @@
+:root {
+  color-scheme: dark;
+  --bg: #03050c;
+  --panel: #0b1020;
+  --text: #e8ecf5;
+  --muted: #9aa4b8;
+  --accent: #ffb547;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden; }
+#meridian { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+[hidden] { display: none !important; }
+
+.panel {
+  position: fixed; z-index: 30; left: 50%; top: 50%; translate: -50% -50%;
+  width: min(620px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto;
+  padding: 24px 28px; border: 1px solid rgba(255, 181, 71, 0.45); border-radius: 16px;
+  background: var(--panel); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6); line-height: 1.45;
+}
+#consent { z-index: 40; }
+.panel h1, .panel h2 { margin: 0 0 8px; font-size: 22px; font-weight: 600; }
+.panel ul { margin: 8px 0 16px; padding-left: 20px; color: var(--muted); }
+.panel li { margin: 4px 0; }
+.panel label { display: block; margin: 8px 0 6px; font-size: 14px; color: var(--muted); }
+.panel input {
+  width: 100%; padding: 12px; font: inherit; font-size: 15px; color: var(--text);
+  background: #060a16; border: 1px solid #2a3350; border-radius: 10px;
+}
+.hint { margin: 6px 0 16px; font-size: 13px; color: var(--muted); }
+.error { margin: 12px 0 0; color: #ff8a7a; min-height: 1.2em; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; }
+button, a.button {
+  flex: 1; min-height: 64px; padding: 12px 18px; font: inherit; font-size: 16px; text-align: center;
+  color: var(--text); background: #121a30; border: 1px solid #2a3350; border-radius: 12px; cursor: pointer;
+  text-decoration: none; display: inline-flex; align-items: center; justify-content: center;
+}
+button:hover, a.button:hover { border-color: var(--accent); }
+button.primary { border-color: var(--accent); color: var(--accent); }
+
+#calib { position: fixed; inset: 0; z-index: 20; background: rgba(3, 5, 12, 0.94); outline: none; }
+#calib.buttons { background: rgba(3, 5, 12, 0.45); }
+#dot { position: absolute; width: 0; height: 0; }
+#dot .core, #dot .ring { position: absolute; left: 0; top: 0; border-radius: 50%; translate: -50% -50%; }
+#dot .core { width: 18px; height: 18px; background: var(--accent); box-shadow: 0 0 12px rgba(255, 181, 71, 0.8); }
+#dot .ring { width: 70px; height: 70px; border: 2px solid rgba(255, 255, 255, 0.85); }
+#dot.go .ring { animation: shrink 1.5s linear forwards; }
+@keyframes shrink { from { width: 70px; height: 70px; } to { width: 18px; height: 18px; } }
+#count { position: absolute; margin: 0; font-size: 14px; color: var(--muted); }
+#calib-msg {
+  position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: min(760px, 90vw);
+  text-align: center; font-size: 20px; line-height: 1.5;
+}
+#calib-stop { position: absolute; left: 50%; bottom: 8vh; translate: -50% 0; flex: none; width: auto; font-size: 14px; min-height: 44px; opacity: 0.8; }
+kbd { margin-left: 6px; padding: 1px 6px; border: 1px solid #2a3350; border-radius: 4px; font-size: 12px; }
+
+#chip {
+  position: fixed; z-index: 25; left: 50%; bottom: 10px; translate: -50% 0;
+  display: flex; gap: 8px; align-items: center; padding: 6px 8px 6px 14px;
+  background: rgba(11, 16, 32, 0.92); border: 1px solid #2a3350; border-radius: 999px;
+  font-size: 13px; color: var(--muted); opacity: 0.15; transition: opacity 0.3s;
+}
+#chip.show, #chip:hover { opacity: 1; }
+#chip button { flex: none; min-height: 30px; padding: 4px 12px; font-size: 13px; border-radius: 999px; }

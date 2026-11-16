@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Meridian with eye tracking</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/eye/eye.css" />
+  </head>
+  <body>
+    <!-- Meridian itself, unchanged, full window. This page only adds the camera and the gaze engine around it. -->
+    <iframe id="meridian" title="Meridian" allow="fullscreen" src="about:blank"></iframe>
+
+    <section id="consent" class="panel" role="dialog" aria-modal="true" aria-labelledby="consent-title">
+      <h1 id="consent-title">Meridian with eye tracking</h1>
+      <p>Control Meridian by looking at it. This needs your camera.</p>
+      <ul>
+        <li>Camera frames go only to the eye-tracking engine named below, are used once to find where you look, and are <strong>never stored</strong>.</li>
+        <li>Nothing is recorded on this website's server.</li>
+        <li>Start with a calibration (about 4 minutes) for much better precision.</li>
+        <li>Best in Chrome or Edge, full screen, with your face evenly lit.</li>
+      </ul>
+      <label for="engine-url">Eye-tracking engine</label>
+      <input id="engine-url" type="text" spellcheck="false" autocomplete="off" placeholder="wss://….trycloudflare.com" />
+      <p class="hint" id="engine-hint"></p>
+      <div class="row">
+        <button type="button" id="start" class="primary">Allow camera and start</button>
+        <a class="button" id="no-eyes" href="/">Use Meridian without eye tracking</a>
+      </div>
+      <p class="error" id="consent-error" role="alert"></p>
+    </section>
+
+    <section id="ask" class="panel" role="dialog" aria-modal="true" aria-labelledby="ask-title" hidden>
+      <h2 id="ask-title">Eye tracker connected</h2>
+      <p>Calibrate it to you for much higher precision? About 4 minutes: 100 dots across the screen, then a dot on each button. Or use it as it is (less precise).</p>
+      <div class="row">
+        <button type="button" id="calibrate" class="primary">Calibrate (about 4 min)</button>
+        <button type="button" id="skip">Use it as it is</button>
+      </div>
+    </section>
+
+    <section id="calib" aria-live="polite" hidden tabindex="-1">
+      <div id="dot" hidden><span class="ring"></span><span class="core"></span></div>
+      <p id="count"></p>
+      <div id="calib-msg" role="status"></div>
+      <button type="button" id="calib-stop">Stop calibration <kbd>Esc</kbd></button>
+    </section>
+
+    <div id="chip" role="status" hidden>
+      <span id="chip-text">Eye tracking: starting…</span>
+      <button type="button" id="recal">Recalibrate</button>
+      <button type="button" id="stop">Stop</button>
+    </div>
+
+    <video id="cam" playsinline muted hidden></video>
+    <script type="module" src="/eye/eye.js"></script>
+  </body>
+</html>
