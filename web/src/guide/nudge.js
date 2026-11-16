@@ -10,6 +10,9 @@
 //     that moment (FALLBACK below), so the guide never goes silent, at zero tokens.
 //   - options: apply (run the setup now: commands/clicks, local), tour (a built-in tour), explain
 //     (a short Claude tour about the offer: counted in the visit budget), plus "Not now".
+//   - objects (B7, moment "object", never one of the 7 places): explain asks for an object explanation
+//     (trigger "object" with the target); no Claude offer -> a local "Yes, tell me" offer naming it;
+//     visit budget spent -> the local object script (explain with local: true), no API call.
 //
 //   const n = createNudge({ ask, buildBody, say, overlay, runScript, tour, explain, isBusy, now, storage })
 //   n.handle({ moment, target? }) -> Promise<outcome>   n.snapshot()   n.configure(o)   n.reset()
@@ -44,7 +47,17 @@ export const FALLBACK = {
 };
 // a moment's topic: features share one per control, objects one per object
 export const topicOf = ({ moment, target } = {}) => (moment === 'object' && target?.id ? `object:${target.id}` : String(moment ?? ''));
-const fallbackFor = (moment) => FALLBACK[moment] ?? null; // features and objects: no local offer, stay quiet
+// B7: an object (not one of the places) always gets an offer to explain it, named when we know its name
+export function objectOffer(target) {
+  const name = typeof target?.name === 'string' && target.name.trim() ? target.name.trim() : null;
+  return {
+    title: name ?? 'This star',
+    line: `You've been looking at ${name ?? 'this star'}. Tell you what catalogs say about it?`,
+    point: target?.id ?? '',
+    options: [{ label: 'Yes, tell me', kind: 'explain' }],
+  };
+}
+const fallbackFor = (m) => (m?.moment === 'object' ? objectOffer(m.target) : FALLBACK[m?.moment] ?? null); // features: stay quiet
 
 /**
  * @param {Object} o
@@ -54,7 +67,8 @@ const fallbackFor = (moment) => FALLBACK[moment] ?? null; // features and object
  * @param {Object}   o.overlay    { pointAt, circle, clear }
  * @param {Function} o.runScript  runner.runScript
  * @param {Function} o.tour       (kind, id) -> Promise   (index.js tour)
- * @param {Function} o.explain    ({ offer, moment, target }) -> Promise   (a Claude tour)
+ * @param {Function} o.explain    ({ offer, moment, target, trigger, local? }) -> Promise   (a Claude tour; trigger 'object'
+ *                                for an object moment, else 'explore'; local: true = budget spent, play the local script)
  * @param {Function} o.isBusy     () -> boolean   (a card or a tour is on)
  * @param {Function} [o.canShow]  (id) -> boolean   (a point id is on screen)
  */
@@ -102,9 +116,15 @@ export function createNudge({
       return tour(kind, id ?? null);
     }
     if (option.kind === 'explain') {
-      if (calls >= o.maxPerVisit) return tour('where', null); // budget spent: a local word instead
+      const isObject = m.moment === 'object';
+      if (calls >= o.maxPerVisit) {
+        // budget spent: a local word instead (for an object, its local script)
+        if (!isObject) return tour('where', null);
+        return explain({ trigger: 'object', target: m.target, moment: m.moment, local: true });
+      }
       countCall();
-      return explain({ offer: [offer.title, offer.line].filter(Boolean).join(': '), moment: m.moment, target: m.target });
+      if (isObject) return explain({ trigger: 'object', target: m.target, moment: m.moment });
+      return explain({ offer: [offer.title, offer.line].filter(Boolean).join(': '), moment: m.moment, target: m.target, trigger: 'explore' });
     }
     // apply: run the setup now, through the same buttons and commands a person uses
     const more = calls < o.maxPerVisit ? [{ id: 'explain', label: 'Tell me more' }] : [];
@@ -116,6 +136,7 @@ export function createNudge({
   async function show(offer, m) {
     lastShown = now();
     const point = offer.point && canShow(offer.point) ? offer.point : m.target?.id && canShow(m.target.id) ? m.target.id : null;
+    overlay.clear(); // B3: a new offer starts from a clean screen, then draws only its own marks
     if (point) {
       // the pointer goes first: it flies there and circles it, so the offer needs no explaining
       overlay.circle(point);
@@ -160,7 +181,7 @@ export function createNudge({
       }
       if (isBusy()) return 'busy'; // the person started something while we waited
     } else log(`nudge: ${why}; local offer`);
-    offer ??= fallbackFor(m.moment);
+    offer ??= fallbackFor(m);
     if (!offer) return 'skip';
     return show(offer, m);
   }

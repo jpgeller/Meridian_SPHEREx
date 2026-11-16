@@ -81,14 +81,14 @@ test('keyboard only (Tab + Space / Enter): replays bring the offer, Yes, the tou
   await expect.poll(() => page.evaluate(() => document.activeElement.dataset.answer)).toBe('next');
   const ring = await page.evaluate(() => getComputedStyle(document.activeElement).outlineStyle);
   expect(ring).not.toBe('none');
-  for (const text of ['watch the circled', 'change video']) {
-    await page.keyboard.press('Enter');
-    await expect(card(page)).toContainText(text);
-    await expect.poll(() => page.evaluate(() => document.activeElement.dataset.answer)).toBe('next');
-  }
   await page.keyboard.press('Enter');
-  await expect(card(page)).toContainText('Is that clear?');
+  await expect(card(page)).toContainText('watch the circled');
+  await expect.poll(() => page.evaluate(() => document.activeElement.dataset.answer)).toBe('next');
+  // the last step carries the end choices itself (B2): the keyboard lands on Got it, no Next
+  await page.keyboard.press('Enter');
+  await expect(card(page)).toContainText('change video');
   await expect.poll(() => page.evaluate(() => document.activeElement.dataset.answer)).toBe('got_it');
+  await expect(card(page).locator('.gp-answers button[data-answer="next"]')).toHaveCount(0);
   await page.keyboard.press('Enter');
   await expect(card(page)).toBeHidden();
   expect(await page.evaluate(() => guide.runner.isRunning())).toBe(false);

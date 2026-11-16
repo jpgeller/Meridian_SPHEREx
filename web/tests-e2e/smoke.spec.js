@@ -413,25 +413,26 @@ test('guide overlay: the pointer flies to a control, labels it, and clicks pass 
   await page.goto('/?ra=269.45&dec=4.74&fov=20');
   await ready(page);
   await page.evaluate(() => guide.pointAt('band-d6', 'Longest wavelengths'));
-  // it starts near the top right (the pop-up's corner) and lands on D6 in about 600 ms
+  // it leaves from the pill's orb (top right) and lands beside D6 in 300-600 ms
   const start = await pointerTip(page);
   expect(start.x).toBeGreaterThan(640);
   await expect.poll(async () => (await pointerTip(page))?.flying, { timeout: 2000 }).toBe(false);
   const d6 = await page.evaluate(() => guide.resolve('band-d6'));
   const tip = await pointerTip(page);
-  expect(Math.abs(tip.x - d6.x)).toBeLessThan(1); // centred, on the top edge (the arrow sits above it)
-  expect(tip.y).toBeGreaterThan(d6.rect.y);
-  expect(tip.y).toBeLessThan(d6.rect.y + 12);
-  // the label is on screen and does not sit on the tip
+  // at D6's top-right corner, outside the box (never on its text)
+  expect(Math.abs(tip.x - (d6.rect.x + d6.rect.w))).toBeLessThan(12);
+  expect(Math.abs(tip.y - d6.rect.y)).toBeLessThan(12);
+  expect(tip.x > d6.rect.x + d6.rect.w || tip.y < d6.rect.y).toBe(true);
+  // the label is on screen and does not sit on the orb
   const label = page.locator('#guide-overlay .go-label');
   await expect(label).toHaveText('Longest wavelengths');
   await expect(label).not.toHaveClass(/is-hidden/);
   const lb = await label.boundingBox();
   expect(lb.y + lb.height).toBeLessThanOrEqual(800);
   expect(tip.x >= lb.x && tip.x <= lb.x + lb.width && tip.y >= lb.y && tip.y <= lb.y + lb.height).toBe(false);
-  // the overlay never takes a click: the button under the tip gets it
-  expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y).closest('[data-guide]')?.dataset.guide, tip)).toBe('band-d6');
-  await page.mouse.click(tip.x, tip.y);
+  // the overlay never takes a click: nothing under the orb is part of it, and D6 gets the click
+  expect(await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('#guide-overlay'), tip)).toBe(false);
+  await page.mouse.click(d6.x, d6.y);
   await expect.poll(() => page.evaluate(() => meridian.store.get().band)).toBeGreaterThan(84);
   // ...and that click was the person acting: the guide's marks clear
   await expect.poll(() => page.evaluate(() => guide.overlay.active().length)).toBe(0);
@@ -479,8 +480,9 @@ test('guide overlay: reduced motion jumps straight to the target', async ({ page
   const tip = await pointerTip(page);
   const s = await page.evaluate(() => guide.resolve('search'));
   expect(tip.flying).toBe(false);
-  expect(Math.abs(tip.x - s.x)).toBeLessThan(1); // on the bottom edge: the search box is at the top
-  expect(tip.y).toBeGreaterThan(s.rect.y + s.rect.h - 12);
+  // beside the search box's right corner, outside the box (never on its text)
+  expect(Math.abs(tip.x - (s.rect.x + s.rect.w))).toBeLessThan(12);
+  expect(tip.x > s.rect.x + s.rect.w || tip.y < s.rect.y || tip.y > s.rect.y + s.rect.h).toBe(true);
 });
 
 test('guide pop-up: an offer is first in the Tab order, Esc dismisses it, the same target waits 60 s', async ({ page }) => {
@@ -594,7 +596,7 @@ test('guide pop-up: Yes opens a step, answers resolve say(), the card stays top 
   expect(errors()).toEqual([]);
 });
 
-test('guide pill: waits top right with the pointer parked beside it; the card takes its place; A opens the menu', async ({ page }) => {
+test('guide pill: waits top right with the orb inside it (nothing floats beside it); the card takes its place; A opens the menu', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto('/?fov=60');
   await ready(page);
@@ -606,14 +608,10 @@ test('guide pill: waits top right with the pointer parked beside it; the card ta
   expect(pb.x + pb.width).toBeGreaterThan(1150);
   expect(pb.x + pb.width).toBeLessThanOrEqual(1280 * 0.94); // 6% clear of the edge
   expect(pb.y).toBeLessThan(80);
-  // the pointer is parked just left of the pill, and shows nothing (no marks)
-  const pointer = page.locator('#guide-overlay .go-pointer');
-  await expect(pointer).not.toHaveClass(/is-hidden/);
-  const tipX = () =>
-    page.evaluate(() => +document.querySelector('#guide-overlay .go-pointer').style.transform.match(/translate\(([-\d.]+)px/)[1]);
-  await expect.poll(tipX).toBeLessThan(pb.x);
-  const tip = { x: await tipX() };
-  expect(pb.x - tip.x).toBeLessThan(60);
+  // idle (W1): no free-floating pointer; the guide's orb is the one in the pill
+  await page.waitForTimeout(800);
+  expect(await page.evaluate(() => [...document.querySelectorAll('#guide-overlay .go-pointer')].filter((e) => !e.classList.contains('is-hidden')).length)).toBe(0);
+  await expect(pill.locator('.gp-orb')).toBeVisible();
   expect(await page.evaluate(() => guide.overlay.active())).toEqual([]);
   // key A: the menu, in the pill's place
   await page.keyboard.press('a');

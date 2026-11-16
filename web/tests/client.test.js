@@ -14,10 +14,16 @@ test('askGuide: a valid reply gives its steps, and posts JSON to /api/guide', as
     return { ok: true, status: 200, json: async () => ({ steps, source: 'claude' }) };
   };
   const out = await askGuide({ trigger: 'object' }, { fetchFn });
-  assert.deepEqual(out, { steps });
+  assert.deepEqual(out, { steps, source: 'claude' });
   assert.equal(seen.url, '/api/guide');
   assert.equal(seen.init.method, 'POST');
   assert.deepEqual(JSON.parse(seen.init.body), { trigger: 'object' });
+});
+
+test('askGuide (B7): passes through source, model and cached from the reply', async () => {
+  const steps = [{ say: 'Hi.', actions: [] }];
+  const out = await askGuide({}, { fetchFn: reply(200, { steps, source: 'claude', model: 'claude-haiku-4-5', cached: true }) });
+  assert.deepEqual(out, { steps, cached: true, source: 'claude', model: 'claude-haiku-4-5' });
 });
 
 test('askGuide: every failure becomes { fallback: true } (never rejects)', async () => {

@@ -5,7 +5,7 @@
 //        the time-lapse frames (count, dates, wavelengths, ″/px), fast movers and the Gaia/CatWISE
 //        match of the target, the spectrum's blends. Never gaze positions or anything about the person.
 //   buildRequest({ trigger, target, state, facts, commands, ids }) -> the POST body
-//   askGuide(body, { fetchFn?, timeoutMs?, signal? }) -> Promise<{ steps } | { fallback: true, reason }>
+//   askGuide(body, { fetchFn?, timeoutMs?, signal? }) -> Promise<{ steps, cached?, source?, model? } | { fallback: true, reason }>
 //        Never rejects: network error, HTTP error, timeout (9 s), abort, the server's fallback marker or an
 //        empty/odd reply all come back as { fallback: true, reason }, and the caller plays its local
 //        fallback script (fallback.js). The runner re-validates the steps (runner.js validateScript).
@@ -172,7 +172,12 @@ export async function askGuide(body, { fetchFn = globalThis.fetch, timeoutMs = C
     const data = await res.json();
     if (data?.fallback) return { fallback: true, reason: String(data.reason ?? 'server fallback') };
     if (!Array.isArray(data?.steps) || !data.steps.length) return { fallback: true, reason: 'empty reply' };
-    return { steps: data.steps, ...(data.cached ? { cached: true } : {}) };
+    return {
+      steps: data.steps,
+      ...(data.cached ? { cached: true } : {}),
+      ...(typeof data.source === 'string' ? { source: data.source } : {}),
+      ...(typeof data.model === 'string' ? { model: data.model } : {}),
+    };
   } catch (err) {
     const reason = signal?.aborted ? 'aborted' : ctrl.signal.aborted ? 'timeout' : `network: ${err?.message ?? err}`;
     return { fallback: true, reason };
