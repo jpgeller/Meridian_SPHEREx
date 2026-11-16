@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1400" height="840" viewBox="0 0 1400 840" fill="none">
 <title>Meridian SPHEREx — NASA Space Apps Challenge team</title>
-<desc>Deep navy and amber README header with Meridian and the official NASA Space Apps logo, with portraits of George, Halytza, Janisha, João Caldeira, João Paulo, Yassin.</desc>
+<desc>Deep navy and amber README header with Meridian and the official NASA Space Apps logo, with portraits of George Lawendy, Halytza Dutra, Janisha Hota, João Caldeira, João Geller, Yassin Abdelal.</desc>
 <defs>
  <linearGradient id="hero" x1="48" y1="110" x2="1352" y2="338" gradientUnits="userSpaceOnUse"><stop stop-color="#111a38"/><stop offset="1" stop-color="#0b1126"/></linearGradient>
  <clipPath id="clip"><rect x="24" y="24" width="1352" height="792" rx="24"/></clipPath>
@@ -53,7 +53,7 @@
  <image href="../members_pictures/george.png" x="12" y="12" width="176" height="220" preserveAspectRatio="xMidYMid slice" clip-path="url(#portrait-0)"/>
  <rect x="12" y="12" width="176" height="220" rx="7" fill="none" stroke="#26325a"/>
  <rect x="12" y="248" width="3" height="27" rx="1.5" fill="#ffb547"/>
- <text x="25" y="266" font-size="17" font-weight="600">George</text>
+ <text x="25" y="266" font-size="17" font-weight="600">George Lawendy</text>
  </g>
 <g transform="translate(264 439)">
  <rect width="200" height="291" rx="12" fill="#0b1126" stroke="#26325a"/>
@@ -61,7 +61,7 @@
  <image href="../members_pictures/halytza.jpeg" x="12" y="12" width="176" height="220" preserveAspectRatio="xMidYMid slice" clip-path="url(#portrait-1)"/>
  <rect x="12" y="12" width="176" height="220" rx="7" fill="none" stroke="#26325a"/>
  <rect x="12" y="248" width="3" height="27" rx="1.5" fill="#ffb547"/>
- <text x="25" y="266" font-size="17" font-weight="600">Halytza</text>
+ <text x="25" y="266" font-size="17" font-weight="600">Halytza Dutra</text>
  </g>
 <g transform="translate(480 439)">
  <rect width="200" height="291" rx="12" fill="#0b1126" stroke="#26325a"/>
@@ -69,7 +69,7 @@
  <image href="../members_pictures/janisha.png" x="12" y="12" width="176" height="220" preserveAspectRatio="xMidYMid slice" clip-path="url(#portrait-2)"/>
  <rect x="12" y="12" width="176" height="220" rx="7" fill="none" stroke="#26325a"/>
  <rect x="12" y="248" width="3" height="27" rx="1.5" fill="#ffb547"/>
- <text x="25" y="266" font-size="17" font-weight="600">Janisha</text>
+ <text x="25" y="266" font-size="17" font-weight="600">Janisha Hota</text>
  </g>
 <g transform="translate(696 439)">
  <rect width="200" height="291" rx="12" fill="#0b1126" stroke="#26325a"/>
@@ -85,7 +85,7 @@
  <image href="../members_pictures/joao_paulo.png" x="12" y="12" width="176" height="220" preserveAspectRatio="xMidYMid slice" clip-path="url(#portrait-4)"/>
  <rect x="12" y="12" width="176" height="220" rx="7" fill="none" stroke="#26325a"/>
  <rect x="12" y="248" width="3" height="27" rx="1.5" fill="#ffb547"/>
- <text x="25" y="266" font-size="17" font-weight="600">João Paulo</text>
+ <text x="25" y="266" font-size="17" font-weight="600">João Geller</text>
  </g>
 <g transform="translate(1128 439)">
  <rect width="200" height="291" rx="12" fill="#0b1126" stroke="#26325a"/>
@@ -93,7 +93,7 @@
  <image href="../members_pictures/yassin.png" x="12" y="12" width="176" height="220" preserveAspectRatio="xMidYMid slice" clip-path="url(#portrait-5)"/>
  <rect x="12" y="12" width="176" height="220" rx="7" fill="none" stroke="#26325a"/>
  <rect x="12" y="248" width="3" height="27" rx="1.5" fill="#ffb547"/>
- <text x="25" y="266" font-size="17" font-weight="600">Yassin</text>
+ <text x="25" y="266" font-size="17" font-weight="600">Yassin Abdelal</text>
  </g>
  <path d="M48 762H1352" stroke="#26325a"/>
  <text x="48" y="792" font-size="12" letter-spacing="2" fill="#9ba8cc">ONE SKY. MANY PERSPECTIVES.</text>

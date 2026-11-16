@@ -2,14 +2,14 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '../../web/node_modules/playwright-core/index.mjs';
 
-// Names follow the supplied photo filenames; edit this list to change the order.
+// First and last names from the supplied team reference; edit this list to change the order.
 const members = [
-  ['George', 'george.png'],
-  ['Halytza', 'halytza.jpeg'],
-  ['Janisha', 'janisha.png'],
+  ['George Lawendy', 'george.png'],
+  ['Halytza Dutra', 'halytza.jpeg'],
+  ['Janisha Hota', 'janisha.png'],
   ['João Caldeira', 'joao_caldeira.png'],
-  ['João Paulo', 'joao_paulo.png'],
-  ['Yassin', 'yassin.png'],
+  ['João Geller', 'joao_paulo.png'],
+  ['Yassin Abdelal', 'yassin.png'],
 ];
 const output = new URL('../img/readme/', import.meta.url);
 await mkdir(output, { recursive: true });

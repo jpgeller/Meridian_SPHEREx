@@ -10,7 +10,7 @@ The official NASA Space Apps motif logo is from the [Space Apps brand assets](ht
 
 ## Team header in the README
 
-The root README now uses `../img/readme/team-header.png`, with all six supplied portraits. Names are based on the photo filenames. Original photos remain in `../img/members_pictures/`.
+The root README now uses `../img/readme/team-header.png`, with all six supplied portraits. Captions use first and last names from the supplied team reference. Original photos remain in `../img/members_pictures/`.
 
 To change names or order, edit `build-team-header.mjs`. Rebuild from the repository root with the web dependencies installed and Google Chrome available:
 

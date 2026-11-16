@@ -1,4 +1,4 @@
-![Meridian SPHEREx — NASA Space Apps Challenge 2026. Team: George, Halytza, Janisha, João Caldeira, João Paulo, and Yassin.](docs/img/readme/team-header.png)
+![Meridian SPHEREx — NASA Space Apps Challenge 2026. Team: George Lawendy, Halytza Dutra, Janisha Hota, João Caldeira, João Geller, and Yassin Abdelal.](docs/img/readme/team-header.png)
 
 # Meridian_SPHEREx
 
