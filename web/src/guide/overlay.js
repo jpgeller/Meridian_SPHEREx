@@ -2,36 +2,61 @@
 // sky and the field view. Nothing here takes a click: the layer is pointer-events: none, so mouse
 // clicks and gaze presses go straight through to the app.
 //
-//   pointAt(id, label?)   the guide's arrow cursor flies from the pop-up card to the target (~600 ms,
-//                         ease-out), then idles with a small pulse. One pointer: a new pointAt moves it.
+// The guide has one body: an orange orb that lives in the "AI Guide" pill (or in the card's header
+// while the card is open) and only leaves it to act (docs/fix-and-improvements-ai-guide.md, "Guide
+// presence"). At idle nothing floats on screen.
+//
+//   pointAt(id, label?)   the orb leaves the pill/card orb and flies to the target (300-600 ms by
+//                         distance, ease-in-out, a short fading comet tail), pulses once and holds
+//                         BESIDE it (outside a sky object's ring; above or below a control's box), never
+//                         on top of it. One orb: a new pointAt moves it.
 //   circle(id)            a ring drawn around the target
 //   highlight(id)         a soft glow on the target (a box for controls, a disc for sky objects)
 //   trail(idFrom, idTo)   a dashed arrow from one target to another
-//   press()               the pointer gives one short push (the runner's `click`; no-op without a pointer)
-//   clear()               the marks fade out; the pointer flies home (beside the pill) when there is one
-//   park()                the pointer flies home and waits there (idle). Home = getHome(): left of the
-//                         "AI Guide" pill, or of the card while it is open (wireframe v4)
+//   press()               the orb gives one short push (the runner's `click`; no-op without an orb out)
+//   clear()               the marks fade out; the orb flies back to the pill and docks (hidden)
+//   park()                the same for the orb alone; with no orb out it does nothing (idle shows nothing)
+//                         Home = getHome(): the pill's orb, or the card's orb while the card is open
 //
 // Each call returns a handle { remove() }. Every frame each annotation follows registry.locate(id):
 // it moves with the sky, fades out when the target is hidden or covered, and when the target is known
-// but off screen the pointer (or a small chevron) waits at the screen edge, aimed at it.
+// but off screen the orb (or a small chevron) waits at the screen edge, aimed at it.
+// When the orb arrives at a target it sends `meridian:guide-orb` {state: 'arrived', id} (the dwell ring
+// hides: one indicator per spot), and {state: 'docked'} when it is back in the pill.
 // Annotations clear on their own when the person runs any command (the guide's own do not count),
-// and when the runner (U5) calls clear() at the end of a step. prefers-reduced-motion: no flight, no pulse.
+// and when the runner (U5) calls clear() at the end of a step.
+// prefers-reduced-motion: no flight, no tail, no pulse (the orb jumps).
 
-export const FLY_MS = 600;
+export const FLY_MS = 600; // the longest flight (the runner waits this long before a press)
+export const FLY_MIN_MS = 300;
+export const FLY_FULL_PX = 1200; // a flight this long (or longer) takes FLY_MS
 export const GLIDE_MS = 250; // on screen <-> edge
 export const PRESS_ANIM_MS = 250;
+export const LAND_MS = 450; // the one pulse on arrival
 export const EDGE_MARGIN = 36;
+export const ORB_R = 7; // the orb is 14 px across
+export const ORB_GAP = 12; // px between the orb and a sky object's ring
+export const CORNER_OUT = 5; // px the orb's centre sits out from a control's corner (each way)
+export const TAIL_N = 6; // comet tail dots
 const FADE_MS = 220;
-const ARROW_REST = Math.atan2(-1, -1); // the cursor shape points up-left
-const ARROW_LEN = 30; // px from the tip to the far end of the arrow
 // commands whose source does not mean "the person did something"
 export const QUIET_SOURCES = new Set(['guide', 'preset']); // 'preset' = the fly_to inside go_preset
+export const ORB_EVENT = 'meridian:guide-orb';
 
 // --- pure helpers (unit-tested) --------------------------------------------------------
 
 export const easeOutCubic = (t) => 1 - (1 - Math.min(1, Math.max(0, t))) ** 3;
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+/** Ease-in-out (cubic): slow start, fast middle, slow landing. */
+export function easeInOutCubic(t) {
+  const x = clamp(t, 0, 1);
+  return x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2;
+}
+/** How long the orb flies for a flight of `px` pixels: FLY_MIN_MS .. FLY_MS, longer for farther. */
+export function flightMs(px) {
+  const d = Number.isFinite(px) ? Math.max(0, px) : FLY_FULL_PX;
+  return Math.round(FLY_MIN_MS + (FLY_MS - FLY_MIN_MS) * Math.min(1, d / FLY_FULL_PX));
+}
 
 /** A point along a gently curved flight from `a` to `b`, t in [0, 1] (already eased). */
 export function flyPoint(a, b, t) {
@@ -47,27 +72,31 @@ export function flyPoint(a, b, t) {
 }
 
 /**
- * Where the arrow's tip goes for a registry answer, and which way it points (radians, y down).
- * Sky objects: up-left like a cursor, the tip on the rim so the arrow does not hide the object.
- * Controls: the tip on the top edge pointing down, the arrow above the box (on the bottom edge,
- * pointing up, for controls near the top of the screen), so the button's text stays readable.
- * Mirrored near the right edge (and, for sky objects, the bottom) so the arrow stays on screen.
+ * Where the orb holds for a registry answer: `pos` (its centre) and `angle`, the direction from the orb
+ * to the target (radians, y down). Never on top of the target:
+ * sky objects: lower-right of it, outside the ring circle() draws (mirrored near the right and bottom
+ * edges so the orb stays on screen). Controls: just outside the box's top-right corner, like a badge on
+ * its ring (top-left near the right edge, bottom corners near the top of the screen): the corner of a
+ * rounded button holds no text, and the space above it (a header, a neighbour) stays clear.
+ * Home: on the pill's orb.
  */
 export function aimFor(target, viewport) {
   if (!target) return null;
-  if (target.home) return { tip: { x: target.x, y: target.y }, angle: Math.atan2(-0.35, 1) }; // parked: aims at the pill
+  if (target.home) return { pos: { x: target.x, y: target.y }, angle: 0 };
+  const d = ORB_GAP + ORB_R;
   if (target.rect) {
-    const { y, h } = target.rect;
-    const inset = Math.min(8, h / 4);
-    const down = y > ARROW_LEN + 40;
-    const sx = target.x + ARROW_LEN + 8 > viewport.w ? 1 : -1;
-    return { tip: { x: target.x, y: down ? y + inset : y + h - inset }, angle: Math.atan2(down ? 1 : -1, sx) };
+    const { x, y, w, h } = target.rect;
+    const k = CORNER_OUT;
+    const sx = x + w + k + ORB_R + 4 > viewport.w ? 1 : -1; // -1: right corner (the orb points left)
+    const sy = y - k - ORB_R < 40 ? -1 : 1; // 1: top corner (the orb points down)
+    const pos = { x: sx < 0 ? x + w + k : x - k, y: sy > 0 ? y - k : y + h + k };
+    return { pos, angle: Math.atan2(sy, sx) };
   }
-  const k = (target.r ?? 0) * 0.7;
-  const sx = target.x + k + ARROW_LEN + 8 > viewport.w ? 1 : -1;
-  const sy = target.y + k + ARROW_LEN + 16 > viewport.h ? 1 : -1;
+  const k = (target.r ?? 16) + 14 + d; // outside circle()'s ring (pad 14)
+  const sx = target.x + k + ORB_R + 8 > viewport.w ? 1 : -1;
+  const sy = target.y + k + ORB_R + 16 > viewport.h ? 1 : -1;
   const angle = Math.atan2(sy, sx);
-  return { tip: { x: target.x - Math.cos(angle) * k, y: target.y - Math.sin(angle) * k }, angle };
+  return { pos: { x: target.x - Math.cos(angle) * k, y: target.y - Math.sin(angle) * k }, angle };
 }
 
 /** The ring (or box) drawn around a target by circle() and highlight(). */
@@ -140,23 +169,20 @@ export function unionBox(...boxes) {
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
-/** The box around the arrow's body: from its tip back along `angle` (+ a little padding). */
-export function arrowBox(tip, angle, pad = 6) {
-  const ex = tip.x + Math.cos(angle + Math.PI) * ARROW_LEN;
-  const ey = tip.y + Math.sin(angle + Math.PI) * ARROW_LEN;
-  const x = Math.min(tip.x, ex) - pad;
-  const y = Math.min(tip.y, ey) - pad;
-  return { x, y, w: Math.abs(ex - tip.x) + 2 * pad, h: Math.abs(ey - tip.y) + 2 * pad };
+/** The box around the orb (+ a little padding). */
+export function orbBox(pos, pad = 6) {
+  const r = ORB_R + pad;
+  return { x: pos.x - r, y: pos.y - r, w: 2 * r, h: 2 * r };
 }
 
 export const LABEL_GAP = 8; // px between the label and the target (+ pointer) it names
 
 /**
- * Place the pointer's label (B5). With `anchor` (the box around the target's ring and the arrow):
+ * Place the orb's label (B5). With `anchor` (the box around the target's ring and the orb):
  * try below -> above -> right -> left of it (centred, then aligned to either end), and take the first
- * spot that stays on screen and touches nothing in `avoid` (the target, the arrow, the guide card,
- * the dwell ring, every button and band label on screen). Then the eight spots around the tip,
- * starting behind the arrow (the only candidates without an anchor). Otherwise the least bad one:
+ * spot that stays on screen and touches nothing in `avoid` (the target, the orb, the guide card,
+ * the dwell ring, every button and band label on screen). Then the eight spots around the orb,
+ * starting on its far side from the target (the only candidates without an anchor). Otherwise the least bad one:
  * on screen first, then the fewest shapes covered.
  * -> { x, y } top-left of the label.
  */
@@ -183,7 +209,7 @@ export function placeLabel(tip, angle, size, viewport, avoid = [], anchor = null
     const ang = back + (k * Math.PI) / 4;
     const ux = Math.cos(ang);
     const uy = Math.sin(ang);
-    const d = ARROW_LEN + 10 + Math.abs(ux) * (w / 2) + Math.abs(uy) * (h / 2);
+    const d = ORB_R + 14 + Math.abs(ux) * (w / 2) + Math.abs(uy) * (h / 2);
     cands.push({ x: tip.x + ux * d - w / 2, y: tip.y + uy * d - h / 2 });
   });
   let best = null;
@@ -241,14 +267,14 @@ function shortOf(target, from, d) {
 // --- the overlay -----------------------------------------------------------------------
 
 const SVG = 'http://www.w3.org/2000/svg';
-const ARROW_PATH = 'M0,0 L0,26 L6.5,19.5 L11,29.5 L15.5,27.5 L11,18 L19.5,18 Z'; // tip at 0,0, drawn pointing up-left
 
 /**
  * @param {Object}   o
  * @param {Function} o.locate            registry.locate(id)
  * @param {Document} [o.doc]
  * @param {EventTarget} [o.events]       where `meridian:command` arrives
- * @param {Function} [o.getOrigin]       () -> {x, y}: where the pointer starts (the pop-up card)
+ * @param {Function} [o.getOrigin]       () -> {x, y}: where the orb starts (default: home, else the card)
+ * @param {Function} [o.getHome]         () -> {x, y} | null: the orb in the pill (or in the open card)
  */
 export function createOverlay({ locate: locateTarget, doc = document, events = window, getOrigin, getHome = null } = {}) {
   const locate = (id) => {
@@ -268,6 +294,8 @@ export function createOverlay({ locate: locateTarget, doc = document, events = w
   const origin =
     getOrigin ??
     (() => {
+      const h = getHome?.();
+      if (h) return { x: h.x, y: h.y };
       const b = cardBox();
       return b ? { x: b.left + b.width / 2, y: b.bottom } : { x: win.innerWidth - 180, y: 96 };
     });
@@ -394,48 +422,86 @@ export function createOverlay({ locate: locateTarget, doc = document, events = w
     };
   }
 
+  const emit = (detail) => {
+    try {
+      const CE = win.CustomEvent ?? globalThis.CustomEvent;
+      if (CE) events?.dispatchEvent?.(new CE(ORB_EVENT, { detail }));
+    } catch {
+      /* no listener must stop the orb */
+    }
+  };
+  const setOut = (on) => doc.body?.classList?.toggle('guide-orb-out', on);
+
   function makePointer() {
     const el = doc.createElement('div');
     el.className = 'go-pointer is-hidden';
-    el.innerHTML = `<svg viewBox="-4 -4 28 38" width="28" height="38" aria-hidden="true"><path d="${ARROW_PATH}" /></svg>`;
+    el.innerHTML = '<span class="go-chev"></span><span class="go-orb"></span>';
+    const tail = [];
+    for (let i = 0; i < TAIL_N; i++) {
+      const t = doc.createElement('div');
+      t.className = 'go-tail is-hidden';
+      tail.push(t);
+    }
     const label = doc.createElement('div');
     label.className = 'go-label is-hidden';
-    root.append(el, label);
+    root.append(...tail, el, label);
 
     const p = {
-      els: [el, label],
+      els: [el, label, ...tail],
       id: null,
-      pos: null, // where the tip is now
-      flight: null, // { from, start }
+      pos: null, // where the orb's centre is now
+      flight: null, // { from, start, ms }
       glide: null, // { from, start }
+      arrived: false, // this aim has landed (the arrival pulse and event happen once)
+      hist: [], // recent positions: the comet tail
       offscreen: false,
       labelSize: null,
+      onDock: null,
       aim(id, text) {
         const fresh = !p.pos || el.classList.contains('is-hidden');
         p.id = id;
+        p.arrived = false;
         label.textContent = text ?? '';
         show(label, false); // B3: an old label never lingers; update() shows the new one once landed
         p.labelSize = null;
+        if (id === 'home' && fresh) return p.onDock?.(); // never out: nothing to fly back
         const start = fresh ? origin() : p.pos;
-        p.flight = reduced() ? null : { from: start, start: performance.now() };
+        p.flight = reduced() || !start ? null : { from: start, start: performance.now(), ms: null };
         p.glide = null;
         if (!p.flight) p.pos = null; // jump
+      },
+      drawTail(pos, moving) {
+        if (moving && !reduced()) p.hist.unshift(pos);
+        else p.hist.pop(); // at rest the tail draws in
+        if (p.hist.length > TAIL_N) p.hist.length = TAIL_N;
+        tail.forEach((t, i) => {
+          const q = p.hist[i + 1]; // hist[0] is under the orb
+          show(t, !!q);
+          if (!q) return;
+          const k = 1 - (i + 1) / (TAIL_N + 1);
+          t.style.opacity = (0.75 * k).toFixed(2);
+          t.style.transform = `translate(${q.x.toFixed(1)}px, ${q.y.toFixed(1)}px) scale(${(0.35 + 0.6 * k).toFixed(2)})`;
+        });
       },
       update(now) {
         const at = locate(p.id);
         const vp = viewport();
+        const home = p.id === 'home';
         let want = null;
-        let angle = ARROW_REST;
+        let angle = 0;
         const off = !!at?.offscreen;
         if (at && !off) {
-          ({ tip: want, angle } = aimFor(at, vp));
+          ({ pos: want, angle } = aimFor(at, vp));
         } else if (off) {
           want = edgePoint(at.from, at.dir, at.bounds);
           angle = Math.atan2(at.dir.y, at.dir.x);
         }
         if (!want) {
+          if (home) return p.onDock?.(); // the pill is gone (e.g. hidden): dock at once
           show(el, false);
           show(label, false);
+          p.drawTail(null, false);
+          setOut(false);
           p.flight = null; // a target that vanishes mid-flight: reappear in place, no flight
           return;
         }
@@ -444,9 +510,11 @@ export function createOverlay({ locate: locateTarget, doc = document, events = w
 
         let pos = want;
         if (p.flight) {
-          const t = (now - p.flight.start) / FLY_MS;
+          const f = p.flight;
+          f.ms ??= flightMs(Math.hypot(want.x - f.from.x, want.y - f.from.y));
+          const t = (now - f.start) / f.ms;
           if (t >= 1) p.flight = null;
-          else pos = flyPoint(p.flight.from, want, easeOutCubic(t));
+          else pos = flyPoint(f.from, want, easeInOutCubic(t));
         } else if (p.glide) {
           const t = (now - p.glide.start) / GLIDE_MS;
           if (t >= 1) p.glide = null;
@@ -455,22 +523,38 @@ export function createOverlay({ locate: locateTarget, doc = document, events = w
             pos = { x: p.glide.from.x + (want.x - p.glide.from.x) * k, y: p.glide.from.y + (want.y - p.glide.from.y) * k };
           }
         }
+        const moving = !!(p.flight || p.glide);
         p.pos = pos;
-        const deg = ((angle - ARROW_REST) * 180) / Math.PI;
-        el.style.transform = `translate(${pos.x.toFixed(1)}px, ${pos.y.toFixed(1)}px) rotate(${deg.toFixed(1)}deg)`;
-        el.classList.toggle('is-flying', !!p.flight);
+        if (home && !moving) return p.onDock?.(); // back in the pill: the pill's orb is the guide again
+        el.style.transform = `translate(${pos.x.toFixed(1)}px, ${pos.y.toFixed(1)}px)`;
+        el.style.setProperty?.('--go-a', `${((angle * 180) / Math.PI).toFixed(1)}deg`);
+        el.classList.toggle('is-flying', moving);
         el.classList.toggle('is-edge', off);
         show(el, true);
+        setOut(true);
+        p.drawTail(pos, moving);
+        if (!moving && !p.arrived) {
+          p.arrived = true;
+          if (!off) {
+            if (!reduced()) {
+              el.classList.remove('is-landed');
+              void el.offsetWidth; // restart the animation
+              el.classList.add('is-landed');
+              win.setTimeout(() => el.classList.remove('is-landed'), LAND_MS);
+            }
+            emit({ state: 'arrived', id: p.id });
+          }
+        }
 
         const hasText = !!label.textContent;
-        show(label, hasText && !p.flight);
-        if (!hasText || p.flight) return;
+        show(label, hasText && !moving);
+        if (!hasText || moving) return;
         if (!p.labelSize) {
           const b = label.getBoundingClientRect();
           p.labelSize = { w: b.width || 120, h: b.height || 28 };
         }
         const ring = at && !off ? ringFor(at, 6) : null;
-        const avoid = [...(ring ? [ring] : []), { x: pos.x + Math.cos(angle + Math.PI) * 16, y: pos.y + Math.sin(angle + Math.PI) * 16, r: 20 }];
+        const avoid = [...(ring ? [ring] : []), { x: pos.x, y: pos.y, r: ORB_R + 8 }];
         // every visible control and band label, except the target itself (and what is inside it:
         // the ring above already keeps the label off it)
         const tbox = at?.rect ?? null;
@@ -485,8 +569,8 @@ export function createOverlay({ locate: locateTarget, doc = document, events = w
         } catch {
           /* a broken avoid hook must not stop the pointer */
         }
-        // anchor: the target's ring and the arrow together, so the label sits clear of both
-        const anchor = unionBox(boxOf(ring), arrowBox(pos, angle));
+        // anchor: the target's ring and the orb together, so the label sits clear of both
+        const anchor = unionBox(boxOf(ring), orbBox(pos));
         const lp = placeLabel(pos, angle, p.labelSize, vp, avoid, anchor);
         label.style.transform = `translate(${lp.x.toFixed(1)}px, ${lp.y.toFixed(1)}px)`;
       },
@@ -533,14 +617,23 @@ export function createOverlay({ locate: locateTarget, doc = document, events = w
   }
 
   // ---- public API ----
+  function newPointer() {
+    const p = makePointer();
+    p.onDock = () => {
+      if (items.get('pointer') !== p) return;
+      items.delete('pointer');
+      p.els.forEach((e) => e.remove());
+      setOut(false);
+      emit({ state: 'docked' });
+    };
+    items.set('pointer', p);
+    return p;
+  }
   function pointAt(id, label) {
     if (typeof id !== 'string' || !id) return null;
-    let p = items.get('pointer');
-    if (!p) {
-      p = makePointer();
-      items.set('pointer', p);
-    }
+    const p = items.get('pointer') ?? newPointer();
     p.aim(id, label);
+    if (items.get('pointer') !== p) return null; // 'home' with nothing out: already docked
     p.update(performance.now());
     wake();
     return handle('pointer', p);
@@ -551,11 +644,17 @@ export function createOverlay({ locate: locateTarget, doc = document, events = w
   function clear() {
     const p = items.get('pointer');
     [...items.keys()].forEach((k) => (k === 'pointer' && getHome ? null : drop(k)));
+    if (!getHome) setOut(false);
     if (p && getHome && p.id !== 'home') p.aim('home');
-    if (p) wake();
+    if (p && items.get('pointer') === p) {
+      p.update(performance.now()); // reduced motion: docks at once
+      wake();
+    }
   }
+  /** The orb flies back into the pill. With no orb out it does nothing: at idle only the pill's orb shows. */
   function park() {
-    if (!getHome) return null;
+    const p = items.get('pointer');
+    if (!getHome || !p) return null;
     return pointAt('home');
   }
   function press() {
@@ -570,7 +669,7 @@ export function createOverlay({ locate: locateTarget, doc = document, events = w
   function setAvoid(fn) {
     avoidFn = typeof fn === 'function' ? fn : () => [];
   }
-  // what the guide is showing now (a pointer parked at home shows nothing)
+  // what the guide is showing now (an orb flying home shows nothing)
   const active = () => [...items.keys()].filter((k) => !(k === 'pointer' && items.get(k).id === 'home'));
 
   // the person did something: the guide's marks belong to a view that is gone

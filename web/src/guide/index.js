@@ -58,13 +58,14 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
     viewport: () => ({ w: window.innerWidth, h: window.innerHeight }),
     events: window,
   });
-  // the pointer parks just left of the pill (or of the card while it is open), as in wireframe v4
+  // the guide's orb lives in the pill (or in the card's header while the card is open): it leaves from
+  // there and docks there again (docs/fix-and-improvements-ai-guide.md, "Guide presence")
   const getHome = () => {
-    const card = document.querySelector('.guide-popup:not([hidden])')?.getBoundingClientRect();
-    // beside the card's lower-left corner (clear of the search bar), or beside the pill
-    if (card?.width > 0) return { x: card.left - 30, y: card.bottom - 26 };
-    const pill = document.querySelector('.guide-pill:not([hidden])')?.getBoundingClientRect();
-    return pill?.width > 0 ? { x: pill.left - 30, y: pill.top + pill.height / 2 } : null;
+    for (const sel of ['.guide-popup:not([hidden]) .gp-orb', '.guide-pill:not([hidden]) .gp-orb']) {
+      const b = document.querySelector(sel)?.getBoundingClientRect();
+      if (b?.width > 0) return { x: b.left + b.width / 2, y: b.top + b.height / 2 };
+    }
+    return null;
   };
   const overlay = createOverlay({ locate: registry.locate, doc: document, events: window, getHome });
   // the pop-up asks "would I cover this?": for that question it looks through itself
@@ -285,7 +286,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
     },
     true,
   );
-  overlay.park(); // idle: the pointer waits beside the pill
+  overlay.park(); // idle: nothing floats; the orb is in the pill
 
   const guide = {
     ask,

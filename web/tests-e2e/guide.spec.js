@@ -77,10 +77,12 @@ test('colours tour: the pointer presses D1, then D6; the band changes through th
   await next(page).click();
   await expect(card(page).locator('.gp-title')).toHaveText('D1');
   await expect.poll(() => page.evaluate(() => meridian.store.get().band)).toBe(8);
-  // the pointer is on D1 (above the button, pointing down at it)
+  // the orb holds beside D1 (at its top-right corner, outside the box, so "D1" stays readable)
   const d1 = await page.evaluate(() => guide.resolve('band-d1'));
   const t1 = await tipOf(page);
-  expect(Math.abs(t1.x - d1.x)).toBeLessThan(d1.rect.w / 2 + 2);
+  expect(Math.abs(t1.x - (d1.rect.x + d1.rect.w))).toBeLessThan(12);
+  expect(Math.abs(t1.y - d1.rect.y)).toBeLessThan(12);
+  expect(t1.x > d1.rect.x + d1.rect.w || t1.y < d1.rect.y).toBe(true);
   await next(page).click();
   await expect(card(page).locator('.gp-title')).toHaveText('D6');
   await expect.poll(() => page.evaluate(() => meridian.store.get().band)).toBe(93);

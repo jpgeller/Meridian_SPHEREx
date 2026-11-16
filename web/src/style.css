@@ -991,64 +991,135 @@ body.field-open .handoff {
   fill: var(--accent);
 }
 
-/* the guide's arrow: amber with a glow, so it is never mistaken for the mouse */
+/* the guide's orb (one body with the pill's .gp-orb): 14 px, orange, a short comet tail while it flies.
+   Never an arrow, so it is never mistaken for the mouse. .go-pointer is placed at the orb's centre. */
 .go-pointer {
   position: absolute;
   left: 0;
   top: 0;
-  margin: -4px 0 0 -4px; /* the arrow's tip sits at 4,4 in its box */
-  transform-origin: 4px 4px;
+  width: 0;
+  height: 0;
   transition: opacity 0.2s ease;
   will-change: transform;
 }
-.go-pointer svg {
-  display: block;
-  overflow: visible;
-  transform-origin: 4px 4px;
-  filter: drop-shadow(0 0 6px rgba(255, 181, 71, 0.85)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
-  animation: go-pulse 1.6s ease-in-out infinite;
+.go-orb,
+.go-tail {
+  position: absolute;
+  left: -7px;
+  top: -7px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
 }
-.go-pointer path {
-  fill: var(--accent);
-  stroke: var(--bg-deep);
-  stroke-width: 1.6;
-  stroke-linejoin: round;
+.go-orb {
+  background: radial-gradient(circle at 35% 35%, #ffe2bd, #ffb15c 55%, #d97757);
+  box-shadow:
+    0 0 10px rgba(255, 177, 92, 0.85),
+    0 0 0 1.5px rgba(10, 14, 24, 0.55);
+  animation: go-glow 2.4s ease-in-out infinite;
 }
-.go-pointer.is-flying svg {
+.go-tail {
+  left: 0;
+  top: 0;
+  margin: -7px 0 0 -7px;
+  background: radial-gradient(circle, rgba(255, 196, 120, 0.95), rgba(217, 119, 87, 0.3) 70%, transparent);
+  transition: none;
+  will-change: transform, opacity;
+}
+.go-pointer.is-flying .go-orb {
   animation: none;
 }
-.go-pointer.is-edge svg {
+/* arrival: one pulse, then it holds beside the target */
+.go-pointer.is-landed .go-orb {
+  animation: go-land 0.45s ease-out;
+}
+@keyframes go-land {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(255, 177, 92, 0.85), 0 0 0 0 rgba(255, 177, 92, 0.7);
+  }
+  45% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(255, 177, 92, 0.85), 0 0 0 14px rgba(255, 177, 92, 0);
+  }
+}
+@keyframes go-glow {
+  50% {
+    box-shadow:
+      0 0 16px rgba(255, 177, 92, 1),
+      0 0 0 1.5px rgba(10, 14, 24, 0.55);
+  }
+}
+/* the target is off screen: the orb waits at the edge with a small chevron aimed at it */
+.go-chev {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-left: 9px solid var(--accent);
+  margin-top: -6px;
+  opacity: 0;
+  transform: rotate(var(--go-a, 0deg)) translateX(12px);
+  transform-origin: 0 0;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.7));
+}
+.go-pointer.is-edge .go-chev {
+  opacity: 1;
   animation: go-nudge 1.2s ease-in-out infinite;
 }
-/* the guide presses a button (runner.js click): one short push (reduced motion: none) */
-.go-pointer.is-pressing svg {
+/* the guide presses a button (runner.js click): the orb pushes (0.85 -> 1), the control ripples */
+.go-pointer.is-pressing .go-orb {
   animation: go-press 0.25s ease-out;
 }
 @keyframes go-press {
-  50% {
-    transform: scale(0.82);
+  0% {
+    transform: scale(0.85);
+  }
+  100% {
+    transform: scale(1);
   }
 }
 .guide-pressed {
   outline: 3px solid var(--accent) !important;
   outline-offset: 2px;
+  animation: guide-ripple 0.25s ease-out;
 }
-@keyframes go-pulse {
-  0%,
-  100% {
-    transform: scale(1);
+@keyframes guide-ripple {
+  from {
+    box-shadow: 0 0 0 0 rgba(255, 181, 71, 0.75);
   }
-  50% {
-    transform: scale(1.14);
+  to {
+    box-shadow: 0 0 0 16px rgba(255, 181, 71, 0);
   }
+}
+/* while the orb is out on the screen, the pill's (and card's) orb is only its empty seat */
+body.guide-orb-out .gp-orb {
+  opacity: 0.25;
+  animation: none;
 }
 @keyframes go-nudge {
   0%,
   100% {
-    transform: translate(0, 0);
+    transform: rotate(var(--go-a, 0deg)) translateX(12px);
   }
   50% {
-    transform: translate(-4px, -4px); /* toward the tip, in the arrow's own frame */
+    transform: rotate(var(--go-a, 0deg)) translateX(17px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .go-orb,
+  .go-pointer.is-edge .go-chev,
+  .guide-pressed {
+    animation: none !important;
+  }
+  .go-tail {
+    display: none;
   }
 }
 
@@ -1131,7 +1202,7 @@ body.field-open .handoff {
 }
 
 /* --- AI guide (wireframe v4): the pill and the Siri-like card, always in the top-right corner.
-   The pill waits there (the amber pointer parks beside it); the card takes its place when the guide
+   The pill waits there (the guide's orb lives in it and leaves only to act); the card takes its place when the guide
    speaks: header (orb · AI GUIDE · step · ✕), title, one short thought, facts, answers, progress bar. --- */
 .guide-pill,
 .guide-popup {
@@ -1185,6 +1256,7 @@ body.field-open .guide-pill {
   border-radius: 50%;
   background: radial-gradient(circle at 35% 35%, #ffe2bd, #ffb15c 55%, #d97757);
   box-shadow: 0 0 10px rgba(255, 177, 92, 0.7);
+  transition: opacity 0.2s ease;
   animation: gp-breathe 2.4s ease-in-out infinite;
 }
 @keyframes gp-breathe {

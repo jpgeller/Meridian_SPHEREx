@@ -17,7 +17,7 @@ Decisions (Nov 15, 2026):
 - [x] B7 — Object explanations via Claude (non-Place objects)
 
 ## P0 guide presence
-- [ ] Remove idle arrow; orb docks in pill
+- [x] Remove idle arrow; orb docks in pill
 
 ## P0 preset fact cards
 - [ ] Fact cards for the 7 Places, sent as `facts.preset`; richer local Place tours

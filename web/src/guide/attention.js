@@ -368,9 +368,16 @@ export function startAttention({ guide, startGuide, onMoment = () => false, stor
     svg.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
     fill.setAttribute('stroke-dashoffset', String(len * (1 - r.progress)));
     layer.dataset.target = r.id;
-    layer.classList.add('is-on');
+    layer.classList.toggle('is-on', !orbOut);
   }
   guide.overlay.setAvoid(() => (ringAt ? [{ x: ringAt.x, y: ringAt.y, r: RING_R + 8 }] : []));
+  // one indicator per spot: the dwell ring goes the moment the guide's orb arrives at a target, and
+  // stays away while the orb is out (overlay.js sends 'arrived' and, back in the pill, 'docked')
+  let orbOut = false;
+  win.addEventListener('meridian:guide-orb', (e) => {
+    orbOut = e.detail?.state === 'arrived';
+    if (orbOut) layer.classList.remove('is-on');
+  });
 
   // ---- offers ----
   async function onTrigger({ trigger, target, key }) {
