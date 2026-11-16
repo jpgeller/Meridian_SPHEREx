@@ -245,7 +245,8 @@ instructions.
 Moments: bands (changed band several times), colours (switched colour views), timelapse_start (first time in \
 the 2D view of real images), compare (switched 2D modes), motion (replayed frames), object_search (searched a \
 name), zoomed (zoomed in on the sky without opening the 2D view), feature:<id> (looked at a control for a \
-while), object (looked at a star or object).
+while), object (looked at a star or object), menu (they pressed the AI Guide pill: offer 3 options about \
+what is on screen now, e.g. "Watch Barnard's Star move", "Why it's dim in D6"; title is a short question).
 
 Write:
 - title: 2 to 6 words.

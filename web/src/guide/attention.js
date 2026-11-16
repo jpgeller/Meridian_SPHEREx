@@ -58,14 +58,16 @@ export const TEXTS = Object.freeze({
 });
 // the muted second line of an offer (wireframe v4): the offer, then why the guide is asking now
 export const SUBS = Object.freeze({
-  object: (s) => `Show you? You looked at it for ${s} seconds.`,
-  colours: (s) => `Show you? You looked at the colours for ${s} seconds.`,
+  object: (s) => `Show you? You have been looking at it for ${s} seconds.`,
+  colours: (s) => `Show you? You have been looking at the colours for ${s} seconds.`,
   change: () => 'Watch it? You replayed these pictures a few times.',
 });
 // insight first (spec, voice rules): a place opens with its fact card's hook, the bands with the detector in view
 const ACTION = { pm: 'Watch it move between SPHEREx visits?', var: 'See how it changes between visits?', none: 'See what the colours show here?' };
-export function offerText(trigger, { card = null, motion = null, detector = null } = {}) {
-  if (trigger === 'object' && card?.hook) return { text: card.hook, sub: ACTION[motion] ?? 'Show you more?' };
+export function offerText(trigger, { card = null, motion = null, detector = null, secs = null } = {}) {
+  const why = secs ? ` You have been looking at it for ${secs} seconds.` : '';
+  if (trigger === 'object' && card?.hook) return { text: card.hook, sub: `${ACTION[motion] ?? 'Show you more?'}${why}` };
+  if (trigger === 'colours' && detector === 6) return { text: "You're on D6, where cold dust and ices glow brightest.", sub: null };
   if (trigger === 'colours' && detector) return { text: `You're on D${detector}. ${TEXTS.colours}`, sub: null };
   return { text: TEXTS[trigger], sub: null };
 }
@@ -402,7 +404,7 @@ export function startAttention({ guide, startGuide, onMoment = () => false, stor
     const pid = trigger === 'object' ? String(target ?? '').replace(/^(sky|field):/, '') : null;
     const note = pid ? guide.notes?.(pid) : null;
     const band = store.get().band;
-    const words = offerText(trigger, { card: note, motion: note?.motion, detector: Number.isInteger(band) ? Math.floor((band - 1) / 17) + 1 : null });
+    const words = offerText(trigger, { card: note, motion: note?.motion, detector: Number.isInteger(band) ? Math.floor((band - 1) / 17) + 1 : null, secs });
     const res = await guide.offer({
       text: words.text,
       sub: words.sub ?? SUBS[trigger]?.(secs),

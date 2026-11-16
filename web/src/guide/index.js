@@ -259,6 +259,14 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
   async function ask() {
     guide.stop();
     overlay.clear(); // B3: the menu shows no earlier ring or label
+    // the dynamic menu: Claude's options for this view (shared visit budget); the fixed three on any failure
+    let closed = false;
+    popup.setPillState('thinking');
+    popup.say({ say: 'Thinking…', answers: ['close'] }).then((x) => (closed = x !== 'replaced'));
+    const target = centre();
+    const dyn = await nudge.menu(target ? { target } : {});
+    if (popup.pillState() === 'thinking') popup.setPillState('idle');
+    if (dyn !== null || closed) return dyn ?? 'closed';
     const a = await popup.say(menuCard());
     if (a === 'here') return hereTour();
     if (a === 'moving') return tour('motion', 'barnard');

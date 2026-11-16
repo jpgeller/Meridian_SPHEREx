@@ -7,7 +7,7 @@ async function ready(page) {
   await page.waitForFunction(() => window.meridian && document.querySelector('#controls') && window.guide);
 }
 // the guide endpoint without the model: "use your local script"
-const mockGuideApi = (page) => page.route('**/api/guide', (r) => r.fulfill({ json: { steps: [], fallback: true, reason: 'test' } }));
+const mockGuideApi = (page) => page.route(/\/api\/guide(\/nudge)?$/, (r) => r.fulfill({ json: { steps: [], fallback: true, reason: 'test' } }));
 const card = (page) => page.locator('[data-guide="guide-popup"]');
 const next = (page) => card(page).locator('.gp-answers button[data-answer="next"]');
 const tipOf = (page) =>
@@ -70,6 +70,7 @@ test('Something moving: the guide flies to Barnard\'s Star, opens the time-lapse
 test('colours tour: the pointer presses D1, then D6; the band changes through the buttons', async ({ page }) => {
   await page.goto('/?fov=60&band=40');
   await ready(page);
+  await mockGuideApi(page); // the pill's dynamic menu falls back to the fixed three
   await page.keyboard.press('a');
   await card(page).getByRole('button', { name: 'What the colours mean' }).click();
   await expect(card(page)).toContainText('102 bands');
@@ -109,9 +110,12 @@ test('a click on a sky object asks the guide: name, kind, then facts with "Want 
   const tip = await tipOf(page);
   expect(Math.hypot(tip.x - star.x, tip.y - star.y)).toBeLessThan(60);
   expect(await page.evaluate(() => guide.overlay.active().sort())).toEqual(['circle:sky:barnard', 'pointer']);
+  await expect(card(page).locator('.gp-text')).toContainText('fastest-moving star');
+  await next(page).click(); // 2 / 4: what it is
+  await next(page).click(); // 3 / 4: key numbers from its fact card
+  await expect(card(page).locator('.gp-facts')).toContainText('6.0 light-years');
   await next(page).click();
-  // 2 / 2: the facts; the last step asks the end question in its sub line and shows its answers (B2)
-  await expect(card(page).locator('.gp-facts')).toContainText('5.96 light-years');
+  // 4 / 4: what to look for; the last step asks the end question in its sub line and shows its answers (B2)
   await expect(card(page).locator('.gp-sub')).toHaveText('Want to see how it moves?');
   await expect(card(page).locator('.gp-answers button')).toHaveText(['Show me', 'Got it']);
   // Esc ends it; the pointer flies home beside the pill

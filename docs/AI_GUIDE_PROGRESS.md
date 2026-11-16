@@ -26,5 +26,5 @@ Decisions (Nov 15, 2026):
 - [x] Insight-first copy
 - [x] New budgets + 5-min "Not now" + teaser auto-collapse
 - [x] Pill states (teaser = compact offer card; Muted look + popup.setMuted, control is P2)
-- [ ] Dynamic pill menu
+- [x] Dynamic pill menu (via /api/guide/nudge moment "menu"; fixed three as fallback)
 - [ ] Arrival trigger

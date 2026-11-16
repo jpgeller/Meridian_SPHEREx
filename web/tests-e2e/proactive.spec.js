@@ -63,7 +63,7 @@ test('"Not now" blocks the topic; with no key on the server the local offer appe
   await expect(card(page)).toContainText('Colours are a choice'); // the local offer
   await card(page).getByRole('button', { name: 'Not now' }).click();
   await expect(card(page)).toBeHidden();
-  expect(await page.evaluate(() => guide.nudge.snapshot().blocked)).toEqual(['colours']);
+  expect(await page.evaluate(() => Object.keys(guide.nudge.snapshot().blocked))).toEqual(['colours']);
 });
 
 test('a 5 s mouse rest on a 2D control (no ?gaze= needed) brings a Claude offer about that feature', async ({ page }) => {
@@ -96,7 +96,7 @@ test('resting the mouse on Barnard\'s Star keeps the local tutorial (no Claude c
   await expect.poll(() => page.evaluate(() => guide.attention.snapshot().quiet), { timeout: 30000 }).toBeNull();
   const s = await page.evaluate(() => guide.resolve('sky:barnard'));
   await page.mouse.move(s.x + 8, s.y + 4);
-  await expect(card(page)).toContainText('Want to know what this is?', { timeout: 9000 });
+  await expect(card(page)).toContainText(/fastest-moving star|Notice this object/, { timeout: 9000 });
   await expect(card(page)).toContainText('looking at it for 5 seconds');
   await card(page).getByRole('button', { name: 'Yes, tell me' }).click();
   await expect(card(page).locator('.gp-title')).toHaveText("Barnard's Star");

@@ -171,7 +171,7 @@ export function createNudge({
     const i = /^o(\d)$/.exec(answer)?.[1];
     if (i == null) {
       overlay.clear();
-      if (answer === 'not_now') {
+      if (answer === 'not_now' && m.moment !== 'menu') {
         blocked.set(topicOf(m), now() + o.muteMs);
         declines += 1;
         if (declines >= o.fewerAfter && !askedFewer) {
@@ -212,8 +212,33 @@ export function createNudge({
     return show(offer, m);
   }
 
+  /**
+   * The pill (dynamic menu, spec "Context model"): Claude's options for what is on screen now, shown like an
+   * offer. Counts in the visit budget (not the gap: the person asked). -> outcome, or null when Claude is not
+   * available or the budget is spent (the caller shows the fixed menu).
+   */
+  async function menu(m = {}) {
+    if (calls >= o.maxPerVisit || pending) return null;
+    pending = true;
+    countCall();
+    let reply = null;
+    try {
+      reply = await ask(buildBody({ ...m, moment: 'menu' }));
+    } catch (err) {
+      log('menu failed', err);
+    } finally {
+      pending = false;
+    }
+    if (!reply || reply.fallback || !Array.isArray(reply.options) || !reply.options.length) {
+      log(`menu: fixed menu (${reply?.reason ?? 'no reply'})`);
+      return null;
+    }
+    return show(reply, { ...m, moment: 'menu' });
+  }
+
   return {
     handle,
+    menu,
     snapshot: () => ({ calls, lastCall, pending, blocked: Object.fromEntries(blocked), declines, rested: Object.fromEntries(rested), budget: budgetReason() }),
     configure: (x = {}) => (o = { ...o, ...x }),
     reset() {

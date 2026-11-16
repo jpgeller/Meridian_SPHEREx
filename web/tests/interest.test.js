@@ -276,3 +276,16 @@ test('nudge: three "Not now" in a row ask once "Fewer suggestions?"; yes halves 
   assert.ok(ask, 'asked after three declines');
   assert.equal(s.shown.filter((c) => c.title === 'Fewer suggestions?').length, 1);
 });
+
+test('nudge.menu: the pill asks Claude for options (moment "menu", shared budget); failure or no budget -> null', async () => {
+  const s = setup({ answer: 'o1' });
+  assert.equal(await s.n.menu({}), 'done');
+  assert.equal(s.asked[0].moment, 'menu');
+  assert.equal(s.n.snapshot().calls, 1);
+  const f = setup({ reply: { fallback: true, reason: 'no key' } });
+  assert.equal(await f.n.menu({}), null);
+  const mem = new Map([['meridian.guide.nudges', '40']]);
+  const b = setup({ storage: { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) } });
+  assert.equal(await b.n.menu({}), null);
+  assert.equal(b.asked.length, 0);
+});

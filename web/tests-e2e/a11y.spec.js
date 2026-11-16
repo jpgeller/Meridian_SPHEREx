@@ -66,8 +66,8 @@ test('keyboard only (Tab + Space / Enter): replays bring the offer, Yes, the tou
   await quiet(page);
   // the offer comes from the keyboard too: stepping back and forth through the visits
   for (const k of ['.', '.', ',', '.', ',']) await page.keyboard.press(k);
-  await expect(card(page)).toContainText('Trying to spot what changed?');
-  await expect(guideLive(page)).toHaveText(/^Guide: Trying to spot what changed\?/);
+  await expect(card(page)).toContainText('Something here may move between frames');
+  await expect(guideLive(page)).toHaveText(/^Guide: Something here may move between frames/);
   // a single "next" key (Tab) reaches the card's answers first; a single "press" key answers
   // (the field view had put the focus on its title, far from the card in the Tab order)
   await page.keyboard.press('Tab');
@@ -122,7 +122,7 @@ test('dwell only (full gaze mode): offer, Yes, explanation and Got it on the sky
   await page.evaluate(() => guide.attention.configure({ ringDelayMs: 200, dwellMs: 1500 }));
   const star = await page.evaluate(() => guide.resolve('sky:barnard'));
   await page.evaluate(({ x, y }) => __gaze(x, y, 2200), star);
-  await expect(card(page)).toContainText('Want to know what this is?');
+  await expect(card(page)).toContainText(/fastest-moving star|Notice this object/);
   // answers: at least 64 px high, at least 16 px apart
   const boxes = await card(page).locator('.gp-answers button').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()));
   for (const b of boxes) expect(b.height).toBeGreaterThanOrEqual(64);
