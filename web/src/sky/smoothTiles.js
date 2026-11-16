@@ -102,26 +102,81 @@ highp vec4 meridian_weights(highp float f) {
 }
 
 // The tile's (r, g) at uv, holes filled.
+// Speed (16 Nov 2026): the B-spline used to read 16 pixels one by one, each running the hole search when it
+// was zero; zoomed in that was ~11 fps with 0.3 s frames. Now the B-spline comes from 4 hardware-filtered
+// reads (the texture is LINEAR: the classic "cubic from bilinear" trick, same weights), and the hole search
+// runs at most once per screen pixel: where the pixel is a zero, or a lit pixel touches one. Same picture.
 highp vec2 meridian_sample(vec3 uv) {
   ivec3 size = textureSize(tex, 0);
-  highp vec2 pos = uv.xy * vec2(size.xy);
+  highp vec2 sz = vec2(size.xy);
+  highp vec2 pos = uv.xy * sz;
   highp vec2 footprint = fwidth(pos); // tile pixels per screen pixel
   int z = clamp(int(uv.z * float(size.z)), 0, size.z - 1);
+  ivec2 here = clamp(ivec2(floor(pos)), ivec2(0), size.xy - 1);
   if (max(footprint.x, footprint.y) >= 1.0) {
     // zoomed out: Aladin's own sampling, with blank pixels filled
     highp vec2 c = texture(tex, uv).rg;
-    return c.g > MERIDIAN_BLANK ? c : meridian_texel(ivec3(ivec2(floor(pos)), z), size.xy);
+    return c.g > MERIDIAN_BLANK ? c : meridian_texel(ivec3(here, z), size.xy);
   }
-  // zoomed in: cubic B-spline through the 4x4 nearest pixels
+  bool centreBlank = texelFetch(tex, ivec3(here, z), 0).g <= MERIDIAN_BLANK;
+  // zoomed in: cubic B-spline through the 4x4 nearest pixels, as 4 bilinear reads
   highp vec2 coord = pos - 0.5;
-  ivec2 base = ivec2(floor(coord));
-  highp vec2 f = coord - floor(coord);
+  highp vec2 i0 = floor(coord);
+  highp vec2 f = coord - i0;
   highp vec4 wx = meridian_weights(f.x);
   highp vec4 wy = meridian_weights(f.y);
-  highp vec2 sum = vec2(0.0);
+  highp vec2 g0 = vec2(wx.x + wx.y, wy.x + wy.y);
+  highp vec2 g1 = vec2(wx.z + wx.w, wy.z + wy.w);
+  // where to read so that the hardware's bilinear blend gives each pair its B-spline weights
+  highp vec2 p0 = (i0 - 1.0 + vec2(wx.y, wy.y) / g0 + 0.5) / sz;
+  highp vec2 p1 = (i0 + 1.0 + vec2(wx.w, wy.w) / g1 + 0.5) / sz;
+  highp vec2 s00 = texture(tex, vec3(p0.x, p0.y, uv.z)).rg;
+  highp vec2 s10 = texture(tex, vec3(p1.x, p0.y, uv.z)).rg;
+  highp vec2 s01 = texture(tex, vec3(p0.x, p1.y, uv.z)).rg;
+  highp vec2 s11 = texture(tex, vec3(p1.x, p1.y, uv.z)).rg;
+  highp vec2 sum = g0.y * (g0.x * s00 + g1.x * s10) + g1.y * (g0.x * s01 + g1.x * s11);
+  if (!centreBlank && sum.g > 0.999) return clamp(sum, 0.0, 1.0); // no zero pixel nearby: done
+  // Zeros among the 4x4: a hole's zeros are replaced by its fill before blending (blending the zeros drew
+  // dark outlines round filled holes).
+  if (centreBlank && meridian_texel(ivec3(here, z), size.xy).g <= MERIDIAN_BLANK) {
+    return clamp(sum, 0.0, 1.0); // black sky, not a hole: stays black (the bilinear result)
+  }
+  // The 4 central pixels (most of the B-spline's weight) each get their own fill if they are zeros (one
+  // fill for all 16 left a faint grid inside big filled areas; a search for every one of the 16 was what
+  // made the sky lag: at most 8 searches now, and only next to zero pixels).
+  // An outer zero borrows its quadrant's central fill only if that central pixel was a zero too (the same
+  // hole); next to a lit central pixel it gets one search of its own per quadrant (black sky stays black).
+  ivec2 base = ivec2(i0);
+  highp vec2 c[4];       // central pixels, holes filled
+  bool cz[4];            // was that central pixel a zero?
+  highp vec2 outer[4];   // per quadrant: the fill shared by its outer zeros
+  bool outerDone[4];
+  for (int k = 0; k < 4; k++) {
+    ivec2 q = clamp(base + ivec2(k % 2, k / 2), ivec2(0), size.xy - 1);
+    c[k] = meridian_texel(ivec3(q, z), size.xy);
+    cz[k] = texelFetch(tex, ivec3(q, z), 0).g <= MERIDIAN_BLANK;
+    outerDone[k] = cz[k];
+    outer[k] = c[k];
+  }
+  sum = vec2(0.0);
   for (int j = 0; j < 4; j++) {
     for (int i = 0; i < 4; i++) {
-      sum += wx[i] * wy[j] * meridian_texel(ivec3(base + ivec2(i - 1, j - 1), z), size.xy);
+      ivec2 q = clamp(base + ivec2(i - 1, j - 1), ivec2(0), size.xy - 1);
+      highp vec2 t = texelFetch(tex, ivec3(q, z), 0).rg;
+      if (t.g <= MERIDIAN_BLANK) {
+        bool central = (i == 1 || i == 2) && (j == 1 || j == 2);
+        int k = clamp(i - 1, 0, 1) + 2 * clamp(j - 1, 0, 1);
+        if (central) {
+          t = c[k];
+        } else {
+          if (!outerDone[k]) {
+            outer[k] = meridian_texel(ivec3(q, z), size.xy);
+            outerDone[k] = true;
+          }
+          t = outer[k];
+        }
+      }
+      sum += wx[i] * wy[j] * t;
     }
   }
   return clamp(sum, 0.0, 1.0);
