@@ -1,3 +1,5 @@
+![Meridian SPHEREx — NASA Space Apps Challenge 2026. Team: George, Halytza, Janisha, João Caldeira, João Paulo, and Yassin.](docs/img/readme/team-header.png)
+
 # Meridian_SPHEREx
 
 A Real sky explorer for NASA's SPHEREx mission (NASA Space Apps 2026). Fly through the whole infrared sky in 3D, zoom in to any patch (at full SPHEREx resolution once you're close), and watch the real SPHEREx images of it as a time-lapse. You can compare dates, mix the 102 infrared bands, put WISE (2010–2024) and Gaia beside it for context, and measure a spectrum. Everything is usable without a mouse (keyboard, or any external controller through the command bridge); eye-tracking control is being integrated by a partner team.
