@@ -75,6 +75,8 @@ class MeridianBridge:
         self.clients: list[_Client] = []
         self.targets: list[dict] = []
         self.hello: dict | None = None  # the page's viewport, screen size and input mode
+        self.listeners: list = []  # fn(msg) for every other message from the page (calibration: meridian_live.py)
+        self.on_connect: list = []  # fn() when a page connects (e.g. to send it the tracker's state)
         self._lock = threading.Lock()
         self._server: socket.socket | None = None
 
@@ -191,6 +193,13 @@ class MeridianBridge:
             self._drop(client)
             print("[meridian-bridge] page disconnected")
 
+    def viewport_to_screen(self, x: float, y: float) -> tuple[float, float]:
+        """Page (viewport CSS) px -> the tracker's physical screen px (inverse of the page's gazeSocket.toViewport)."""
+        v = (self.hello or {}).get("viewport", {})
+        sx = (self.screen_w / v["screenW"]) if self.screen_w and v.get("screenW") else (v.get("dpr") or 1.0)
+        sy = (self.screen_h / v["screenH"]) if self.screen_h and v.get("screenH") else (v.get("dpr") or 1.0)
+        return (x + v.get("left", 0)) * sx, (y + v.get("top", 0)) * sy
+
     def _on_message(self, text: str):
         try:
             msg = json.loads(text)
@@ -201,6 +210,11 @@ class MeridianBridge:
         elif msg.get("type") == "hello":
             self.hello = msg
             print(f"[meridian-bridge] hello: {msg}")
+            for fn in self.on_connect:
+                fn()
+        else:
+            for fn in self.listeners:
+                fn(msg)
 
 
 def _fake(mode: str, port: int, w: int, h: int):

@@ -1845,3 +1845,123 @@ button[role='switch'][aria-checked='true']::before {
 @media (prefers-reduced-motion: reduce) {
   .guide-pill .gp-orb, .guide-popup .gp-orb { animation: none !important; }
 }
+
+/* --- eye-tracker calibration (input/calibration.js) --- */
+.calib {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: rgba(3, 5, 12, 0.94);
+  color: var(--text);
+}
+.calib[hidden] {
+  display: none;
+}
+.calib.calib-buttons {
+  background: rgba(3, 5, 12, 0.45); /* layer 2: the page stays visible, the dots sit on its buttons */
+  pointer-events: none;
+}
+.calib.calib-buttons .calib-stop,
+.calib.calib-buttons .calib-msg {
+  pointer-events: auto;
+}
+.calib-ask {
+  max-width: 560px;
+  padding: 24px 28px;
+  border: 1px solid rgba(255, 181, 71, 0.45);
+  border-radius: 16px;
+  background: var(--surface-solid, #0b1020);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+}
+.calib-ask h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+}
+.calib-ask p {
+  margin: 0 0 18px;
+  line-height: 1.45;
+}
+.calib-ask .row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.calib-ask button {
+  flex: 1;
+  font-size: 16px;
+}
+.calib-ask button.primary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.calib-run {
+  position: absolute;
+  inset: 0;
+}
+.calib-dot {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+.calib-dot[hidden] {
+  display: none;
+}
+.calib-core,
+.calib-ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  translate: -50% -50%;
+}
+.calib-core {
+  width: 18px;
+  height: 18px;
+  background: #ffb547;
+  box-shadow: 0 0 12px rgba(255, 181, 71, 0.8);
+}
+.calib-ring {
+  width: 120px;
+  height: 120px;
+  border: 3px solid #fff;
+}
+.calib-dot.go .calib-ring {
+  animation: calib-shrink var(--calib-dot-ms, 1.5s) linear forwards;
+}
+@keyframes calib-shrink {
+  from { width: 120px; height: 120px; opacity: 1; }
+  to { width: 22px; height: 22px; opacity: 0.6; }
+}
+.calib-count {
+  position: absolute;
+  margin: 0;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+}
+.calib-msg {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  max-width: min(760px, 80vw);
+  text-align: center;
+  font-size: 20px;
+  line-height: 1.5;
+}
+.calib-msg:empty {
+  display: none;
+}
+.calib-stop {
+  position: absolute;
+  left: 50%;
+  bottom: var(--edge-y);
+  translate: -50% 0;
+  padding: 0 18px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 12px;
+  background: rgba(8, 10, 18, 0.9);
+  color: var(--text);
+  font: inherit;
+}

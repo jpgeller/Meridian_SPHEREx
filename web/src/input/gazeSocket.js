@@ -75,6 +75,7 @@ export function startGazeSocket(param, { getInput = () => null, win = window, WS
   let retryMs = 1000;
   let closed = false;
   let samples = 0;
+  let tracker = null; // the tracker's last { type: 'tracker', calibration, ... }
   const chip = makeChip(win.document);
 
   const setState = (s) => {
@@ -104,6 +105,10 @@ export function startGazeSocket(param, { getInput = () => null, win = window, WS
     } else if (type === 'face' || type === 'command' || type === 'list_commands' || type === 'get_state') {
       // the page's own bridge validates these (the page is an allowed sender of itself)
       win.postMessage(msg, win.location.origin);
+    } else if (type === 'tracker' || type === 'calib_result') {
+      // the tracker's state and calibration results: input/calibration.js listens
+      tracker = type === 'tracker' ? msg : tracker;
+      win.dispatchEvent(new CustomEvent('meridian:tracker', { detail: msg }));
     }
   }
 
@@ -142,6 +147,8 @@ export function startGazeSocket(param, { getInput = () => null, win = window, WS
   connect();
   return {
     status: () => ({ url, state, samples }),
+    send, // to the tracker (calibration: { type: 'calib', action, ... })
+    tracker: () => tracker,
     close() {
       closed = true;
       ws?.close();
