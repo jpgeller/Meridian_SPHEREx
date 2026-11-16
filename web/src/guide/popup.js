@@ -522,6 +522,7 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
     'keydown',
     (e) => {
       if (e.key !== 'Escape' || !open || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (doc.body.classList.contains('calibrating')) return; // an eye-tracker calibration owns Esc (it stops it)
       e.preventDefault();
       e.stopImmediatePropagation();
       close('close');

@@ -54,9 +54,16 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   options are `role="switch"` buttons and choices are stepping buttons (no checkboxes or drop-downs: they can't be 64 px and
   gaze presses buttons). Exception (16 Nov 2026, mouse users first): the 2D view in mouse mode on screens under 1000 px tall
   uses 48 px (44 px under 780 px) so its five titled sections (Zoom, Detector, View, Dates, Playback) fit; eye control keeps
-  64 px. The 2D view is two columns (image | controls) and fits without scrolling at ≥1280×800 in mouse mode. The test
+  64 px. Full eye control (mode C) is bigger: sky `clamp(64px, 7.5vh, 88px)`; 2D view sized to fit 7 rows
+  (≈90 px at 1707×1067 and 1920×1080), section titles beside their buttons, detectors in one row; below ~1000 px
+  tall the 2D controls column overflows in mode C (64 px minimum). The 2D view is two columns (image | controls)
+  and fits without scrolling at ≥1280×800 in mouse mode. The test
   "every control is big enough and reachable" checks the sky view and every 2D mode.
 - Hints (mouse mode): one white star per section title (`data-hint-section`), not per button (`web/src/ui/hints.js`).
+- Tour (`web/src/tutorial/`): a first visit asks "Want a quick tour?" (localStorage `meridian.tour`); key H any time.
+  A drawn cursor glides to each control, rings it and presses it through `commands.actingAs('guide')`, in mouse mode;
+  `guide.hold()` keeps the AI guide quiet meanwhile. Steps and their selectors: `tutorial/tourScript.js` (a renamed
+  id breaks the unit test). Automated browsers are never offered it (`?tour=1` forces it, `?tour=0` hides it).
 - **Hints**: in input mode A (mouse) every button gets a small white star that grows on hover and explains it (`web/src/ui/hints.js`, a
   separate aria-hidden layer, never inside the buttons). Give each new button a hint: a rule in `ui/hintText.js`, a
   `data-hint`, or a `title`; `data-no-hint` opts out.

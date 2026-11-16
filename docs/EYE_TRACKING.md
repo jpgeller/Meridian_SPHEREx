@@ -232,7 +232,8 @@ model output is never sent. MediaPipe's face landmarks go to the face panel as t
 
 When the tracker connects, the page asks once: **calibrate for much higher precision, or use it as it is**
 (`web/src/input/calibration.js`; commands `calibrate_eyes`, `calibrate_buttons`, `skip_calibration`,
-`stop_calibration`; Space pauses, Esc stops). The page shows the dots and tells the tracker which is on screen:
+`stop_calibration`, `recalibrate`; Space pauses, Esc stops). The **Calibrate** button next to "Controls" (shown while
+the panel is open) runs `recalibrate`: it starts again from the first dot, stopping a run in progress. The page shows the dots and tells the tracker which is on screen:
 `{type: 'calib', action: 'start' | 'dot' | 'pause' | 'resume' | 'end' | 'cancel', layer, id, look, x, y}` (page px;
 the tracker converts with the `hello` it received). The tracker answers `{type: 'calib_result', layer, report}` and
 `{type: 'tracker', calibration: {stabiliser, buttons}}`. Each layer is switched on only if it beats "without it" on

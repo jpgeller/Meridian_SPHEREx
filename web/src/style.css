@@ -125,6 +125,17 @@ body {
 .shell-toggle {
   top: var(--left-top);
   left: var(--edge-x);
+  display: flex;
+  gap: var(--space-2);
+}
+/* the Calibrate button sits right of "Controls" while the panel is open: the search bar moves over for it */
+body:not(.panel-closed) {
+  --aladin-tl: 330px;
+}
+.pt-cal {
+  font-size: 20px;
+  line-height: 1;
+  color: var(--accent);
 }
 .shell button.panel-toggle {
   min-height: var(--toggle-h);
@@ -1618,6 +1629,55 @@ body[data-input='gaze'] .guide-pill {
   body.field-open[data-input='mouse'] .player-right .field-controls {
     gap: 4px;
   }
+}
+/* Full eye control (mode C): bigger targets than the 64 px minimum, sized by the screen's height.
+   Sky view up to 88 px; the 2D view (a nearly full-screen window) up to 112 px, with its controls column
+   given more of the width. */
+body[data-input='gaze'] {
+  --hit: clamp(64px, 7.5vh, 88px);
+  --target: clamp(64px, 7.5vh, 88px);
+}
+body.field-open[data-input='gaze'] {
+  /* the controls column holds up to 7 rows of buttons (zoom, detectors, 2 of views, a video-options or dates
+     row, playback; titles sit beside them, below): its height decides the size */
+  --hit: clamp(64px, calc((100vh - 2 * var(--edge-y) - 265px) / 7.4), 112px);
+  --target: var(--hit);
+}
+body.field-open[data-input='gaze'] .field .player {
+  grid-template-columns: minmax(0, 0.8fr) minmax(420px, 1.2fr);
+}
+/* section titles beside their buttons (not above), detectors in one row: fewer rows, bigger targets */
+body.field-open[data-input='gaze'] .fsec {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 6px;
+}
+body.field-open[data-input='gaze'] .fsec > :not(.fsec-title) {
+  grid-column: 2;
+}
+body.field-open[data-input='gaze'] .fsec-title {
+  grid-column: 1;
+  grid-row: 1 / span 4;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 15px;
+}
+body.field-open[data-input='gaze'] .player-right .field-dets {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+}
+body.field-open[data-input='gaze'] .field .det {
+  padding-inline: 6px;
+}
+body.field-open[data-input='gaze'] .field .det .det-range {
+  font-size: 10px;
+}
+body.field-open[data-input='gaze'] .fsec button,
+body.field-open[data-input='gaze'] .field-head button {
+  font-size: 17px;
 }
 button,
 select,

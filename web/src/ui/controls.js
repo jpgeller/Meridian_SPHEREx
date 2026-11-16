@@ -27,6 +27,10 @@ export function createControls(root, { store, commands, getWavelengths }) {
     <button type="button" id="panel-toggle" class="panel-toggle" aria-expanded="true" aria-controls="side-panel"
             data-guide="panel-toggle" aria-keyshortcuts="p" title="Show or hide the controls (key P)">
       <span class="pt-icon" aria-hidden="true"></span><span class="pt-text">Controls</span>
+    </button>
+    <button type="button" id="calibrate-btn" class="panel-toggle calibrate-btn" data-guide="calibrate"
+            title="Calibrate the eye tracker again: 100 dots, then a dot on each button">
+      <span class="pt-cal" aria-hidden="true">◎</span><span class="pt-text">Calibrate</span>
     </button>`;
 
   shell.left.innerHTML = html`
@@ -131,6 +135,7 @@ export function createControls(root, { store, commands, getWavelengths }) {
     { label: 'Show / hide the controls panel', keys: ['p'], args: { open: 'optional, true or false' } },
   );
   $('#panel-toggle').addEventListener('click', () => commands.run('toggle_panel', {}, 'ui'));
+  $('#calibrate-btn').addEventListener('click', () => commands.run('recalibrate', {}, 'ui'));
   root.querySelectorAll('[data-color]').forEach((b) =>
     b.addEventListener('click', () => commands.run('set_color', { color: b.dataset.color }, 'ui')),
   );
@@ -147,6 +152,7 @@ export function createControls(root, { store, commands, getWavelengths }) {
   function renderPanel() {
     $('#panel-toggle').setAttribute('aria-expanded', String(panelOpen));
     $('#side-panel').hidden = !panelOpen;
+    $('#calibrate-btn').hidden = !panelOpen; // shown with the expanded options, next to "Controls"
     document.body.classList.toggle('panel-closed', !panelOpen);
   }
 

@@ -87,7 +87,8 @@ export function createCalibration({ store, commands, socket, doc = document, win
   root.querySelector('[data-calib="stop"]').addEventListener('click', () => commands.run('stop_calibration', {}, 'ui'));
 
   let asked = false;
-  let job = null; // { layer, dots, i, paused, timer, resolve }
+  let job = null; // the layer on screen: { layer, run, stopped, paused }
+  let runId = 0; // each calibration run's number: a stopped run that wakes up later never touches a newer one
   let lastResult = {};
   let waitingFor = null; // layer whose calib_result is awaited
 
@@ -146,8 +147,10 @@ export function createCalibration({ store, commands, socket, doc = document, win
   const wait = (ms) => new Promise((r) => win.setTimeout(r, ms));
 
   /** Show the dots of one layer; resolves with the tracker's report, or null if stopped. */
-  async function runLayer(layer, dots, intro) {
-    job = { layer, stopped: false, paused: false };
+  async function runLayer(layer, dots, intro, runNo) {
+    const me = (job = { layer, run: runNo, stopped: false, paused: false });
+    doc.body.classList.add('calibrating');
+    const over = () => me.stopped || runNo !== runId;
     root.hidden = false;
     ask.hidden = true;
     run.hidden = false;
@@ -156,12 +159,12 @@ export function createCalibration({ store, commands, socket, doc = document, win
     countEl.textContent = '';
     msgEl.textContent = intro;
     await wait(INTRO_MS);
-    if (job.stopped) return null;
+    if (over()) return null;
     msgEl.textContent = '';
     send({ action: 'start', layer });
     for (let i = 0; i < dots.length; i++) {
-      while (job.paused && !job.stopped) await wait(100);
-      if (job.stopped) return null;
+      while (me.paused && !over()) await wait(100);
+      if (over()) return null;
       const d = dots[i];
       showDot(d.x, d.y, i + 1, dots.length);
       send({ action: 'dot', id: d.id, look: d.look ?? 0, x: d.x, y: d.y });
@@ -174,10 +177,11 @@ export function createCalibration({ store, commands, socket, doc = document, win
     send({ action: 'end', layer });
     const report = await Promise.race([new Promise((r) => (resultWaiter = r)), wait(20000).then(() => ({ error: 'the tracker did not answer' }))]);
     resultWaiter = null;
-    return report;
+    return over() ? null : report;
   }
 
   async function calibrateAll() {
+    const runNo = ++runId;
     const W = win.innerWidth;
     const H = win.innerHeight;
     const dots1 = calibrationDots(LAYER1_DOTS).map(([x, y], id) => ({ id, x: x * W, y: y * H }));
@@ -186,16 +190,18 @@ export function createCalibration({ store, commands, socket, doc = document, win
       dots1,
       'Calibration 1 of 2: 100 dots, one at a time (about 2.5 minutes). Look straight at each dot. ' +
         'Between dots, move your head a little: turn, tilt, lean, closer or farther. Space pauses, Esc stops.',
+      runNo,
     );
-    if (!r1) return finish('Calibration stopped.');
+    if (!r1) return; // stopped or restarted: stop_calibration / the restart already said so
     msgEl.textContent = `Layer 1 (whole screen): ${fmt(r1)}`;
     await wait(RESULT_MS);
-    const r2 = await calibrateButtons(true);
-    if (r2 === null) return finish('Calibration stopped.');
-    finish(`Calibrated. Whole screen: ${fmt(r1)}. On the buttons: ${fmt(r2)}.`);
+    if (runNo !== runId) return;
+    const r2 = await calibrateButtons(true, runNo);
+    if (r2 === null) return;
+    finish(`Calibrated. Whole screen: ${fmt(r1)}. On the buttons: ${fmt(r2)}.`, runNo);
   }
 
-  async function calibrateButtons(partOfFull = false) {
+  async function calibrateButtons(partOfFull = false, runNo = ++runId) {
     // the buttons of the view on screen now (the calibration's own controls excluded)
     const rects = [...doc.querySelectorAll('button')]
       .filter((b) => !root.contains(b) && b.checkVisibility?.({ checkOpacity: true, checkVisibilityCSS: true }))
@@ -207,14 +213,17 @@ export function createCalibration({ store, commands, socket, doc = document, win
       'buttons',
       dots,
       `${partOfFull ? 'Calibration 2 of 2' : 'Button calibration'}: a dot on each of the ${n} buttons, twice (about ${Math.round((dots.length * DOT_MS) / 60000 + 0.4)} min). Look at the dot on each button.`,
+      runNo,
     );
-    if (!partOfFull) finish(r ? `Buttons calibrated: ${fmt(r)}.` : 'Calibration stopped.');
+    if (!partOfFull && r) finish(`Buttons calibrated: ${fmt(r)}.`, runNo);
     return r;
   }
 
-  function finish(text) {
-    const stopped = job?.stopped;
+  /** End a run: its message, then (if it finished, not stopped) full eye control. Ignored for an old run. */
+  function finish(text, runNo, { stopped = false } = {}) {
+    if (runNo !== runId) return;
     job = null;
+    doc.body.classList.remove('calibrating');
     root.classList.remove('calib-buttons');
     dotEl.hidden = true;
     countEl.textContent = '';
@@ -223,12 +232,21 @@ export function createCalibration({ store, commands, socket, doc = document, win
     win.setTimeout(() => !job && close(), RESULT_MS);
   }
 
-  commands.register('calibrate_eyes', () => {
-    if (job) return false;
-    ask.hidden = true;
-    calibrateAll();
+  commands.register('calibrate_eyes', ({ restart = false } = {}) => {
+    if (job && !restart) return false;
+    asked = true; // no "calibrate?" question after this
+    const begin = () => {
+      ask.hidden = true;
+      calibrateAll();
+    };
+    if (job) {
+      // restart: stop the run in progress (the tracker drops what it recorded), then start from the first dot
+      job.stopped = true;
+      send({ action: 'cancel' });
+    }
+    begin();
     return true;
-  }, { label: 'Calibrate the eye tracker (100 dots, then the buttons)' });
+  }, { label: 'Calibrate the eye tracker (100 dots, then the buttons)', args: { restart: 'true: stop a run in progress and start again' } });
   commands.register('calibrate_buttons', () => {
     if (job) return false;
     calibrateButtons(false);
@@ -243,7 +261,7 @@ export function createCalibration({ store, commands, socket, doc = document, win
     if (!job) return close() ?? false;
     job.stopped = true;
     send({ action: 'cancel' });
-    finish('Calibration stopped: nothing changed.');
+    finish('Calibration stopped: nothing changed.', job.run, { stopped: true });
     return true;
   }, { label: 'Stop the calibration' });
 

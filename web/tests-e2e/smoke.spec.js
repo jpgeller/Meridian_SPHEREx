@@ -1078,3 +1078,37 @@ test('SED: key e draws Gaia and SPHEREx on one graph with a blackbody temperatur
   await page.getByRole('radio', { name: /SPHEREx spectrum/ }).click();
   await expect(page.locator('#spec-title')).toHaveText('Spectrum');
 });
+
+test('Calibrate button: next to Controls while the panel is open; says what is missing without a tracker', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/?fov=60');
+  await ready(page);
+  const btn = page.locator('#calibrate-btn');
+  await expect(btn).toBeVisible();
+  const [t, c, s] = await Promise.all(['#panel-toggle', '#calibrate-btn', '.shell-top'].map((q) => page.locator(q).boundingBox()));
+  expect(c.x).toBeGreaterThan(t.x + t.width); // right of "Controls"
+  expect(Math.abs(c.y - t.y)).toBeLessThan(2); // same row
+  expect(c.x + c.width).toBeLessThanOrEqual(s.x); // not under the search bar
+  await btn.click();
+  await expect(page.locator('#status')).toContainText('No eye tracker connected');
+  await page.evaluate(() => meridian.run('toggle_panel', { open: false }));
+  await expect(btn).toBeHidden();
+});
+
+test('full eye control: bigger buttons (sky ~80 px, 2D ~90 px at 1920x1080), the 2D controls still fit', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.goto('/?fov=60&input=gaze');
+  await ready(page);
+  const minSize = () =>
+    page.evaluate(() => Math.min(...[...document.querySelectorAll('button')].filter((b) => b.checkVisibility()).map((b) => b.getBoundingClientRect()).filter((r) => r.width).map((r) => Math.min(r.width, r.height))));
+  expect(await minSize()).toBeGreaterThanOrEqual(78);
+  await page.goto('/?ra=269.44627&dec=4.7682&fov=2.3&band=40&view=field&ffov=0.1&mode=detector&input=gaze');
+  await ready(page);
+  await expect(page.locator('.epoch').first()).toBeVisible({ timeout: 60_000 });
+  for (const show of ['timelapse', 'video', 'blink', 'nogaia']) {
+    await page.evaluate((s) => meridian.run('set_show', { show: s }), show);
+    await page.waitForTimeout(300);
+    expect(await minSize(), `2D ${show}`).toBeGreaterThanOrEqual(88);
+    expect(await page.evaluate(() => { const r = document.querySelector('.player-right'); return r.scrollHeight - r.clientHeight; }), `2D ${show} scroll`).toBeLessThanOrEqual(1);
+  }
+});

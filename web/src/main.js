@@ -16,11 +16,13 @@ import { createInputModeButton } from './ui/inputModeButton.js';
 import { createHints } from './ui/hints.js';
 import { startGazeSocket } from './input/gazeSocket.js';
 import { createCalibration } from './input/calibration.js';
+import { createTour } from './tutorial/tour.js';
 
 const statusEl = document.querySelector('#status');
 // The guide's attention follows the mouse in input mode A (a 5 s rest = interest); ?gaze=off turns that off.
 // Read before the URL sync rewrites the URL.
 const gazeParam = new URLSearchParams(window.location.search).get('gaze');
+const tourParams = new URLSearchParams(window.location.search); // ?tour=1 / ?tour=0 (tutorial/tour.js)
 const { name: urlName } = startCore();
 
 let apiOk = null;
@@ -73,7 +75,26 @@ window.meridian.gazeSocket = startGazeSocket(new URLSearchParams(window.location
 if (window.meridian.gazeSocket) {
   window.meridian.calibration = createCalibration({ store, commands, socket: window.meridian.gazeSocket });
 }
+// The panel's Calibrate button: start the calibration again from the first dot (or say what is missing).
+commands.register(
+  'recalibrate',
+  () => {
+    const sock = window.meridian.gazeSocket;
+    if (!sock || !window.meridian.calibration) {
+      renderStatus('No eye tracker connected: run gaze_tracker/meridian_live.py and open the page with ?gaze_ws=8765');
+      return false;
+    }
+    if (sock.status().state === 'connecting') {
+      renderStatus('The eye tracker is not running yet (connecting…): start gaze_tracker/meridian_live.py');
+      return false;
+    }
+    return run('calibrate_eyes', { restart: true }, 'ui').ok;
+  },
+  { label: 'Calibrate the eye tracker again' },
+);
 store.subscribe(() => renderStatus());
+// first visit: "Want a quick tour?"; key H any time: a drawn cursor shows every control (eye control off)
+window.meridian.tour = createTour({ store, commands, sky, player, guide: window.guide, params: tourParams });
 
 if (urlName) run('fly_to', { target: urlName, fov: store.get().fov < 5 ? store.get().fov : undefined }, 'url');
 
