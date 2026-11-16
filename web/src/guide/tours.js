@@ -1,13 +1,14 @@
 // The guide's tours (wireframe v4): short scripts that explain one thought at a time while the guide
 // drives the app (flies the sky, opens the time-lapse, plays it, switches bands), always through the
 // same buttons and commands a person uses. Each returns { steps, end } for runner.runScript; the end
-// card's answer ids are handled in index.js (e.g. 'show' -> motion tour, 'again', 'example').
+// card's answer ids are handled in index.js (e.g. 'show' -> motion tour, 'colours', 'again', 'example').
 //
 //   menuCard()                           the pill's question: What am I looking at? · Something moving · What the colours mean
 //   identifyTour(id, { inField })        name, what it is, a few facts (WISE 0855: the band goes to D6), "Want to see how it moves?"
+//                                        (places that do not move: "Show me" leads to the colours tour)
 //   motionTour(id, { inField, atTarget }) fly there -> open the time-lapse -> first picture -> play -> change video / blink
 //   changeTour()                         (field view, replaying) first picture -> play -> change video, with the honest caveat
-//   coloursTour({ inField })             the band ribbon -> D1 -> D6 -> colour views
+//   coloursTour({ inField, id })         the band ribbon (the place's colour note first, if it has one) -> D1 -> D6 -> colour views
 //   exampleTour()                        WISE 0855 in D1, then D6
 //   whereTour({ fov, detector })         nothing with notes in the middle: the whole sky / a patch, in plain words
 //
@@ -21,12 +22,14 @@ export const NOTES = {
     blurb: 'The centre of our galaxy, around the black hole Sagittarius A*. Visible light is blocked by thick dust; infrared slips through it.',
     facts: [['Distance', 'about 26,000 light-years'], ['Moves?', 'No, far too distant'], ['Best in', 'D4 to D6']],
     motion: 'none',
+    colours: 'Here, dust lanes block much of the shorter infrared light, so the core looks patchy in D1. The longer bands, D4 to D6, see through more of that dust.',
   },
   solar_system: {
     kind: 'Ecliptic pole',
     blurb: 'Looking straight out of the plane the planets orbit in. SPHEREx never points at the Sun, and it revisits this part of the sky most often.',
     facts: [['Planets', 'move along the ecliptic, not here'], ['Visits', 'many, near the poles']],
     motion: 'none',
+    colours: 'Looking out of the galaxy’s dusty plane, little blocks the view here. Most dots are stars and distant galaxies; much of the faint background glow comes from dust in our own solar system.',
   },
   barnard: {
     kind: 'Red dwarf star',
@@ -110,7 +113,9 @@ export function identifyTour(id, { inField = false } = {}) {
     });
   }
   const q = n.motion === 'pm' ? 'Want to see how it moves?' : n.motion === 'var' ? 'Want to see how it changes?' : 'Want to see what the colours show here?';
-  return { steps, end: { title: q, answers: [{ id: 'show', label: 'Show me' }, GOT] } };
+  // a place that does not move: "Show me" opens the colours tour, not the motion tour
+  const show1 = n.motion === 'none' ? { id: 'colours', label: 'Show me' } : { id: 'show', label: 'Show me' };
+  return { steps, end: { title: q, answers: [show1, GOT] } };
 }
 
 /** The time-lapse part of a motion tour: first picture -> play -> change video (moving) or blink (changing). */
@@ -182,9 +187,14 @@ export function changeTour() {
   return { steps: timelapseSteps(null), end: { ...clear, answers: [GOT, AGAIN] } };
 }
 
-export function coloursTour({ inField = false } = {}) {
+export function coloursTour({ inField = false, id = null } = {}) {
   const steps = [];
   if (inField) steps.push({ say: 'The colour controls live on the sky. I will take you back there.', actions: [{ click: 'back-to-sky' }], ms: 4000 });
+  // the place's own colour note first (it points at the bands), then the general explanation
+  const note = id ? noteFor(id) : null;
+  if (note?.colours) {
+    steps.push({ title: note.name, say: note.colours, actions: [{ point: 'band-ribbon', label: 'bands' }, { circle: 'band-ribbon' }] });
+  }
   steps.push(
     {
       say: 'Each colour here is a kind of infrared light your eyes cannot see. SPHEREx splits it into 102 bands, grouped as six detectors, D1 to D6.',
@@ -205,7 +215,8 @@ export function coloursTour({ inField = false } = {}) {
       actions: [{ cmd: 'toggle_panel', args: { open: true } }, { point: 'colour-views', label: 'Colour views' }, { highlight: 'colour-views' }],
     },
   );
-  return { steps, end: { ...clear, answers: [GOT, { id: 'example', label: 'Show me an example' }, AGAIN] } };
+  // never offers this same flow again (no "Show me again", no "What the colours mean")
+  return { steps, end: { ...clear, answers: [GOT, { id: 'example', label: 'Show me an example' }] } };
 }
 
 export function exampleTour() {

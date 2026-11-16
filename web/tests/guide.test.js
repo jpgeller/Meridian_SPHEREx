@@ -237,6 +237,36 @@ test('tours: colours presses D1 then D6; WISE 0855 puts the band on D6; the menu
   assert.deepEqual(menuCard().answers.map((a) => a.label), ['What am I looking at?', 'Something moving', 'What the colours mean']);
 });
 
+test('tours (B1): a place that does not move leads "Show me" to the colours tour, never to its motion line', () => {
+  for (const id of ['milky_way', 'solar_system']) {
+    const end = identifyTour(id).end;
+    assert.deepEqual(end.answers.map((a) => a.id ?? a), ['colours', 'got_it'], id);
+    assert.equal(end.answers[0].label, 'Show me');
+  }
+  // places that move or change still go to their motion tour
+  assert.equal(identifyTour('barnard').end.answers[0].id, 'show');
+  assert.equal(identifyTour('rw_aur').end.answers[0].id, 'show');
+});
+
+test('tours (B1): the colours tour opens with the place’s colour note, else the general step; its end never repeats it', () => {
+  const mw = coloursTour({ id: 'milky_way' });
+  assert.equal(mw.steps[0].say, NOTES.milky_way.colours);
+  assert.ok(mw.steps[0].actions.some((a) => a.point === 'band-ribbon'));
+  assert.match(mw.steps[1].say, /^Each colour here is a kind of infrared light/);
+  assert.equal(mw.steps.some((s) => /too distant to move/.test(s.say)), false);
+  // in the time-lapse: back to the sky first, then the note
+  assert.equal(coloursTour({ inField: true, id: 'milky_way' }).steps[1].say, NOTES.milky_way.colours);
+  assertClean(coloursTour({ inField: true, id: 'milky_way' }), 'colours milky_way');
+  // no colour note (or no place): straight to the general explanation
+  for (const t of [coloursTour(), coloursTour({ id: 'barnard' })]) assert.match(t.steps[0].say, /^Each colour here is a kind of infrared light/);
+  for (const t of [coloursTour(), coloursTour({ id: 'milky_way' }), coloursTour({ inField: true, id: 'solar_system' })]) {
+    const ids = t.end.answers.map((a) => a.id ?? a);
+    assert.equal(ids.includes('again'), false);
+    assert.equal(ids.includes('colours'), false);
+    assert.deepEqual(ids, ['got_it', 'example']);
+  }
+});
+
 test('runner: tour steps show "i / n", Next/Stop and auto-advance; the end card answer is returned', async () => {
   const events = new EventTarget();
   const store = createStore();
@@ -264,11 +294,13 @@ test('runner: tour steps show "i / n", Next/Stop and auto-advance; the end card 
   assert.equal(shown[1].step, '2 / 2');
   assert.equal(shown[1].title, 'T');
   assert.deepEqual(shown[1].facts, [['a', 'b']]);
-  answerFn('next');
-  await tick();
-  assert.equal(shown[2].title, 'Is that clear?');
+  // B2: the last step carries the end card's answers (no Next), no auto-advance, no generic question
+  assert.deepEqual(shown[1].answers, ['got_it', { id: 'again', label: 'Show me again' }]);
+  assert.equal(shown[1].auto, 0);
+  assert.equal(shown[1].sub, undefined);
   answerFn('again');
   assert.equal(await done, 'again');
+  assert.equal(shown.length, 2, 'no separate end card');
   // Stop ends it
   const two = runner.runScript({ steps: [{ say: 'One.' }, { say: 'Two.' }] });
   await tick();

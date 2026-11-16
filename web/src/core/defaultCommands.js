@@ -158,6 +158,10 @@ export function registerDefaultCommands(commands, store) {
     if (!SHOWS[show]) throw new Error(`show must be one of: ${Object.keys(SHOWS).join(', ')}`);
     set({ ...SHOWS[show], playing: false });
   }, { label: 'What the 2D view shows', args: { show: Object.keys(SHOWS).join(' | ') } });
+  register('find_not_in_gaia', () => set({ ...SHOWS.nogaia, playing: false }), {
+    label: 'Not in Gaia: sources SPHEREx sees that Gaia does not',
+    keys: ['n'],
+  });
   register('toggle_wise', () => set(s().compare === 'side' ? { compare: 'off' } : { ...SHOWS.wise, playing: false }), {
     label: 'Side by side with WISE',
     keys: ['w'],

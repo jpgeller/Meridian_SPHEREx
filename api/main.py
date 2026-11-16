@@ -1,11 +1,36 @@
 """Meridian API. Routes are added step by step (see docs/BUILD_PLAN.md).
 
 Run:  uvicorn main:app --reload --port 8000   (from meridian/api)
+Settings (ANTHROPIC_API_KEY, GUIDE_MODEL, GUIDE_DAILY_MAX) are read from api/.env at startup, so
+--env-file is optional; variables already set in the environment win.
 """
 import json
 import math
 import os
 from pathlib import Path
+
+
+def load_env_file(path: Path) -> list[str]:
+    """KEY=VALUE lines -> os.environ (only keys not already set). Returns the names loaded, never values."""
+    loaded = []
+    if not path.is_file():
+        return loaded
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.removeprefix("export ").strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        if key and value and key not in os.environ:
+            os.environ[key] = value
+            loaded.append(key)
+    return loaded
+
+
+load_env_file(Path(__file__).with_name(".env"))
 
 import numpy as np
 from fastapi import FastAPI, HTTPException, Query, Response
@@ -19,6 +44,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import guide
 import resolve as resolver
 import context
+import gaia_sed
 import movers
 import cutouts
 import skypatch
@@ -194,6 +220,19 @@ async def gaia_context(
     """Gaia DR3 stars in the field, positions moved from 2016.0 to `mjd` with proper motion."""
     try:
         return await run_in_threadpool(context.gaia_sources, ra, dec, fov, mjd)
+    except Exception as err:
+        raise HTTPException(status_code=503, detail=f"Gaia unavailable: {err}")
+
+
+@app.get("/api/context/gaia_sed")
+async def gaia_sed_context(
+    ra: float = Query(..., ge=0, lt=360),
+    dec: float = Query(..., ge=-90, le=90),
+    mjd: float = Query(61041.0, ge=40000, le=80000, description="date of the SPHEREx images (moves Gaia stars there)"),
+) -> dict:
+    """The Gaia DR3 star at a point: photometry, GSP-Phot temperature and BP/RP spectrum, as lambda F_lambda."""
+    try:
+        return _finite(await run_in_threadpool(gaia_sed.gaia_sed, ra, dec, mjd))
     except Exception as err:
         raise HTTPException(status_code=503, detail=f"Gaia unavailable: {err}")
 

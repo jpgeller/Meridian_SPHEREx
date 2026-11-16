@@ -6,7 +6,8 @@
 //
 //   Like wireframe v4: each step shows "i / n", Next and Stop, and moves on by itself after `ms`
 //   (STEP_MS by default; the card's bar shows it, reading the card pauses it). Without an `end`, the
-//   last step waits for "Got it". runScript resolves with the end card's answer id (e.g. 'again',
+//   last step waits for "Got it". With one, the last step shows the end card's answers itself (and its
+//   question, unless it is the generic "Is that clear?") and waits; no separate card follows (B2). runScript resolves with the end card's answer id (e.g. 'again',
 //   'example'), 'done' for "Got it" (or the last step), or one of the outcomes below.
 //   Action = { point: id, label? } | { circle: id } | { highlight: id } | { trail: [idFrom, idTo] }
 //          | { cmd: name, args?: {...} }        -> run(name, args, 'guide')
@@ -180,6 +181,25 @@ export function validateScript(script, { commands, sanitize, state, log = (...a)
 // Default answers: Next / Stop on every step; "Got it" on the last one when no end card follows.
 export const defaultAnswers = (isLast, hasEnd = false) => (isLast && !hasEnd ? ['got_it'] : ['next', 'stop']);
 
+// The generic closing question, dropped when the end card's answers move onto the last step.
+const GENERIC_END = /^is that clear\??$/i;
+
+/**
+ * B2: the last step never says "Next". When it has no answers of its own and the script has an end
+ * card, the end card's answers (and its question, unless it is the generic "Is that clear?") go on
+ * the last step instead, and no separate end card follows. -> { sub, answers } | null (no merge)
+ */
+export function mergeEnd(step, end) {
+  if (!end || step?.answers) return null;
+  const answers = Array.isArray(end.answers) && end.answers.length ? end.answers.slice(0, 3) : ['got_it'];
+  const parts = [end.title, end.say]
+    .filter((t) => typeof t === 'string' && t.trim() && !GENERIC_END.test(t.trim()))
+    .map((t) => t.trim());
+  if (step?.sub) parts.push(step.sub);
+  const sub = parts.length ? parts.join(' ').slice(0, 200) : step?.sub;
+  return { sub, answers };
+}
+
 /**
  * @param {Object} o
  * @param {Function} o.say        popup.say(step) -> Promise<answer id>
@@ -295,7 +315,10 @@ export function createRunner({
   function runScript(script, { trigger, target } = {}) {
     stop('replaced');
     const steps = validateScript(script, { commands: list(), sanitize, state: getState(), log });
-    if (!steps.length) return Promise.resolve('empty');
+    if (!steps.length) {
+      overlay.clear(); // B3: no marks outlive a flow, even one with nothing to play
+      return Promise.resolve('empty');
+    }
     const end = script && !Array.isArray(script) && script.end && typeof script.end === 'object' ? script.end : null;
 
     return new Promise((resolve) => {
@@ -331,22 +354,27 @@ export function createRunner({
           const step = steps[i];
           const isLast = i === n - 1;
           const waitsForGotIt = isLast && !end;
+          // the last step carries the end card's choices itself (B2: never "Next" on n / n)
+          const merged = isLast ? mergeEnd(step, end) : null;
           overlay.clear();
           const mark = step.actions.find((a) => a.point || a.circle || a.highlight || a.click);
           const answer = say({
             title: step.title,
             say: step.say,
-            sub: step.sub,
+            sub: merged ? merged.sub : step.sub,
             facts: step.facts,
             step: n > 1 ? `${i + 1} / ${n}` : '',
-            answers: step.answers ?? defaultAnswers(isLast, !!end),
-            auto: waitsForGotIt || step.answers ? 0 : (step.ms ?? STEP_MS),
+            answers: merged?.answers ?? step.answers ?? defaultAnswers(isLast, !!end),
+            auto: waitsForGotIt || merged || step.answers ? 0 : (step.ms ?? STEP_MS),
             target: step.target ?? mark?.point ?? mark?.circle ?? mark?.highlight ?? mark?.click,
           });
           // closing the card (✕, Esc, Stop) ends the tour at once, even while this step is still acting
           answer.then((id) => {
             if (id === 'close' || id === 'dismissed' || id === 'stop') me.end('closed');
             else if (id === 'replaced') me.end('replaced');
+            // the last step's choice (end-card answer, or "Got it" with no end) ends the tour at once,
+            // so its still-running actions stop driving the app
+            else if (merged || waitsForGotIt) me.end(id === 'got_it' ? 'done' : id);
           });
           await runActions(step.actions, alive);
           if (!alive()) return;
@@ -355,11 +383,14 @@ export function createRunner({
           if (id === 'close' || id === 'dismissed' || id === 'stop') return me.end('closed');
           if (id === 'replaced') return me.end('replaced');
           if (id === 'got_it') return me.end('done');
+          if (merged) return me.end(id); // an end-card answer on the last step ends the script with it
           if (!CONTINUE.has(id) && step.answers) return me.end(id); // a custom answer ends the script with it
         }
         if (!alive()) return;
         if (end) {
-          // the closing card keeps the last step's marks on screen
+          // only reached when the last step kept its own custom answers and one of them continued
+          // B3: the closing card draws nothing, so the last step's marks go
+          overlay.clear();
           const id = await wait(say({ title: end.title, say: end.say, answers: end.answers ?? ['got_it'] }));
           if (!alive()) return;
           if (id === 'close' || id === 'dismissed' || id === 'stop') return me.end('closed');

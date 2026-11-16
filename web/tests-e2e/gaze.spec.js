@@ -50,7 +50,8 @@ const card = (page) => page.locator('[data-guide="guide-popup"]');
 
 test('mode A (default): mouse and keyboard work with no tracker; gaze presses nothing, only answers with targets', async ({ page }) => {
   const errors = collectErrors(page);
-  await setup(page, '/?fov=60&band=40');
+  // ?gaze=off: the guide's dwell does not follow the mouse here, so any dwell below would come from gaze
+  await setup(page, '/?fov=60&band=40&gaze=off');
   const btn = page.locator('#input-mode');
   await expect(btn).toBeVisible();
   await expect(btn).toContainText('Off');

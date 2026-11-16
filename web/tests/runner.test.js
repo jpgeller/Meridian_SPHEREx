@@ -3,7 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createRunner, validateAction, validateScript, defaultAnswers } from '../src/guide/runner.js';
+import { createRunner, validateAction, validateScript, defaultAnswers, mergeEnd } from '../src/guide/runner.js';
+import { NOTES, identifyTour, motionTour, changeTour, coloursTour, exampleTour, whereTour } from '../src/guide/tours.js';
 import { fallbackScript, TRIGGERS } from '../src/guide/fallback.js';
 import { createCommands } from '../src/core/commands.js';
 import { registerDefaultCommands } from '../src/core/defaultCommands.js';
@@ -237,4 +238,221 @@ test('fallback: the change script turns the change video on in the field view', 
   await t.answer('more');
   await t.answer('got_it');
   assert.equal(await done, 'done');
+});
+
+// ---- B2: the last step never says "Next" ----
+
+const ids = (answers) => answers.map((a) => a?.id ?? a);
+
+test('B2: with an end card, the last step shows its answers and question; answering resolves, no extra card', async () => {
+  const t = setup();
+  const done = t.runner.runScript({
+    steps: [{ say: 'One' }, { say: 'Two' }],
+    end: { title: 'Want to see it move?', answers: [{ id: 'show', label: 'Show me' }, 'got_it'] },
+  });
+  await t.answer('next');
+  await tick();
+  const last = t.shown.at(-1);
+  assert.equal(last.step, '2 / 2');
+  assert.deepEqual(ids(last.answers), ['show', 'got_it']);
+  assert.ok(!ids(last.answers).includes('next'));
+  assert.equal(last.sub, 'Want to see it move?');
+  assert.equal(last.auto, 0, 'waits for a choice');
+  await t.answer('show');
+  assert.equal(await done, 'show');
+  assert.equal(t.shown.length, 2, 'no separate end card');
+
+  // got_it -> 'done'; Close -> 'closed'
+  const a = t.runner.runScript({ steps: [{ say: 'A' }], end: { title: 'Is that clear?', answers: ['got_it', 'again'] } });
+  await tick();
+  assert.equal(t.shown.at(-1).sub, undefined, 'the generic question is dropped');
+  await t.answer('got_it');
+  assert.equal(await a, 'done');
+  const b = t.runner.runScript({ steps: [{ say: 'B' }], end: { answers: ['got_it', 'again'] } });
+  await t.answer('close');
+  assert.equal(await b, 'closed');
+});
+
+test('B2: no end -> last step is Got it; custom answers untouched; a question goes before an existing sub', async () => {
+  const t = setup();
+  const done = t.runner.runScript([{ say: 'One' }, { say: 'Two' }]);
+  await t.answer('next');
+  await tick();
+  assert.deepEqual(t.shown.at(-1).answers, ['got_it']);
+  await t.answer('got_it');
+  assert.equal(await done, 'done');
+
+  const custom = t.runner.runScript({ steps: [{ say: 'Only', answers: ['got_it', 'moving'] }], end: { title: 'Q?', answers: ['again'] } });
+  await tick();
+  assert.deepEqual(t.shown.at(-1).answers, ['got_it', 'moving']);
+  await t.answer('moving');
+  assert.equal(await custom, 'moving');
+
+  assert.equal(mergeEnd({ say: 'x', sub: 'A caveat.' }, { title: 'Want more?', answers: ['got_it'] }).sub, 'Want more? A caveat.');
+  assert.equal(mergeEnd({ say: 'x', answers: ['a'] }, { answers: ['b'] }), null);
+  assert.equal(mergeEnd({ say: 'x' }, null), null);
+});
+
+test('B2: no tour shows "Next" on its last step', async () => {
+  const tours = [];
+  for (const id of Object.keys(NOTES)) {
+    for (const inField of [false, true]) {
+      tours.push([`identify ${id} ${inField}`, identifyTour(id, { inField })]);
+      for (const atTarget of [false, true]) tours.push([`motion ${id} ${inField} ${atTarget}`, motionTour(id, { inField, atTarget })]);
+      tours.push([`colours ${id} ${inField}`, coloursTour({ inField, id })]);
+    }
+  }
+  tours.push(['change', changeTour()], ['colours', coloursTour()], ['example', exampleTour()]);
+  tours.push(['where wide', whereTour({ fov: 180 })], ['where patch', whereTour({ fov: 2, detector: 6 })]);
+  let checked = 0;
+  for (const [name, script] of tours) {
+    if (!script) continue;
+    const shown = [];
+    const runner = createRunner({
+      // answer Next whenever it is offered, else end with the first answer
+      say: (step) => {
+        shown.push(step);
+        const a = ids(step.answers);
+        return Promise.resolve(a.includes('next') ? 'next' : a[0]);
+      },
+      overlay: { pointAt() {}, circle() {}, highlight() {}, trail() {}, clear() {} },
+      run: () => ({}),
+      list: createCommandsList(),
+      sanitize,
+      getState: () => createStore().get(),
+      log: () => {},
+      flyMs: () => 0,
+    });
+    await runner.runScript(script);
+    const steps = Array.isArray(script) ? script : script.steps;
+    assert.equal(shown.length, steps.length, `${name}: one card per step, no extra end card`);
+    const last = shown.at(-1);
+    assert.ok(!ids(last.answers).includes('next'), `${name}: last step (${last.step}) shows Next`);
+    checked++;
+  }
+  assert.ok(checked > 20);
+});
+
+function createCommandsList() {
+  const store = createStore();
+  const commands = createCommands({ target: new EventTarget() });
+  registerDefaultCommands(commands, store);
+  return commands.list;
+}
+
+test('B3: every runScript outcome clears the overlay', async () => {
+  const clears = (t) => t.marks.filter((m) => m[0] === 'clear').length;
+  const last = (t) => t.marks.at(-1);
+  const S = [{ say: 'One', actions: [{ circle: 'band-d6' }, { point: 'band-d6', label: 'D6' }] }, { say: 'Two', actions: [{ circle: 'band-d6' }] }];
+  const END = { steps: S, end: { title: 'Want more?', answers: [{ id: 'again', label: 'Again' }, 'got_it'] } };
+
+  // done (Got it), an end-card answer, closed, dismissed, stop
+  for (const [script, answers, outcome] of [
+    [S, ['next', 'got_it'], 'done'],
+    [END, ['next', 'again'], 'again'],
+    [S, ['close'], 'closed'],
+    [S, ['dismissed'], 'closed'],
+    [S, ['next', 'stop'], 'closed'],
+  ]) {
+    const t = setup();
+    const done = t.runner.runScript(script);
+    for (const a of answers) await t.answer(a);
+    assert.equal(await done, outcome);
+    assert.deepEqual(last(t), ['clear'], `${outcome}: cleared at the end`);
+  }
+  // stopped, replaced
+  const t = setup();
+  const a = t.runner.runScript(S);
+  await tick();
+  t.runner.stop();
+  assert.equal(await a, 'stopped');
+  assert.deepEqual(last(t), ['clear']);
+  const b = t.runner.runScript(S);
+  await tick();
+  const n = clears(t);
+  const c = t.runner.runScript([{ say: 'C' }]);
+  assert.equal(await b, 'replaced');
+  assert.ok(clears(t) > n, 'replaced: cleared');
+  await t.answer('got_it');
+  await c;
+  // the card was replaced by a newer card (popup answers 'replaced')
+  const r = setup();
+  const rd = r.runner.runScript(S);
+  await r.answer('replaced');
+  assert.equal(await rd, 'replaced');
+  assert.deepEqual(last(r), ['clear']);
+  // interrupted by the person's own command
+  const i = setup();
+  const id = i.runner.runScript(S);
+  await tick();
+  i.commands.run('zoom_in', {}, 'ui');
+  assert.equal(await id, 'interrupted');
+  assert.deepEqual(last(i), ['clear']);
+  // empty: nothing to play still leaves a clean screen
+  const e = setup();
+  assert.equal(await e.runner.runScript([{ say: '' }]), 'empty');
+  assert.deepEqual(e.marks, [['clear']]);
+  // a script error (the pop-up throws) ends 'stopped' and clears
+  const cleared = [];
+  const broken = createRunner({
+    say: () => {
+      throw new Error('pop-up broke');
+    },
+    overlay: { pointAt() {}, circle() {}, highlight() {}, trail() {}, clear: () => cleared.push(1) },
+    run: () => ({ ok: true }),
+    list: () => [],
+    sanitize,
+    getState: () => createStore().get(),
+    log: () => {},
+  });
+  const err = console.error;
+  console.error = () => {};
+  try {
+    assert.equal(await broken.runScript([{ say: 'One' }]), 'stopped');
+  } finally {
+    console.error = err;
+  }
+  assert.ok(cleared.length >= 2, 'cleared at the step and at the end');
+});
+
+test('B3: a closing card after custom answers shows no marks from the last step', async () => {
+  const t = setup();
+  const done = t.runner.runScript({
+    steps: [{ say: 'Pick', actions: [{ circle: 'band-d6' }, { point: 'band-d6', label: 'D6' }], answers: ['more', 'got_it'] }],
+    end: { title: 'Is that clear?', answers: ['got_it'] },
+  });
+  await t.answer('more');
+  assert.equal(t.shown.length, 2, 'the closing card is shown');
+  assert.deepEqual(t.marks.at(-1), ['clear'], 'its marks went before the closing card');
+  await t.answer('got_it');
+  assert.equal(await done, 'done');
+});
+
+test('B2: answering the last step while its actions still run ends the script at once and stops them', async () => {
+  for (const [script, id, outcome] of [
+    [{ steps: [{ say: 'Slow', actions: [{ wait: 'frames' }, { cmd: 'set_band', args: { band: 93 } }] }], end: { answers: ['got_it', 'again'] } }, 'got_it', 'done'],
+    [{ steps: [{ say: 'Slow', actions: [{ wait: 'frames' }, { cmd: 'set_band', args: { band: 93 } }] }], end: { answers: ['got_it', 'again'] } }, 'again', 'again'],
+    [[{ say: 'Slow', actions: [{ wait: 'frames' }, { cmd: 'set_band', args: { band: 93 } }] }], 'got_it', 'done'],
+  ]) {
+    const ran = [];
+    let answerFn;
+    const runner = createRunner({
+      say: () => new Promise((res) => (answerFn = res)),
+      overlay: { pointAt() {}, circle() {}, highlight() {}, trail() {}, clear() {} },
+      run: (name) => (ran.push(name), {}),
+      list: createCommandsList(),
+      sanitize,
+      getState: () => createStore().get(),
+      log: () => {},
+      waitFor: () => new Promise(() => {}), // the frames never arrive
+    });
+    const done = runner.runScript(script);
+    await tick();
+    answerFn(id);
+    const r = await Promise.race([done, new Promise((res) => setTimeout(() => res('timeout'), 200))]);
+    assert.equal(r, outcome, `${id}: resolves at once`);
+    assert.equal(runner.isRunning(), false);
+    await tick();
+    assert.deepEqual(ran, [], 'no action after the answer');
+  }
 });

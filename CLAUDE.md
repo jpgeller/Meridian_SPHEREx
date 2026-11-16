@@ -40,6 +40,9 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   Console: `meridian.run(...)`, `meridian.store.get()`, `meridian.commands.list()`.
 - The backend never sends full 65 MB SPHEREx files. Always use cutouts (`access_url + ?center=RA,DECd&size=DEG`) and cache them in `api/cache/`.
 - Show uncertainty and limits honestly. Never claim discoveries.
+- **2D images are always SPHEREx's own resolution**: every frame on the 6.15″/px grid (`cutouts.target_wcs`), one canvas
+  pixel per SPHEREx pixel, scaled with `image-rendering: pixelated`. Never smooth, upsample or AI-enhance them (the 3D
+  sky's smoothing stays out of the 2D view). Test: "a cached field opens its time-lapse".
 - The eye tracker itself is NOT built here: Yassin's team runs it outside the app. The gaze *contract* and the face panel
   do live here: eye tracking is merged through `postMessage` types `gaze` and `face` on the command bridge
   (`web/src/core/messages.js`; docs/UI_AND_GUIDE_PLAN.md, U9). Keep every control a real `<button>` running a command,
@@ -49,10 +52,20 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   "eye tracking: no control within 6% of the screen edges" checks the sky view and every 2D mode.
 - **Every clickable is at least 64 × 64 px** (eye tracking; global rule at the end of `web/src/style.css`, `--hit`). On/off
   options are `role="switch"` buttons and choices are stepping buttons (no checkboxes or drop-downs: they can't be 64 px and
-  gaze presses buttons). The 2D view is two columns (image | controls) so it fits without scrolling at ≥1280×800. The test
-  "every control is at least 64 x 64 px and reachable" checks the sky view and every 2D mode.
+  gaze presses buttons). Exception (16 Nov 2026, mouse users first): the 2D view in mouse mode on screens under 1000 px tall
+  uses 48 px (44 px under 780 px) so its five titled sections (Zoom, Detector, View, Dates, Playback) fit; eye control keeps
+  64 px. The 2D view is two columns (image | controls) and fits without scrolling at ≥1280×800 in mouse mode. The test
+  "every control is big enough and reachable" checks the sky view and every 2D mode.
+- Hints (mouse mode): one white star per section title (`data-hint-section`), not per button (`web/src/ui/hints.js`).
+- **Hints**: in input mode A (mouse) every button gets a small white star that grows on hover and explains it (`web/src/ui/hints.js`, a
+  separate aria-hidden layer, never inside the buttons). Give each new button a hint: a rule in `ui/hintText.js`, a
+  `data-hint`, or a `title`; `data-no-hint` opts out.
 - UI and guide live in `web/src/ui/` and `web/src/guide/` (plan: docs/UI_AND_GUIDE_PLAN.md). They only call `run(...)`
   and read `store`. `ANTHROPIC_API_KEY` stays in `api/.env` (git-ignored; see `api/.env.example`), never in the browser.
+- The guide is proactive but cheap: `guide/interest.js` notices patterns, `guide/nudge.js` asks `/api/guide/nudge` (Claude
+  Haiku, low effort, cached system block) for one offer with buttons. Budget: one call per 45 s and 15 per visit in the
+  browser, `GUIDE_DAILY_MAX` (400) per day on the server; spend at `GET /api/guide/usage`. The 7 places keep local tours
+  (`guide/tours.js`, zero tokens). The mouse counts as attention after a 5 s rest (`?gaze=off` turns it off).
 
 ## Verified data facts (Nov 2026). Do not re-derive these.
 - SPHEREx HiPS cube: `https://irsa.ipac.caltech.edu/data/hips/SPHEREx/spherex_allsky_cube`. 102 frames, PNG tiles,
@@ -72,7 +85,11 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
 - The HiPS cube stops at order 5 (12.9″/px) and Aladin draws tiles with NEAREST filtering (hard-coded), so deep zoom looked
   blocky. `web/src/sky/smoothTiles.js` (imported first in main.js) turns the tile textures' MAG filter to LINEAR through
   WebGL2's `texParameteri`, and snaps the cube shader's band coordinate to its slice centre (else LINEAR blends neighbour
-  bands: blacks turned grey). MIN filter left alone (it changed wide-view brightness). `?smooth=0` turns it off. `web/src/sky/nativeLayer.js` + `/api/skypatch` overlay full-resolution (6.15″) patches below 1.5°: **switched off**
+  bands: blacks turned grey). MIN filter left alone (it changed wide-view brightness). It also rewrites the cube's fragment
+  shader: zoomed in, a 4×4 cubic B-spline (round soft stars, no pixel grid); star-core holes filled. IRSA's palette PNGs store
+  saturated cores as index 0 (transparent) but the darkest sky as index 1 (opaque black), and Aladin's RG8 texture keeps
+  only the grey value (both channels = grey, alpha = grey), so a 0 is a hole only if enclosed by a bright rim (`HOLE_RIM`);
+  a looser test drew streaks across dark fields. `?smooth=0` turns it all off. `web/src/sky/nativeLayer.js` + `/api/skypatch` overlay full-resolution (6.15″) patches below 1.5°: **switched off**
   (`NATIVE_LAYER_ENABLED = false`) until the whole sky can have that quality, as only the zoomed patch looked different. PNG overlays via
   `A.image(url, {imgFormat:'png', wcs})` need CD1_1 < 0 and CD2_2 > 0 (rows top = north).
 - Time series: `Irsa.query_sia(pos=(coord, r), collection=['spherex_dr1','spherex_qr3'])` (+ `_deep`). Each row is
@@ -97,6 +114,17 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   (`irsa.ipac.caltech.edu/SCS?table=catwise_2020&RA&DEC&SR&format=csv`, pm in arcsec/yr at `meanobsmjd`); IRSA's TAP timed out
   and SCS fails above ~0.1° radius. CatWISE duplicates fast movers and fragments bright glare: fit/merge (see changeModel.js).
   Gaia-propagated positions match the WiseView frames to ~1 px (Barnard's Star, 2014–2024).
+- "Not in Gaia" (2D view, key n, `web/src/field/notInGaia.js`): median-stacks the SPHEREx frames, detects sources (5σ, 3×3),
+  moves Gaia DR3 to the frames' mean date, measures the SPHEREx↔Gaia shift (<1″ on all 5 targets, scatter ~1.5″) and
+  matches within 2.5×scatter + 32″/SNR (3.5–9″); bright sources (≥30σ) also match a bright Gaia star further out (glare).
+  WISE 0855 in D6: found at the target (12σ, a G=16.3 star 6.6″ away; a fixed 9″ radius hid it). Candidates only.
+- SED (spectrum panel, key e; `web/src/field/sed.js`, `api/gaia_sed.py` -> `/api/context/gaia_sed`): Gaia DR3 star at the
+  point (VizieR I/355/gaiadr3, cone sorted by `_r` with every row kept: Barnard's Star is ~100″ from its 2016 spot),
+  XP sampled spectrum from I/355/xpsample looked up BY POSITION (a `Source=` constraint is ignored and returns another
+  star). All in λF_λ (W/m²). SPHEREx scaled to Gaia over 0.75–1.02 µm; blackbody fit ≤2.5 µm; excess >3 µm.
+  Broad G/BP read 1.5–2× high at the pivot for red stars (Barnard): XP first. Barnard saturates SPHEREx in all 204
+  images; RW Aur shows ×15 excess (lower limits); WISE 0855 has no Gaia star, a G=16.3 neighbour in the 12″ aperture, and
+  4.5/3.4 µm ×2.4 (methane). SVO's filter service did not answer (16 Nov 2026); zero points are SVO's published values.
 - R Dra saturates SPHEREx in every image (no spectrum possible; the panel says so). Ingest must pick frames per mode
   exactly like the player (per detector; single bands 40 and 92): neighbouring detectors share band numbers.
 - Names: `GET /api/resolve?name=` (Sesame + proper motion to a fixed epoch 2026.0, so cache keys don't drift).

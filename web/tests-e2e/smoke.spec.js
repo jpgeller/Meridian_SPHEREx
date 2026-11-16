@@ -68,7 +68,7 @@ test('every registered command runs once', async ({ page }) => {
       set_show: { show: 'timelapse' },
     };
     // Field-only commands need the field view.
-    const fieldOnly = new Set(['select_point']);
+    const fieldOnly = new Set(['select_point', 'set_spectrum_view', 'show_sed']);
     const out = {};
     for (const c of meridian.commands.list()) {
       if (fieldOnly.has(c.name)) continue;
@@ -154,6 +154,19 @@ test('a cached field opens its time-lapse', async ({ page }) => {
   await ready(page);
   await expect(page.locator('#player-caption')).toContainText('Detector D6', { timeout: 60_000 });
   await expect(page.locator('.epoch')).toHaveCount(4);
+  // 2D images are always SPHEREx's own resolution: every frame on the 6.15"/px grid (0.1° -> 59 px),
+  // one canvas pixel per SPHEREx pixel, scaled up as hard squares (no smoothing, unlike the 3D sky)
+  const res = await page.evaluate(() => {
+    const c = document.querySelector('#frame-canvas');
+    return {
+      frames: meridian.player.getSequence().map((f) => [f.w, f.h, f.meta?.pixel_scale_arcsec]),
+      canvas: [c.width, c.height],
+      rendering: getComputedStyle(c).imageRendering,
+    };
+  });
+  for (const f of res.frames) expect(f).toEqual([59, 59, 6.15]);
+  expect(res.canvas).toEqual([59, 59]);
+  expect(res.rendering).toBe('pixelated');
   // keyboard: Escape back to the sky
   await page.locator('#field-title').focus();
   await page.keyboard.press('Escape');
@@ -400,25 +413,26 @@ test('guide overlay: the pointer flies to a control, labels it, and clicks pass 
   await page.goto('/?ra=269.45&dec=4.74&fov=20');
   await ready(page);
   await page.evaluate(() => guide.pointAt('band-d6', 'Longest wavelengths'));
-  // it starts near the top right (the pop-up's corner) and lands on D6 in about 600 ms
+  // it leaves from the pill's orb (top right) and lands beside D6 in 300-600 ms
   const start = await pointerTip(page);
   expect(start.x).toBeGreaterThan(640);
   await expect.poll(async () => (await pointerTip(page))?.flying, { timeout: 2000 }).toBe(false);
   const d6 = await page.evaluate(() => guide.resolve('band-d6'));
   const tip = await pointerTip(page);
-  expect(Math.abs(tip.x - d6.x)).toBeLessThan(1); // centred, on the top edge (the arrow sits above it)
-  expect(tip.y).toBeGreaterThan(d6.rect.y);
-  expect(tip.y).toBeLessThan(d6.rect.y + 12);
-  // the label is on screen and does not sit on the tip
+  // at D6's top-right corner, outside the box (never on its text)
+  expect(Math.abs(tip.x - (d6.rect.x + d6.rect.w))).toBeLessThan(12);
+  expect(Math.abs(tip.y - d6.rect.y)).toBeLessThan(12);
+  expect(tip.x > d6.rect.x + d6.rect.w || tip.y < d6.rect.y).toBe(true);
+  // the label is on screen and does not sit on the orb
   const label = page.locator('#guide-overlay .go-label');
   await expect(label).toHaveText('Longest wavelengths');
   await expect(label).not.toHaveClass(/is-hidden/);
   const lb = await label.boundingBox();
   expect(lb.y + lb.height).toBeLessThanOrEqual(800);
   expect(tip.x >= lb.x && tip.x <= lb.x + lb.width && tip.y >= lb.y && tip.y <= lb.y + lb.height).toBe(false);
-  // the overlay never takes a click: the button under the tip gets it
-  expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y).closest('[data-guide]')?.dataset.guide, tip)).toBe('band-d6');
-  await page.mouse.click(tip.x, tip.y);
+  // the overlay never takes a click: nothing under the orb is part of it, and D6 gets the click
+  expect(await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('#guide-overlay'), tip)).toBe(false);
+  await page.mouse.click(d6.x, d6.y);
   await expect.poll(() => page.evaluate(() => meridian.store.get().band)).toBeGreaterThan(84);
   // ...and that click was the person acting: the guide's marks clear
   await expect.poll(() => page.evaluate(() => guide.overlay.active().length)).toBe(0);
@@ -466,8 +480,9 @@ test('guide overlay: reduced motion jumps straight to the target', async ({ page
   const tip = await pointerTip(page);
   const s = await page.evaluate(() => guide.resolve('search'));
   expect(tip.flying).toBe(false);
-  expect(Math.abs(tip.x - s.x)).toBeLessThan(1); // on the bottom edge: the search box is at the top
-  expect(tip.y).toBeGreaterThan(s.rect.y + s.rect.h - 12);
+  // beside the search box's right corner, outside the box (never on its text)
+  expect(Math.abs(tip.x - (s.rect.x + s.rect.w))).toBeLessThan(12);
+  expect(tip.x > s.rect.x + s.rect.w || tip.y < s.rect.y || tip.y > s.rect.y + s.rect.h).toBe(true);
 });
 
 test('guide pop-up: an offer is first in the Tab order, Esc dismisses it, the same target waits 60 s', async ({ page }) => {
@@ -581,7 +596,7 @@ test('guide pop-up: Yes opens a step, answers resolve say(), the card stays top 
   expect(errors()).toEqual([]);
 });
 
-test('guide pill: waits top right with the pointer parked beside it; the card takes its place; A opens the menu', async ({ page }) => {
+test('guide pill: waits top right with the orb inside it (nothing floats beside it); the card takes its place; A opens the menu', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto('/?fov=60');
   await ready(page);
@@ -593,14 +608,10 @@ test('guide pill: waits top right with the pointer parked beside it; the card ta
   expect(pb.x + pb.width).toBeGreaterThan(1150);
   expect(pb.x + pb.width).toBeLessThanOrEqual(1280 * 0.94); // 6% clear of the edge
   expect(pb.y).toBeLessThan(80);
-  // the pointer is parked just left of the pill, and shows nothing (no marks)
-  const pointer = page.locator('#guide-overlay .go-pointer');
-  await expect(pointer).not.toHaveClass(/is-hidden/);
-  const tipX = () =>
-    page.evaluate(() => +document.querySelector('#guide-overlay .go-pointer').style.transform.match(/translate\(([-\d.]+)px/)[1]);
-  await expect.poll(tipX).toBeLessThan(pb.x);
-  const tip = { x: await tipX() };
-  expect(pb.x - tip.x).toBeLessThan(60);
+  // idle (W1): no free-floating pointer; the guide's orb is the one in the pill
+  await page.waitForTimeout(800);
+  expect(await page.evaluate(() => [...document.querySelectorAll('#guide-overlay .go-pointer')].filter((e) => !e.classList.contains('is-hidden')).length)).toBe(0);
+  await expect(pill.locator('.gp-orb')).toBeVisible();
   expect(await page.evaluate(() => guide.overlay.active())).toEqual([]);
   // key A: the menu, in the pill's place
   await page.keyboard.press('a');
@@ -683,9 +694,9 @@ test('guide runner: the fallback scripts play with the API unreachable; Close en
 
 // --- guide attention (U6) ---
 
-test('guide attention: with ?gaze=mouse, resting the mouse on Barnard\'s Star for 7 s shows the offer; Yes starts the guide', async ({ page }) => {
+test('guide attention: resting the mouse on Barnard\'s Star for 5 s shows the offer (no ?gaze= needed); Yes starts the guide', async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto('/?ra=269.45&dec=4.74&fov=20&gaze=mouse');
+  await page.goto('/?ra=269.45&dec=4.74&fov=20');
   await ready(page);
   await mockGuideApi(page);
   expect(await page.evaluate(() => guide.attention.source)).toBe('mouse');
@@ -700,8 +711,8 @@ test('guide attention: with ?gaze=mouse, resting the mouse on Barnard\'s Star fo
   await expect(ring).toHaveAttribute('data-target', 'sky:barnard');
   expect(Date.now() - t0).toBeGreaterThan(1000); // not before 1.2 s
   await expect(card).toContainText('Want to know what this is?', { timeout: 10000 });
-  await expect(card).toContainText('You have been looking at it for 7 seconds.');
-  expect(Date.now() - t0).toBeGreaterThan(6500); // about 7 s
+  await expect(card).toContainText('You have been looking at it for 5 seconds.');
+  expect(Date.now() - t0).toBeGreaterThan(4500); // about 5 s (a mouse that rests that long means interest; gaze: 7 s)
   await expect(ring).not.toHaveClass(/is-on/);
   // the pointer went first: it is on the star, circled, before any answer
   expect(await page.evaluate(() => guide.overlay.active().sort())).toEqual(['circle:sky:barnard', 'pointer']);
@@ -718,9 +729,9 @@ test('guide attention: with ?gaze=mouse, resting the mouse on Barnard\'s Star fo
   expect(errors()).toEqual([]);
 });
 
-test('guide attention: without ?gaze=mouse the mouse is ignored; gaze samples (U9 feed) ask about the colours', async ({ page }) => {
+test('guide attention: with ?gaze=off the mouse is ignored; gaze samples (U9 feed) ask about the colours', async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto('/?fov=60');
+  await page.goto('/?fov=60&gaze=off');
   await ready(page);
   await expect.poll(() => page.evaluate(() => guide.attention.snapshot().quiet), { timeout: 30000 }).toBeNull();
   await page.evaluate(() => guide.attention.configure({ ringDelayMs: 200, dwellMs: 1200 }));
@@ -838,7 +849,7 @@ test('side by side with Gaia: a picture drawn from the catalogue, clearly labell
   await page.goto('/?ra=269.44627&dec=4.7682&fov=0.5&band=92&view=field&ffov=0.1&mode=detector');
   await ready(page);
   await expect(page.locator('.epoch')).toHaveCount(5, { timeout: 60_000 });
-  await page.getByRole('radio', { name: 'Side by side with Gaia' }).click();
+  await page.getByRole('radio', { name: /Side by side with Gaia/ }).click();
   await expect(page).toHaveURL(/compare=gaia/);
   const label = page.locator('#wise-label');
   await expect(label).toContainText('drawn from the catalogue, not a photograph', { timeout: 60_000 });
@@ -846,7 +857,7 @@ test('side by side with Gaia: a picture drawn from the catalogue, clearly labell
   await expect(page.locator('#gaia-canvas')).toBeVisible();
   await expect(page.locator('#wise-img')).toBeHidden();
   expect(Number(await page.locator('#gaia-canvas').getAttribute('data-drawn'))).toBeGreaterThan(100);
-  await page.getByRole('radio', { name: 'Side by side with WISE' }).click();
+  await page.getByRole('radio', { name: /Side by side with WISE/ }).click();
   await expect(page.locator('#wise-img')).toBeVisible();
   await expect(page.locator('#gaia-canvas')).toBeHidden();
   expect(errors()).toEqual([]);
@@ -886,7 +897,7 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     await page.goto('/?ra=269.44627&dec=4.7682&fov=0.5&band=92&view=field&ffov=0.1&mode=detector');
     await ready(page);
     await expect(page.locator('.epoch').first()).toBeVisible({ timeout: 60_000 });
-    for (const show of ['timelapse', 'video', 'blink', 'wise', 'gaia']) {
+    for (const show of ['timelapse', 'video', 'blink', 'wise', 'gaia', 'nogaia']) {
       await page.evaluate((show) => meridian.run('set_show', { show }), show);
       await page.waitForTimeout(300);
       expect(await controlsNearEdges(page), `field view, ${show}`).toEqual([]);
@@ -899,7 +910,7 @@ test('2D view: one list of what to show; choices exclude each other; old links s
   await ready(page);
   await expect(page.locator('.epoch').first()).toBeVisible({ timeout: 60_000 });
   const list = page.getByRole('radiogroup', { name: 'What to show' });
-  await expect(list.getByRole('radio')).toHaveText([/Time-lapse/, /Change video/, /Blink two dates/, /Side by side with WISE/, /Side by side with Gaia/]);
+  await expect(list.getByRole('radio')).toHaveText([/Time-lapse/, /Change video/, /Blink two dates/, /(Side by side with|Beside) WISE/, /(Side by side with|Beside) Gaia/, /Not in Gaia/]);
   const state = () => page.evaluate(() => [meridian.store.get().op, meridian.store.get().compare]);
   await list.getByRole('radio', { name: /Change video/ }).click();
   expect(await state()).toEqual(['video', 'off']);
@@ -919,8 +930,8 @@ test('2D view: one list of what to show; choices exclude each other; old links s
 });
 
 // Eye tracking: every clickable at least 64 x 64 px, and not covered by anything else.
-async function smallOrCovered(page) {
-  return page.evaluate(() =>
+async function smallOrCovered(page, min = 64) {
+  return page.evaluate((min) =>
     [...document.querySelectorAll('button, input, select, textarea, a[href], summary, [role="button"], [role="radio"], [role="checkbox"], [role="switch"], [role="slider"]')]
       .filter((e) => e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }))
       .map((e) => ({ e, r: e.getBoundingClientRect() }))
@@ -928,16 +939,19 @@ async function smallOrCovered(page) {
       .flatMap(({ e, r }) => {
         const name = (e.getAttribute('aria-label') || e.textContent || e.id || e.tagName).trim().replace(/\s+/g, ' ').slice(0, 30);
         const out = [];
-        if (r.width < 63.5 || r.height < 63.5) out.push(`${name}: ${Math.round(r.width)}x${Math.round(r.height)}`);
+        if (r.width < min - 0.5 || r.height < min - 0.5) out.push(`${name}: ${Math.round(r.width)}x${Math.round(r.height)}`);
         const t = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
         if (t && !e.contains(t) && !t.contains(e)) out.push(`${name}: covered`);
         return out;
       }),
+    min,
   );
 }
 
-for (const [w, h] of [[1280, 800], [1920, 1080]]) {
-  test(`eye tracking: every control is at least 64 x 64 px and reachable (${w}x${h})`, async ({ page }) => {
+// Sizes: 64 px everywhere, except the 2D view in mouse mode on screens under 1000 px tall (48 px; 44 px
+// under 780 px), so its five titled sections fit (mouse users first, 16 Nov 2026). Eye control keeps 64 px.
+for (const [w, h, min2d] of [[1280, 800, 48], [1920, 1080, 64]]) {
+  test(`every control is big enough and reachable: sky 64 px, 2D ${min2d} px (${w}x${h})`, async ({ page }) => {
     await page.setViewportSize({ width: w, height: h });
     await page.goto('/');
     await ready(page);
@@ -945,12 +959,19 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     await page.goto('/?ra=269.44627&dec=4.7682&fov=2.6&band=92&view=field&ffov=0.1&mode=detector');
     await ready(page);
     await expect(page.locator('.epoch').first()).toBeVisible({ timeout: 60_000 });
-    for (const show of ['timelapse', 'video', 'blink', 'wise', 'gaia']) {
+    for (const show of ['timelapse', 'video', 'blink', 'wise', 'gaia', 'nogaia']) {
       await page.evaluate((s) => meridian.run('set_show', { show: s }), show);
       await page.waitForTimeout(400);
-      expect(await smallOrCovered(page), `2D view, ${show}`).toEqual([]);
+      expect(await smallOrCovered(page, min2d), `2D view, ${show}`).toEqual([]);
       // the controls column fits without scrolling (gaze cannot scroll easily)
       expect(await page.evaluate(() => { const r = document.querySelector('.player-right'); return r.scrollHeight - r.clientHeight; }), `2D ${show} scroll`).toBeLessThanOrEqual(1);
+    }
+    if (min2d === 64) {
+      // eye control on: 64 px targets in the 2D view too
+      await page.evaluate(() => meridian.run('set_input_mode', { mode: 'gaze' }));
+      await page.evaluate(() => meridian.run('set_show', { show: 'timelapse' }));
+      await page.waitForTimeout(400);
+      expect(await smallOrCovered(page, 64), '2D view, eye control').toEqual([]);
     }
   });
 }
@@ -985,4 +1006,74 @@ test('loading: a bar over the image while images load; Play pressed meanwhile st
   expect(await page.evaluate(() => meridian.store.get().playing)).toBe(true);
   const first = await page.evaluate(() => meridian.player.getShownFrame()?.meta?.date_iso);
   await expect.poll(() => page.evaluate(() => meridian.player.getShownFrame()?.meta?.date_iso), { timeout: 15_000 }).not.toBe(first);
+});
+
+test('not in Gaia: WISE 0855 in D6 is a candidate at the target; the same patch in D1 has none', async ({ page }) => {
+  await page.goto('/?ra=133.75976&dec=-7.24219&fov=2.3&band=92&view=field&ffov=0.1&mode=detector');
+  await ready(page);
+  await expect(page.locator('.epoch').first()).toBeVisible({ timeout: 60_000 });
+  await page.keyboard.press('n');
+  await expect(page).toHaveURL(/op=nogaia/);
+  const caption = page.locator('#player-caption');
+  await expect(caption).toContainText('(your target)', { timeout: 30_000 });
+  await expect(caption).toContainText('candidates, not discoveries');
+  await expect(page.locator('#nogaia-marks .cand').first()).toBeVisible();
+  await expect(page.getByRole('radio', { name: /Not in Gaia/ })).toHaveAttribute('aria-checked', 'true');
+  await page.evaluate(() => meridian.run('set_detector', { detector: 1 }));
+  await expect(caption).toContainText('Every source here has a Gaia star', { timeout: 60_000 });
+});
+
+test('mouse mode: a white star on each section title explains the section on hover; none on buttons or in eye control', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/?ra=269.44627&dec=4.7682&fov=2.3&band=40&view=field&ffov=0.1&mode=detector');
+  await ready(page);
+  await expect(page.locator('.epoch').first()).toBeVisible({ timeout: 60_000 });
+  // one star per titled section of the 2D view: Zoom, Detector, View, Dates, Playback
+  await expect.poll(() => page.locator('.hint-badge').count()).toBe(5);
+  const title = await page.locator('#fsec-zoom .fsec-text').boundingBox();
+  const star = await page.evaluate(() => [...document.querySelectorAll('.hint-badge')].map((b) => b.getBoundingClientRect()).find(Boolean));
+  const badges = await page.evaluate(() => [...document.querySelectorAll('.hint-badge')].map((b) => { const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }));
+  const zoomStar = badges.find((b) => Math.abs(b.y - (title.y + title.height / 2)) < 12 && b.x > title.x + title.width);
+  expect(zoomStar, 'a star right after "Zoom"').toBeTruthy();
+  expect(star).toBeTruthy();
+  // no star sits on a button
+  const onButton = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('.hint-badge')].filter((b) => {
+        const r = b.getBoundingClientRect();
+        return document.elementsFromPoint(r.left + r.width / 2, r.top + r.height / 2).some((e) => e.tagName === 'BUTTON');
+      }).length,
+    );
+  await expect.poll(onButton).toBe(0);
+  // hovering it explains the section; it is not a control
+  await page.mouse.move(zoomStar.x, zoomStar.y);
+  await expect(page.locator('.hint-bubble')).toHaveText(/How much sky the 2D images cover/);
+  await page.mouse.move(400, 400);
+  await expect(page.locator('.hint-bubble')).toBeHidden();
+  // eye control: no stars
+  await page.evaluate(() => meridian.run('set_input_mode', { mode: 'gaze' }));
+  await expect(page.locator('.hint-badge')).toHaveCount(0);
+  await page.evaluate(() => meridian.run('set_input_mode', { mode: 'mouse' }));
+  await expect.poll(() => page.locator('.hint-badge').count()).toBe(5);
+  // the sky panel's sections have theirs too (Places, View, Colours)
+  await page.evaluate(() => meridian.run('close_field'));
+  await page.evaluate(() => meridian.run('toggle_panel', { open: true }));
+  await expect.poll(() => page.locator('.hint-badge').count()).toBe(3);
+});
+
+test('SED: key e draws Gaia and SPHEREx on one graph with a blackbody temperature (eps Ind B)', async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.goto('/?ra=331.09664&dec=-56.80066&fov=2.3&band=92&view=field&ffov=0.1&mode=detector');
+  await ready(page);
+  await expect(page.locator('.epoch').first()).toBeVisible({ timeout: 60_000 });
+  await page.keyboard.press('e');
+  await expect(page.locator('#spec-title')).toHaveText('Energy distribution (SED)');
+  await expect(page.getByRole('radio', { name: /SED with Gaia/ })).toHaveAttribute('aria-checked', 'true');
+  const summary = page.locator('#spec-summary');
+  await expect(summary).toContainText('Gaia DR3 6412596012146801152', { timeout: 120_000 });
+  await expect(summary).toContainText(/Blackbody fit: about [\d,]+ K/, { timeout: 180_000 });
+  await expect(page.locator('#spec-svg .sed-fit')).toHaveCount(1);
+  await expect(page.locator('#spec-svg circle').first()).toBeVisible(); // SPHEREx points
+  await page.getByRole('radio', { name: /SPHEREx spectrum/ }).click();
+  await expect(page.locator('#spec-title')).toHaveText('Spectrum');
 });

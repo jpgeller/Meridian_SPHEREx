@@ -32,14 +32,14 @@ export function createControls(root, { store, commands, getWavelengths }) {
   shell.left.innerHTML = html`
     <div id="face-slot" data-guide="face-panel" hidden></div>
     <section class="card" data-guide="presets">
-      <h2 class="card-title">Places</h2>
+      <h2 class="card-title" data-hint-section="Fly to one of the five challenge targets or a famous spot: the sky turns and zooms to it. Then &quot;Open time-lapse here&quot; shows its real SPHEREx images.">Places</h2>
       <div class="grid-4 preset-grid" role="group" aria-label="Places">
         ${PRESETS.map((p) => `<button type="button" class="big" data-preset="${p.id}" title="${p.note}">${p.label}</button>`).join('')}
       </div>
     </section>
 
     <section class="card">
-      <h2 class="card-title">View</h2>
+      <h2 class="card-title" data-hint-section="3D sphere shows the sky as a globe seen from outside; Planetarium as if you stood inside it, shapes keeping their form. − and + zoom out and in (keys − and +).">View</h2>
       <!-- one row: the panel must fit without scrolling (gaze cannot scroll easily). On-screen zoom:
            Aladin's own zoom buttons are off, and eye control cannot use a mouse wheel. -->
       <div class="grid-4 view-row">
@@ -55,7 +55,7 @@ export function createControls(root, { store, commands, getWavelengths }) {
     </section>
 
     <section class="card" data-guide="colour-views">
-      <h2 class="card-title">Colours <span class="muted">· infrared translated</span></h2>
+      <h2 class="card-title" data-hint-section="SPHEREx sees infrared, which has no colour to our eyes, so these are translations: Grey shows one band as brightness, Tinted band gives each detector its own hue, and the mixes paint three bands as red, green and blue (dust, ices). Your mix: pick the three bands yourself.">Colours <span class="muted">· infrared translated</span></h2>
       <div class="grid-3" role="radiogroup" aria-label="Colour view">
         <button type="button" class="big" role="radio" data-color="grey" title="One band as brightness">Grey</button>
         <button type="button" class="big" role="radio" data-color="tint" title="One band, coloured like its detector on the ribbon">Tinted band</button>

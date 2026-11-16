@@ -5,7 +5,7 @@
 //        the time-lapse frames (count, dates, wavelengths, ″/px), fast movers and the Gaia/CatWISE
 //        match of the target, the spectrum's blends. Never gaze positions or anything about the person.
 //   buildRequest({ trigger, target, state, facts, commands, ids }) -> the POST body
-//   askGuide(body, { fetchFn?, timeoutMs?, signal? }) -> Promise<{ steps } | { fallback: true, reason }>
+//   askGuide(body, { fetchFn?, timeoutMs?, signal? }) -> Promise<{ steps, cached?, source?, model? } | { fallback: true, reason }>
 //        Never rejects: network error, HTTP error, timeout (9 s), abort, the server's fallback marker or an
 //        empty/odd reply all come back as { fallback: true, reason }, and the caller plays its local
 //        fallback script (fallback.js). The runner re-validates the steps (runner.js validateScript).
@@ -20,7 +20,7 @@ const MATCH_ARCSEC = 10; // a mover this close to the field centre is "the targe
 
 const r = (v, d = 2) => (Number.isFinite(v) ? Math.round(v * 10 ** d) / 10 ** d : undefined);
 const day = (iso) => (typeof iso === 'string' ? iso.slice(0, 10) : undefined);
-const STATE_KEYS = ['view', 'ra', 'dec', 'fov', 'ffov', 'proj', 'band', 'mode', 'rgb', 'formula', 'color', 'op', 'frameIndex', 'playing', 'layers'];
+const STATE_KEYS = ['view', 'ra', 'dec', 'fov', 'ffov', 'proj', 'band', 'mode', 'rgb', 'formula', 'color', 'op', 'compare', 'frameIndex', 'playing', 'layers'];
 
 /** A target as { id, name } (from an id string, an object, or nothing). */
 export function describeTarget(target) {
@@ -100,7 +100,7 @@ export function gatherFacts({ state = {}, target = null, player = null, spectrum
 }
 
 /** The POST body. `commands` = commands.list() (stubs and personOnly commands are left out), `ids` = registry ids in the page. */
-export function buildRequest({ trigger, target, state = {}, facts = {}, commands = [], ids = [] }) {
+export function buildRequest({ trigger, target, state = {}, facts = {}, commands = [], ids = [], offer = null, moment = null }) {
   const s = {};
   for (const k of STATE_KEYS) if (state[k] !== undefined) s[k] = state[k];
   return {
@@ -110,7 +110,48 @@ export function buildRequest({ trigger, target, state = {}, facts = {}, commands
     facts,
     commands: commands.filter((c) => c && !c.stub && !c.personOnly).map((c) => c.name),
     ids: [...new Set(ids.filter((i) => typeof i === 'string'))].slice(0, 200),
+    // "explore": the proactive offer the person accepted, so the tour follows it
+    ...(offer ? { offer: String(offer).slice(0, 300), moment: moment ? String(moment).slice(0, 90) : null } : {}),
   };
+}
+
+/** The body of POST /api/guide/nudge (the server coarsens the state itself). */
+export function buildNudgeRequest({ moment, target, state = {}, profile = {}, facts = {}, commands = [], ids = [] }) {
+  const s = {};
+  for (const k of STATE_KEYS) if (state[k] !== undefined) s[k] = state[k];
+  return {
+    moment: String(moment).slice(0, 90),
+    target: describeTarget(target),
+    state: s,
+    profile,
+    facts,
+    commands: commands.filter((c) => c && !c.stub && !c.personOnly).map((c) => c.name),
+    ids: [...new Set(ids.filter((i) => typeof i === 'string'))].slice(0, 200),
+  };
+}
+
+export const NUDGE_TIMEOUT_MS = 6000;
+/** POST /api/guide/nudge. Never rejects: any problem comes back as { fallback: true, reason }. */
+export async function askNudge(body, { fetchFn = globalThis.fetch, timeoutMs = NUDGE_TIMEOUT_MS } = {}) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(new Error('timeout')), timeoutMs);
+  try {
+    const res = await fetchFn('/api/guide/nudge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) return { fallback: true, reason: `HTTP ${res.status}` };
+    const data = await res.json();
+    if (data?.fallback) return { fallback: true, reason: String(data.reason ?? 'server fallback') };
+    if (typeof data?.line !== 'string' || !Array.isArray(data?.options) || !data.options.length) return { fallback: true, reason: 'empty reply' };
+    return data;
+  } catch (err) {
+    return { fallback: true, reason: ctrl.signal.aborted ? 'timeout' : `network: ${err?.message ?? err}` };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** POST the body; never rejects (see the header). */
@@ -131,7 +172,12 @@ export async function askGuide(body, { fetchFn = globalThis.fetch, timeoutMs = C
     const data = await res.json();
     if (data?.fallback) return { fallback: true, reason: String(data.reason ?? 'server fallback') };
     if (!Array.isArray(data?.steps) || !data.steps.length) return { fallback: true, reason: 'empty reply' };
-    return { steps: data.steps, ...(data.cached ? { cached: true } : {}) };
+    return {
+      steps: data.steps,
+      ...(data.cached ? { cached: true } : {}),
+      ...(typeof data.source === 'string' ? { source: data.source } : {}),
+      ...(typeof data.model === 'string' ? { model: data.model } : {}),
+    };
   } catch (err) {
     const reason = signal?.aborted ? 'aborted' : ctrl.signal.aborted ? 'timeout' : `network: ${err?.message ?? err}`;
     return { fallback: true, reason };

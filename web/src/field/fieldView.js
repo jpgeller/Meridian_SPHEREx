@@ -2,6 +2,7 @@
 // shell: position, size control, open/close and focus handling. The player (Step 6),
 // compare modes (7), band tools (8), context (9) and spectra (10) render into #field-stage.
 import { FIELD_FOVS } from '../core/state.js';
+import { sectionTitle } from '../ui/sectionIcons.js';
 import { detectorOf, CHANNELS_PER_DETECTOR } from '../core/bands.js';
 import { DETECTOR_COLOURS } from '../sky/colorViews.js';
 import { formatSexagesimal } from '../core/coords.js';
@@ -17,6 +18,8 @@ export function createFieldView(root, { store, commands, getWavelengths = () => 
         <button type="button" id="field-close" class="field-close" data-guide="back-to-sky">Back to sky <kbd>Esc</kbd></button>
       </header>
       <div class="field-controls">
+        <section class="fsec" aria-labelledby="fsec-zoom">
+        ${sectionTitle('fsec-zoom', 'zoom', 'Zoom', "How much sky the 2D images cover around the target: 3′ is closest in, 1° the widest. Wider fields catch faster-moving objects but load more slowly (keys + and −). The pixels stay SPHEREx's own.")}
         <div class="row field-size-row">
           <div role="radiogroup" aria-label="Field size (wider fields catch faster-moving objects but load more slowly; + and − keys)" class="row" id="field-sizes" data-guide="field-sizes">
             ${FIELD_FOVS.map(
@@ -24,6 +27,9 @@ export function createFieldView(root, { store, commands, getWavelengths = () => 
             ).join('')}
           </div>
         </div>
+        </section>
+        <section class="fsec" aria-labelledby="fsec-detector">
+        ${sectionTitle('fsec-detector', 'detector', 'Detector', 'Which infrared light the images show. SPHEREx has six detectors: D1 (0.75 µm, nearest to visible light) to D6 (5 µm, the longest). Cold things like brown dwarfs show best in D5–D6. More bands: step band by band, add a whole detector, mix three as colours, or write a formula.')}
         <div class="row field-band-row">
           <div class="field-dets" role="radiogroup" aria-label="Wavelength range: detectors D1 (shortest) to D6 (longest)">
             ${[1, 2, 3, 4, 5, 6]
@@ -60,6 +66,7 @@ export function createFieldView(root, { store, commands, getWavelengths = () => 
           <button type="submit">Apply</button>
           <span class="muted hint">Use b1–b101, D1–D6, numbers, + − × ÷ and brackets</span>
         </form>
+        </section>
       </div>
       <div id="field-stage" class="field-stage"></div>
     </section>`;
