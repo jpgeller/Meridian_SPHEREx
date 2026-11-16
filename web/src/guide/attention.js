@@ -342,6 +342,7 @@ export function startAttention({ guide, startGuide, onMoment = () => false, stor
     if (store.get().view === 'field' && player?.isLoading?.()) return 'frames loading';
     if (guide.popup.isOpen()) return 'pop-up open';
     if (guide.runner.isRunning()) return 'guide running';
+    if (guide.isHeld?.()) return 'guide held';
     return null;
   };
 

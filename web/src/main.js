@@ -16,11 +16,13 @@ import { createInputModeButton } from './ui/inputModeButton.js';
 import { createHints } from './ui/hints.js';
 import { startGazeSocket } from './input/gazeSocket.js';
 import { createCalibration } from './input/calibration.js';
+import { createTour } from './tutorial/tour.js';
 
 const statusEl = document.querySelector('#status');
 // The guide's attention follows the mouse in input mode A (a 5 s rest = interest); ?gaze=off turns that off.
 // Read before the URL sync rewrites the URL.
 const gazeParam = new URLSearchParams(window.location.search).get('gaze');
+const tourParams = new URLSearchParams(window.location.search); // ?tour=1 / ?tour=0 (tutorial/tour.js)
 const { name: urlName } = startCore();
 
 let apiOk = null;
@@ -91,6 +93,8 @@ commands.register(
   { label: 'Calibrate the eye tracker again' },
 );
 store.subscribe(() => renderStatus());
+// first visit: "Want a quick tour?"; key H any time: a drawn cursor shows every control (eye control off)
+window.meridian.tour = createTour({ store, commands, sky, player, guide: window.guide, params: tourParams });
 
 if (urlName) run('fly_to', { target: urlName, fov: store.get().fov < 5 ? store.get().fov : undefined }, 'url');
 

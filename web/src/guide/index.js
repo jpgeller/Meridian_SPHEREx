@@ -306,6 +306,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
   };
   overlay.park(); // idle: nothing floats; the orb is in the pill
 
+  let held = false; // guide.hold(): the tour runs
   const guide = {
     ask,
     tour,
@@ -336,6 +337,16 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
     },
     runner,
     startGuide,
+    /** hold(true): the guide stays quiet (no offers, no dwell) while something else teaches, e.g. the tour. */
+    hold: (on) => {
+      held = !!on;
+      if (held) {
+        guide.stop();
+        if (popup.isOpen()) popup.dismiss('close');
+        overlay.clear();
+      }
+    },
+    isHeld: () => held,
   };
   // U6: what the person lingers on -> offers. Always listens for replays (change); dwell needs a
   // source: the mouse with ?gaze=mouse, or gaze samples through guide.attention.feed() (U9).
@@ -375,7 +386,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
       }
       return startGuide('explore', target ?? null, { offer, moment });
     },
-    isBusy: () => popup.isOpen() || runner.isRunning() || !!pending || popup.isMuted(),
+    isBusy: () => held || popup.isOpen() || runner.isRunning() || !!pending || popup.isMuted(),
     canShow: (id) => !!registry.resolve(id),
   });
   // arrival: the teaser comes 0.5 s after landing (the sky has redrawn, so the pointer finds the place)
