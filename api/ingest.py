@@ -83,7 +83,7 @@ def warm_target(label: str, name: str) -> dict:
     pos = resolve.resolve(name)
     ra, dec = round5(pos["ra"]), round5(pos["dec"])
     print(f"\n== {label}: {name} -> {ra:.5f}, {dec:.5f}", flush=True)
-    meta = spherex.frames_with_meta(ra, dec)
+    meta = spherex.frames_with_meta(ra, dec, wait=True)  # bring an expired list up to date first
     # the same frames the web app can use (sequence.js `usable` / frames.js framesForBand): a frame
     # without a band would take a slot in the per-detector spread and shift which frames are picked
     frames = [f for f in meta["frames"] if f.get("inside") and not f.get("error") and f.get("band") is not None]

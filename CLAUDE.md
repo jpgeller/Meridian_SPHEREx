@@ -72,7 +72,8 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
 - The guide is proactive but cheap: `guide/interest.js` notices patterns, `guide/nudge.js` asks `/api/guide/nudge` (Claude
   Haiku, low effort, cached system block) for one offer with buttons. Budget: one call per 15 s and 40 per visit in the
   browser, `GUIDE_DAILY_MAX` (400) per day on the server; spend at `GET /api/guide/usage`. The 7 places keep local tours
-  (`guide/tours.js`, zero tokens). The mouse counts as attention after a 5 s rest (`?gaze=off` turns it off).
+  (`guide/tours.js`, zero tokens). Only the five challenge targets have a Places button; Milky Way centre and Solar
+  System are `shortcut: false` in `sky/presets.js` (search and the guide still know them). The mouse counts as attention after a 5 s rest (`?gaze=off` turns it off).
 
 ## Verified data facts (Nov 2026). Do not re-derive these.
 - SPHEREx HiPS cube: `https://irsa.ipac.caltech.edu/data/hips/SPHEREx/spherex_allsky_cube`. 102 frames, PNG tiles,
@@ -111,7 +112,9 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   Unofficial (Backyard Worlds); cache it. Registration verified: the PNG is north-up (row 0 = north) with TAN CD = ±2.75″.
 - IRSA's cutout service throttles parallel requests with 503s that clear in seconds: back off and retry; keep 4 browser requests in parallel.
   IRSA also has outages (SIA and SCS 502 "Proxy Error", 15 Nov 2026): frame lists, WISE and cube wavelengths fall back to
-  their expired cached copy rather than fail.
+  their expired cached copy rather than fail. Expired frame lists (24 h) and cube wavelengths (7 days) are served at once and
+  refreshed in a background thread (`spherex._refresh_later`), so a cached place never waits on IRSA; ingest passes
+  `wait=True` to refresh first.
 - Gaia DR3 = catalogue only (epoch 2016.0). Sources in order (`context._gaia_cone`): VizieR `I/355/gaiadr3` at
   `vizier.cfa.harvard.edu` (~1.5 s; identical rows), the CDS VizieR, then the **ESA archive TAP** (`gea.esac.esa.int`),
   which went silent for minutes on 15 Nov 2026. NOT astroquery MAST: it only has DR2 (epoch 2015.5) and silently ignores `version=3`.

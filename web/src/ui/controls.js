@@ -36,9 +36,9 @@ export function createControls(root, { store, commands, getWavelengths }) {
   shell.left.innerHTML = html`
     <div id="face-slot" data-guide="face-panel" hidden></div>
     <section class="card" data-guide="presets">
-      <h2 class="card-title" data-hint-section="Fly to one of the five challenge targets or a famous spot: the sky turns and zooms to it. Then &quot;Open time-lapse here&quot; shows its real SPHEREx images.">Places</h2>
-      <div class="grid-4 preset-grid" role="group" aria-label="Places">
-        ${PRESETS.map((p) => `<button type="button" class="big" data-preset="${p.id}" title="${p.note}">${p.label}</button>`).join('')}
+      <h2 class="card-title" data-hint-section="Fly to one of the five challenge targets: the sky turns and zooms to it. Then &quot;Open time-lapse here&quot; shows its real SPHEREx images.">Places</h2>
+      <div class="grid-3 preset-grid" role="group" aria-label="Places">
+        ${PRESETS.filter((p) => p.shortcut !== false).map((p) => `<button type="button" class="big" data-preset="${p.id}" title="${p.note}">${p.label}</button>`).join('')}
       </div>
     </section>
 

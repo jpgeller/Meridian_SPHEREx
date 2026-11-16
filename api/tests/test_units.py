@@ -122,13 +122,39 @@ def test_frame_list_falls_back_to_an_older_copy_when_irsa_is_down(monkeypatch, t
         raise RuntimeError("502 Proxy Error")
 
     monkeypatch.setattr(spherex, "_query", down)
-    got = spherex.frames_at(1.0, 2.0)
-    assert got["stale"] is True and got["frames"] == [{"id": "x"}]
+    monkeypatch.setattr(spherex, "_spawn", lambda fn: fn())  # background refresh runs inline here
+    for wait in (False, True):  # the app's path and ingest's path
+        got = spherex.frames_at(1.0, 2.0, wait=wait)
+        assert got["stale"] is True and got["frames"] == [{"id": "x"}]
     monkeypatch.setattr(cache, "get_json", lambda kind, key, ttl_s=None: None)
     import pytest
 
     with pytest.raises(RuntimeError):
         spherex.frames_at(1.0, 2.0)
+
+
+def test_expired_frame_list_answers_at_once_and_refreshes_in_the_background(monkeypatch):
+    """Judges never wait on IRSA for a place already cached: the old list comes back without a
+    query, and one background refresh is scheduled (not one per request)."""
+    import cache
+    import spherex
+
+    old = {"ra": 1.0, "dec": 2.0, "n_frames": 1, "n_visits": 1, "visits": [], "frames": [{"id": "x"}]}
+    monkeypatch.setattr(cache, "get_json", lambda kind, key, ttl_s=None: None if ttl_s else old)
+    queried, scheduled = [], []
+    monkeypatch.setattr(spherex, "_query", lambda ra, dec: queried.append((ra, dec)) or [])
+    monkeypatch.setattr(spherex, "_spawn", scheduled.append)
+    monkeypatch.setattr(spherex, "_refreshing", set())
+    for _ in range(3):
+        got = spherex.frames_at(1.0, 2.0)
+        assert got["frames"] == [{"id": "x"}] and got["stale"] is True
+    assert queried == [] and len(scheduled) == 1
+    monkeypatch.setattr(cache, "put_json", lambda *a: None)
+    monkeypatch.setattr(spherex, "remember", lambda frames: None)
+    scheduled[0]()  # the refresh itself queries IRSA once and frees the key
+    assert queried == [(1.0, 2.0)] and spherex._refreshing == set()
+    # ingest (wait=True) queries before answering
+    assert spherex.frames_at(1.0, 2.0, wait=True)["cached"] is False and len(queried) == 2
 
 
 def test_gaia_vizier_parser(monkeypatch):

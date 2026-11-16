@@ -1,10 +1,13 @@
 // Places users can jump to. `target` goes through fly_to (coordinates or a name Sesame knows).
+// `shortcut: false`: no button in the Places panel (only the five challenge targets have one), but
+// search, the guide and its tours still know the place.
 
 export const PRESETS = [
-  { id: 'milky_way', label: 'Milky Way centre', target: '266.4168 -29.0078', fov: 30,
+  { id: 'milky_way', label: 'Milky Way centre', target: '266.4168 -29.0078', fov: 30, shortcut: false,
     aliases: ['milky way', 'milky way center', 'galactic center', 'galactic centre', 'sgr a*'],
     note: 'The centre of our galaxy, behind thick dust that infrared sees through.' },
-  { id: 'solar_system', label: 'Solar System', target: '270 66.5607', fov: 90, aliases: ['solar system', 'ecliptic', 'sun'],
+  { id: 'solar_system', label: 'Solar System', target: '270 66.5607', fov: 90, shortcut: false,
+    aliases: ['solar system', 'ecliptic', 'sun'],
     note: 'Looking along the ecliptic pole. The planets move along the ecliptic; the Sun itself is never in SPHEREx images.' },
   { id: 'barnard', label: "Barnard's Star", target: "Barnard's Star", fov: 0.5, aliases: ['barnard', 'barnards star', 'gj 699'],
     note: 'The fastest-moving star on our sky, about 10.4 arcsec per year.' },

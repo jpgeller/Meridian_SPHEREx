@@ -47,6 +47,13 @@ test('every preset flies somewhere without errors', async ({ page }) => {
   expect(errors()).toEqual([]);
 });
 
+test('the Places panel has a button for the five challenge targets only', async ({ page }) => {
+  await page.goto('/');
+  await ready(page);
+  const ids = await page.evaluate(() => [...document.querySelectorAll('#controls [data-preset]')].map((b) => b.dataset.preset));
+  expect(ids).toEqual(['barnard', 'eps_ind_b', 'wise_0855', 'rw_aur', 'r_dra']);
+});
+
 test('every registered command runs once', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto('/?ra=133.7578&dec=-7.242&fov=0.5');

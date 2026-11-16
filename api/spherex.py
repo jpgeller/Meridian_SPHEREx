@@ -7,6 +7,7 @@ exposure can appear in DR1 and QR3 (reprocessed); DR1 wins.
 from __future__ import annotations
 
 import re
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
@@ -95,21 +96,61 @@ def lookup(fid: str) -> dict | None:
     return cache.get_json("frame", fid)
 
 
-def frames_at(ra: float, dec: float, refresh: bool = False) -> dict:
+_refreshing: set[str] = set()
+_refreshing_lock = threading.Lock()
+
+
+def _spawn(fn) -> None:
+    """Run fn in a background thread (tests replace this to run it inline)."""
+    threading.Thread(target=fn, daemon=True).start()
+
+
+def _refresh_later(key: str, fn) -> None:
+    """Refresh one cached entry in the background, at most one refresh per key at a time."""
+    with _refreshing_lock:
+        if key in _refreshing:
+            return
+        _refreshing.add(key)
+
+    def run():
+        try:
+            fn()
+        except Exception:
+            pass  # IRSA down: keep serving the older copy, try again on the next request
+        finally:
+            with _refreshing_lock:
+                _refreshing.discard(key)
+
+    _spawn(run)
+
+
+def frames_at(ra: float, dec: float, refresh: bool = False, wait: bool = False) -> dict:
+    """Frames covering (ra, dec). An expired cached list is returned at once and refreshed in
+    the background, so a visitor never waits on IRSA for a place seen before (new SPHEREx visits
+    only arrive weekly, and every cutout of an older list stays valid). wait=True (ingest) refreshes
+    an expired list before answering; refresh=True always queries IRSA."""
     key = f"{ra:.3f},{dec:.3f}"
     if not refresh:
         hit = cache.get_json("frames", key, ttl_s=FRAMES_TTL_S)
         if hit is not None:
             return {**hit, "cached": True}
+        if not wait:
+            stale = cache.get_json("frames", key)
+            if stale is not None:
+                _refresh_later(f"frames:{key}", lambda: _query_and_store(ra, dec, key))
+                return {**stale, "cached": True, "stale": True}
     try:
-        frames = _add_visits(_query(ra, dec))
+        return {**_query_and_store(ra, dec, key), "cached": False}
     except Exception:
         # IRSA down (502s, timeouts: 15 Nov 2026): an older list is far better than no images at all.
-        # New SPHEREx visits only arrive weekly, and every cutout of an old list is still valid.
         stale = cache.get_json("frames", key)
         if stale is None:
             raise
         return {**stale, "cached": True, "stale": True}
+
+
+def _query_and_store(ra: float, dec: float, key: str) -> dict:
+    frames = _add_visits(_query(ra, dec))
     remember(frames)
     visits = []
     for v in sorted({f["visit"] for f in frames}):
@@ -131,7 +172,7 @@ def frames_at(ra: float, dec: float, refresh: bool = False) -> dict:
         "queried_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
     cache.put_json("frames", key, result)
-    return {**result, "cached": False}
+    return result
 
 
 def cube_wavelengths() -> list[float]:
@@ -139,13 +180,15 @@ def cube_wavelengths() -> list[float]:
     hit = cache.get_json("cube", "wavelengths", ttl_s=7 * 24 * 3600)
     if hit:
         return hit
-    try:
-        text = httpx.get(HIPS_PROPERTIES, timeout=20.0, follow_redirects=True).text
-    except httpx.HTTPError:
-        stale = cache.get_json("cube", "wavelengths")  # IRSA down: the cube's bands don't change
-        if stale:
-            return stale
-        raise
+    stale = cache.get_json("cube", "wavelengths")
+    if stale:  # the cube's bands don't change: answer now, check IRSA in the background
+        _refresh_later("cube:wavelengths", _fetch_cube_wavelengths)
+        return stale
+    return _fetch_cube_wavelengths()
+
+
+def _fetch_cube_wavelengths() -> list[float]:
+    text = httpx.get(HIPS_PROPERTIES, timeout=20.0, follow_redirects=True).text
     m = re.search(r"data_cube_crval3_arr\s*=\s*(.+)", text)
     if not m:
         raise RuntimeError("cube wavelengths not found in HiPS properties")
@@ -154,10 +197,10 @@ def cube_wavelengths() -> list[float]:
     return values
 
 
-def frames_with_meta(ra: float, dec: float, refresh: bool = False) -> dict:
+def frames_with_meta(ra: float, dec: float, refresh: bool = False, wait: bool = False) -> dict:
     """frames_at() plus, for every frame, the wavelength seen at (ra, dec) and the nearest
     cube band. Two small Range requests per new frame, run in parallel, cached forever."""
-    base = frames_at(ra, dec, refresh)
+    base = frames_at(ra, dec, refresh, wait)
     cube = cube_wavelengths()
     frames = base["frames"]
     with httpx.Client(timeout=30.0, follow_redirects=True) as client:
