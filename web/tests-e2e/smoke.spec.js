@@ -850,7 +850,7 @@ test('side by side with Gaia: a picture drawn from the catalogue, clearly labell
   await page.goto('/?ra=269.44627&dec=4.7682&fov=0.5&band=92&view=field&ffov=0.1&mode=detector');
   await ready(page);
   await expect(page.locator('.epoch')).toHaveCount(5, { timeout: 60_000 });
-  await page.getByRole('radio', { name: /Beside Gaia/ }).click();
+  await page.getByRole('radio', { name: /Side by side with Gaia/ }).click();
   await expect(page).toHaveURL(/compare=gaia/);
   const label = page.locator('#wise-label');
   await expect(label).toContainText('drawn from the catalogue, not a photograph', { timeout: 60_000 });
@@ -858,7 +858,7 @@ test('side by side with Gaia: a picture drawn from the catalogue, clearly labell
   await expect(page.locator('#gaia-canvas')).toBeVisible();
   await expect(page.locator('#wise-img')).toBeHidden();
   expect(Number(await page.locator('#gaia-canvas').getAttribute('data-drawn'))).toBeGreaterThan(100);
-  await page.getByRole('radio', { name: /Beside WISE/ }).click();
+  await page.getByRole('radio', { name: /Side by side with WISE/ }).click();
   await expect(page.locator('#wise-img')).toBeVisible();
   await expect(page.locator('#gaia-canvas')).toBeHidden();
   expect(errors()).toEqual([]);
@@ -911,13 +911,13 @@ test('2D view: one list of what to show; choices exclude each other; old links s
   await ready(page);
   await expect(page.locator('.epoch').first()).toBeVisible({ timeout: 60_000 });
   const list = page.getByRole('radiogroup', { name: 'What to show' });
-  await expect(list.getByRole('radio')).toHaveText([/Time-lapse/, /Change video/, /Blink two dates/, /Beside WISE/, /Beside Gaia/, /Not in Gaia/]);
+  await expect(list.getByRole('radio')).toHaveText([/Time-lapse/, /Change video/, /Blink two dates/, /(Side by side with|Beside) WISE/, /(Side by side with|Beside) Gaia/, /Not in Gaia/]);
   const state = () => page.evaluate(() => [meridian.store.get().op, meridian.store.get().compare]);
   await list.getByRole('radio', { name: /Change video/ }).click();
   expect(await state()).toEqual(['video', 'off']);
-  await list.getByRole('radio', { name: /Beside WISE/ }).click(); // replaces the video
+  await list.getByRole('radio', { name: /Side by side with WISE/ }).click(); // replaces the video
   expect(await state()).toEqual(['none', 'side']);
-  await expect(list.getByRole('radio', { name: /Beside WISE/ })).toHaveAttribute('aria-checked', 'true');
+  await expect(list.getByRole('radio', { name: /Side by side with WISE/ })).toHaveAttribute('aria-checked', 'true');
   await expect(list.getByRole('radio', { name: /Change video/ })).toHaveAttribute('aria-checked', 'false');
   await page.locator('#field-title').focus();
   await page.keyboard.press('b'); // blink replaces WISE
@@ -931,8 +931,8 @@ test('2D view: one list of what to show; choices exclude each other; old links s
 });
 
 // Eye tracking: every clickable at least 64 x 64 px, and not covered by anything else.
-async function smallOrCovered(page) {
-  return page.evaluate(() =>
+async function smallOrCovered(page, min = 64) {
+  return page.evaluate((min) =>
     [...document.querySelectorAll('button, input, select, textarea, a[href], summary, [role="button"], [role="radio"], [role="checkbox"], [role="switch"], [role="slider"]')]
       .filter((e) => e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }))
       .map((e) => ({ e, r: e.getBoundingClientRect() }))
@@ -940,16 +940,19 @@ async function smallOrCovered(page) {
       .flatMap(({ e, r }) => {
         const name = (e.getAttribute('aria-label') || e.textContent || e.id || e.tagName).trim().replace(/\s+/g, ' ').slice(0, 30);
         const out = [];
-        if (r.width < 63.5 || r.height < 63.5) out.push(`${name}: ${Math.round(r.width)}x${Math.round(r.height)}`);
+        if (r.width < min - 0.5 || r.height < min - 0.5) out.push(`${name}: ${Math.round(r.width)}x${Math.round(r.height)}`);
         const t = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
         if (t && !e.contains(t) && !t.contains(e)) out.push(`${name}: covered`);
         return out;
       }),
+    min,
   );
 }
 
-for (const [w, h] of [[1280, 800], [1920, 1080]]) {
-  test(`eye tracking: every control is at least 64 x 64 px and reachable (${w}x${h})`, async ({ page }) => {
+// Sizes: 64 px everywhere, except the 2D view in mouse mode on screens under 1000 px tall (48 px; 44 px
+// under 780 px), so its five titled sections fit (mouse users first, 16 Nov 2026). Eye control keeps 64 px.
+for (const [w, h, min2d] of [[1280, 800, 48], [1920, 1080, 64]]) {
+  test(`every control is big enough and reachable: sky 64 px, 2D ${min2d} px (${w}x${h})`, async ({ page }) => {
     await page.setViewportSize({ width: w, height: h });
     await page.goto('/');
     await ready(page);
@@ -960,9 +963,16 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     for (const show of ['timelapse', 'video', 'blink', 'wise', 'gaia', 'nogaia']) {
       await page.evaluate((s) => meridian.run('set_show', { show: s }), show);
       await page.waitForTimeout(400);
-      expect(await smallOrCovered(page), `2D view, ${show}`).toEqual([]);
+      expect(await smallOrCovered(page, min2d), `2D view, ${show}`).toEqual([]);
       // the controls column fits without scrolling (gaze cannot scroll easily)
       expect(await page.evaluate(() => { const r = document.querySelector('.player-right'); return r.scrollHeight - r.clientHeight; }), `2D ${show} scroll`).toBeLessThanOrEqual(1);
+    }
+    if (min2d === 64) {
+      // eye control on: 64 px targets in the 2D view too
+      await page.evaluate(() => meridian.run('set_input_mode', { mode: 'gaze' }));
+      await page.evaluate(() => meridian.run('set_show', { show: 'timelapse' }));
+      await page.waitForTimeout(400);
+      expect(await smallOrCovered(page, 64), '2D view, eye control').toEqual([]);
     }
   });
 }
@@ -1014,31 +1024,42 @@ test('not in Gaia: WISE 0855 in D6 is a candidate at the target; the same patch 
   await expect(caption).toContainText('Every source here has a Gaia star', { timeout: 60_000 });
 });
 
-test('mouse mode: a white star on each button explains it on hover; none in the eye-control modes', async ({ page }) => {
+test('mouse mode: a white star on each section title explains the section on hover; none on buttons or in eye control', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto('/?fov=60');
+  await page.goto('/?ra=269.44627&dec=4.7682&fov=2.3&band=40&view=field&ffov=0.1&mode=detector');
   await ready(page);
-  const zoomIn = page.locator('[data-cmd="zoom_in"]');
-  await expect(zoomIn).toBeVisible();
-  // the badge sits on the button's top-right corner
-  await expect.poll(() => page.locator('.hint-badge').count()).toBeGreaterThan(20);
-  const zb = await zoomIn.boundingBox();
-  const hit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.className, { x: zb.x + zb.width - 4, y: zb.y + 1 });
-  expect(hit).toBe('hint-badge');
-  // hovering it shows what the button does; it is not a control (a click does not zoom)
-  const fov = await page.evaluate(() => meridian.store.get().fov);
-  await page.mouse.move(zb.x + zb.width - 4, zb.y + 1);
-  await expect(page.locator('.hint-bubble')).toHaveText(/Zoom in on the centre/);
-  await page.mouse.click(zb.x + zb.width - 4, zb.y + 1);
-  expect(await page.evaluate(() => meridian.store.get().fov)).toBe(fov);
-  await page.mouse.move(640, 400);
+  await expect(page.locator('.epoch').first()).toBeVisible({ timeout: 60_000 });
+  // one star per titled section of the 2D view: Zoom, Detector, View, Dates, Playback
+  await expect.poll(() => page.locator('.hint-badge').count()).toBe(5);
+  const title = await page.locator('#fsec-zoom .fsec-text').boundingBox();
+  const star = await page.evaluate(() => [...document.querySelectorAll('.hint-badge')].map((b) => b.getBoundingClientRect()).find(Boolean));
+  const badges = await page.evaluate(() => [...document.querySelectorAll('.hint-badge')].map((b) => { const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }));
+  const zoomStar = badges.find((b) => Math.abs(b.y - (title.y + title.height / 2)) < 12 && b.x > title.x + title.width);
+  expect(zoomStar, 'a star right after "Zoom"').toBeTruthy();
+  expect(star).toBeTruthy();
+  // no star sits on a button
+  const onButton = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('.hint-badge')].filter((b) => {
+        const r = b.getBoundingClientRect();
+        return document.elementsFromPoint(r.left + r.width / 2, r.top + r.height / 2).some((e) => e.tagName === 'BUTTON');
+      }).length,
+    );
+  await expect.poll(onButton).toBe(0);
+  // hovering it explains the section; it is not a control
+  await page.mouse.move(zoomStar.x, zoomStar.y);
+  await expect(page.locator('.hint-bubble')).toHaveText(/How much sky the 2D images cover/);
+  await page.mouse.move(400, 400);
   await expect(page.locator('.hint-bubble')).toBeHidden();
-  // full gaze control and guide-only: no badges
+  // eye control: no stars
   await page.evaluate(() => meridian.run('set_input_mode', { mode: 'gaze' }));
-  await expect(page.locator('#hints')).toBeHidden();
   await expect(page.locator('.hint-badge')).toHaveCount(0);
   await page.evaluate(() => meridian.run('set_input_mode', { mode: 'mouse' }));
-  await expect.poll(() => page.locator('.hint-badge').count()).toBeGreaterThan(20);
+  await expect.poll(() => page.locator('.hint-badge').count()).toBe(5);
+  // the sky panel's sections have theirs too (Places, View, Colours)
+  await page.evaluate(() => meridian.run('close_field'));
+  await page.evaluate(() => meridian.run('toggle_panel', { open: true }));
+  await expect.poll(() => page.locator('.hint-badge').count()).toBe(3);
 });
 
 test('SED: key e draws Gaia and SPHEREx on one graph with a blackbody temperature (eps Ind B)', async ({ page }) => {

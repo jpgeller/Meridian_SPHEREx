@@ -1,13 +1,14 @@
-// Sparkle hints (mouse mode only). In input mode A (mouse and keyboard) every visible button that
-// has an explanation (ui/hintText.js) gets a small white star on its top-right corner; resting the mouse
-// on it shows what the button does. Off in modes B and C: a gaze user cannot hover, and the badges
+// Sparkle hints (mouse mode only). In input mode A (mouse and keyboard) every section title with an
+// explanation (`data-hint-section`: the 2D view's Zoom, Detector, View, Dates, Playback; the panel's
+// Places, View, Colours) gets a small white star right after its words; resting the mouse on it explains
+// the whole section. (Until 16 Nov 2026 every button had its own star: too busy. ui/hintText.js still
+// holds the per-button sentences, for buttons' titles and the guide.) Off in modes B and C: a gaze user cannot hover, and the badges
 // would only be clutter near the targets.
 //
 // The badges live in one fixed layer of their own (#hints), never inside the buttons, so no button's
 // text, size or accessible name changes (the 64 px and "no text spills out" rules are untouched). The
 // layer is aria-hidden: the same words are in each button's name or title for screen readers. A badge
 // is not a control: it only reacts to hover, so a click on it does nothing.
-import { hintFor } from './hintText.js';
 import './hints.css';
 
 const BADGE = 18; // px
@@ -68,19 +69,19 @@ export function createHints({ store, doc = document, win = window }) {
     if (active) {
       const W = win.innerWidth;
       const H = win.innerHeight;
-      for (const btn of doc.querySelectorAll('button')) {
-        if (ours(btn) || btn.hidden) continue;
-        const text = hintFor(btn);
+      for (const btn of doc.querySelectorAll('[data-hint-section]')) {
+        if (ours(btn) || btn.closest('[hidden]')) continue;
+        const text = btn.dataset.hintSection;
         if (!text) continue;
         if (btn.checkVisibility && !btn.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue;
-        const r = btn.getBoundingClientRect();
-        if (r.width < 8 || r.height < 8 || r.bottom < 0 || r.right < 0 || r.top > H || r.left > W) continue;
-        // the badge's corner of the button must be on screen and the button's own (not under a panel)
-        if (!reaches(btn, r.left + r.width / 2, r.top + r.height / 2) || !reaches(btn, r.right - 14, r.top + 14)) continue;
+        const r = titleRect(btn);
+        if (!r || r.width < 8 || r.height < 8 || r.bottom < 0 || r.right < 0 || r.top > H || r.left > W) continue;
+        // the title must be on screen and its own (not under a panel or the guide card)
+        if (!reaches(btn, r.left + Math.min(10, r.width / 2), r.top + r.height / 2)) continue;
         const b = badgeFor(btn);
         b.dataset.hint = text;
         // `translate`, not `transform`: the hover `scale` would multiply a transform and fling the star away
-        b.style.translate = `${Math.round(r.right - BADGE + 5)}px ${Math.round(r.top - 5)}px`;
+        b.style.translate = `${Math.round(r.right + 6)}px ${Math.round(r.top + (r.height - BADGE) / 2)}px`;
         seen.add(btn);
       }
     }
@@ -90,6 +91,16 @@ export function createHints({ store, doc = document, win = window }) {
       badges.delete(btn);
     }
     if (shownFor && !badges.has(shownFor)) hideBubble();
+  }
+
+  /** The box of a title's words (not the whole heading's width): the star goes right after them. */
+  function titleRect(el) {
+    const words = el.querySelector('.fsec-text') ?? el;
+    const first = [...words.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim()) ?? words;
+    const range = doc.createRange();
+    range.selectNodeContents(first);
+    const r = range.getBoundingClientRect();
+    return r.width ? r : el.getBoundingClientRect();
   }
 
   function schedule() {

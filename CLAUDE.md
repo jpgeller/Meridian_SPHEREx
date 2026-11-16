@@ -4,7 +4,7 @@ Public web tool: a 3D sky made of real SPHEREx images. Search or fly to a place 
 real SPHEREx images of that patch, with band tools and WISE/Gaia context. Built to be fully usable without a mouse
 (eye tracking is merged later).
 
-**Build plan: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md); next, [docs/AI_IMAGES_PLAN.md](docs/AI_IMAGES_PLAN.md). Work through it in order, one step per session, and tick
+**Build plan: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md). Work through it in order, one step per session, and tick
 the checkboxes.** Product spec (for humans): docs/Meridian_SPHEREx_Project_Spec.pdf (source: docs/build_spec.py).
 
 ## Layout
@@ -42,7 +42,7 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
 - Show uncertainty and limits honestly. Never claim discoveries.
 - **2D images are always SPHEREx's own resolution**: every frame on the 6.15″/px grid (`cutouts.target_wcs`), one canvas
   pixel per SPHEREx pixel, scaled with `image-rendering: pixelated`. Never smooth, upsample or AI-enhance them (the 3D
-  sky's smoothing and any artist's impressions stay out of the 2D view). Test: "a cached field opens its time-lapse".
+  sky's smoothing stays out of the 2D view). Test: "a cached field opens its time-lapse".
 - The eye tracker itself is NOT built here: Yassin's team runs it outside the app. The gaze *contract* and the face panel
   do live here: eye tracking is merged through `postMessage` types `gaze` and `face` on the command bridge
   (`web/src/core/messages.js`; docs/UI_AND_GUIDE_PLAN.md, U9). Keep every control a real `<button>` running a command,
@@ -52,8 +52,11 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   "eye tracking: no control within 6% of the screen edges" checks the sky view and every 2D mode.
 - **Every clickable is at least 64 × 64 px** (eye tracking; global rule at the end of `web/src/style.css`, `--hit`). On/off
   options are `role="switch"` buttons and choices are stepping buttons (no checkboxes or drop-downs: they can't be 64 px and
-  gaze presses buttons). The 2D view is two columns (image | controls) so it fits without scrolling at ≥1280×800. The test
-  "every control is at least 64 x 64 px and reachable" checks the sky view and every 2D mode.
+  gaze presses buttons). Exception (16 Nov 2026, mouse users first): the 2D view in mouse mode on screens under 1000 px tall
+  uses 48 px (44 px under 780 px) so its five titled sections (Zoom, Detector, View, Dates, Playback) fit; eye control keeps
+  64 px. The 2D view is two columns (image | controls) and fits without scrolling at ≥1280×800 in mouse mode. The test
+  "every control is big enough and reachable" checks the sky view and every 2D mode.
+- Hints (mouse mode): one white star per section title (`data-hint-section`), not per button (`web/src/ui/hints.js`).
 - **Hints**: in input mode A (mouse) every button gets a small white star that grows on hover and explains it (`web/src/ui/hints.js`, a
   separate aria-hidden layer, never inside the buttons). Give each new button a hint: a rule in `ui/hintText.js`, a
   `data-hint`, or a `title`; `data-no-hint` opts out.

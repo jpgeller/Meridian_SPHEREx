@@ -1580,6 +1580,45 @@ body[data-input='gaze'] .guide-pill {
 :root {
   --hit: 64px;
 }
+/* Mouse mode (eye control off) on screens under 1000 px tall: 48 px targets, so the 2D view's five
+   titled sections fit (team decision, 16 Nov 2026: this version is for mouse users first). Any eye-control
+   mode (B, C) keeps 64 px. */
+@media (max-height: 999px) {
+  body.field-open[data-input='mouse'] {
+    --hit: 48px;
+    --target: 48px;
+  }
+  body.field-open[data-input='mouse'] .fsec {
+    padding: 6px 10px 8px;
+    gap: 4px;
+  }
+  body.field-open[data-input='mouse'] .fsec-title {
+    font-size: 15px;
+  }
+}
+@media (max-height: 780px) {
+  body.field-open[data-input='mouse'] {
+    --hit: 44px;
+    --target: 44px;
+  }
+}
+@media (max-height: 820px) {
+  body.field-open[data-input='mouse'] .fsec {
+    padding: 4px 8px 6px;
+    gap: 3px;
+  }
+  body.field-open[data-input='mouse'] .fsec-title {
+    font-size: 14px;
+  }
+  body.field-open[data-input='mouse'] .fsec-icon {
+    width: 18px;
+    height: 18px;
+  }
+  body.field-open[data-input='mouse'] .player-right,
+  body.field-open[data-input='mouse'] .player-right .field-controls {
+    gap: 4px;
+  }
+}
 button,
 select,
 textarea,
@@ -1656,7 +1695,80 @@ button[role='switch'][aria-checked='true']::before {
 .player-right .field-controls {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 8px;
+}
+/* titled sections of the 2D view's controls (Zoom, Detector, View, Dates, Playback) */
+.fsec {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px 10px;
+  border: 1px solid rgba(140, 160, 220, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+.fsec[hidden] {
+  display: none !important;
+}
+/* rows fill the section's width, as in the design: equal zoom steps, View and Dates wrap and stretch */
+.fsec #field-sizes {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(64px, 1fr));
+  flex: 1;
+}
+.fsec .field-size-row,
+.fsec #field-sizes {
+  width: 100%;
+}
+.fsec [data-guide='show-modes'],
+.fsec .epochs {
+  display: flex;
+  flex-wrap: wrap;
+}
+.lbl-short {
+  display: none;
+}
+/* narrower screens: "Beside WISE" instead of "Side by side with WISE", tighter dates, so each fits one row */
+@media (max-width: 1500px) {
+  .lbl-long {
+    display: none;
+  }
+  .lbl-short {
+    display: inline;
+  }
+  .fsec .epochs > button {
+    padding-inline: 6px;
+    font-size: 13px;
+  }
+}
+.fsec [data-guide='show-modes'] > button,
+.fsec .epochs > button {
+  flex: 1 1 auto;
+}
+.fsec-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+.fsec-icon {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  color: var(--accent);
+}
+.fsec-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .player-right .player-bar,
 .player-right .row,
