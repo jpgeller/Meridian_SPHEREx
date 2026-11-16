@@ -14,6 +14,7 @@ import { buildModel, renderAt, bracket } from './changeModel.js';
 import { loadWiseFrames, WISE_PIXEL_ARCSEC } from './wiseFrames.js';
 import { groupByVisit } from './sequence.js';
 import { showOf } from '../core/state.js';
+import { sectionTitle } from '../ui/sectionIcons.js';
 import { findNotInGaia } from './notInGaia.js';
 import { formatRaDec } from '../core/coords.js';
 
@@ -61,12 +62,14 @@ export function createPlayer(stage, { store, commands }) {
       <p id="player-caption" class="player-caption"></p>
       </div>
       <div class="player-right">
+      <section class="fsec" aria-labelledby="fsec-view">
+      ${sectionTitle('fsec-view', 'view', 'View', 'What to show. Time-lapse plays the real images in date order. Change video slides smoothly between them and marks moving objects. Blink flips between two dates. Side by side with WISE / Gaia put a WISE image or a picture drawn from the Gaia catalogue next to SPHEREx. Not in Gaia lists sources SPHEREx sees that Gaia does not (candidates, not discoveries).')}
       <div class="player-bar" role="radiogroup" aria-label="What to show" data-guide="show-modes">
         <button type="button" role="radio" data-show="timelapse" data-guide="op-none">Time-lapse <kbd>t</kbd></button>
         <button type="button" role="radio" data-show="video" data-guide="op-video">Change video <kbd>v</kbd></button>
         <button type="button" role="radio" data-show="blink" data-guide="op-blink">Blink two dates <kbd>b</kbd></button>
-        <button type="button" role="radio" data-show="wise" data-guide="op-wise" title="Side by side with WISE">Beside WISE <kbd>w</kbd></button>
-        <button type="button" role="radio" data-show="gaia" data-guide="op-gaia" title="Side by side with Gaia">Beside Gaia</button>
+        <button type="button" role="radio" data-show="wise" data-guide="op-wise" aria-label="Side by side with WISE" aria-keyshortcuts="w"><span class="lbl-long">Side by side with</span><span class="lbl-short">Beside</span> WISE <kbd>w</kbd></button>
+        <button type="button" role="radio" data-show="gaia" data-guide="op-gaia" aria-label="Side by side with Gaia"><span class="lbl-long">Side by side with</span><span class="lbl-short">Beside</span> Gaia</button>
         <button type="button" role="radio" data-show="nogaia" data-guide="op-nogaia">Not in Gaia <kbd>n</kbd></button>
       </div>
       <div class="player-bar video-options" role="group" aria-label="Change video options">
@@ -77,7 +80,13 @@ export function createPlayer(stage, { store, commands }) {
         <span id="trail-wise-wrap" hidden><button type="button" role="switch" aria-checked="true" id="trail-wise">Include WISE 2010–2024</button></span>
         <span class="muted hint" id="op-hint"></span>
       </div>
+      </section>
+      <section class="fsec" id="fsec-dates-sec" aria-labelledby="fsec-dates">
+      ${sectionTitle('fsec-dates', 'dates', 'Dates', 'The dates SPHEREx photographed this patch (in brackets: how many images that visit). Press one to jump to it; in Blink, pick the two dates to compare.')}
       <div class="epochs" id="epochs" data-guide="dates" role="group" aria-label="Dates (select two to compare)"></div>
+      </section>
+      <section class="fsec" aria-labelledby="fsec-playback">
+      ${sectionTitle('fsec-playback', 'playback', 'Playback', 'Step back and forward one image (keys , and .), play or pause (Space), or drag the slider. Display options: speed, one image per visit, colours, and a ring on the target.')}
       <div class="player-bar">
         <button type="button" id="p-prev" data-guide="frame-prev" aria-label="Previous frame">◀︎ <kbd>,</kbd></button>
         <button type="button" id="p-play" data-guide="play" aria-keyshortcuts="Space">Play <kbd>Space</kbd></button>
@@ -91,6 +100,7 @@ export function createPlayer(stage, { store, commands }) {
         <button type="button" id="p-cmap" title="Press to change">Colours: grey</button>
         <button type="button" role="switch" aria-checked="false" id="p-ring">Mark target</button>
       </div>
+      </section>
       </div>
     </div>`;
 
@@ -750,11 +760,13 @@ export function createPlayer(stage, { store, commands }) {
     // the options row only has content in the video (its options) or blink (its hint)
     $('.video-options').hidden = !['video', 'blink'].includes(s.op);
     epochsEl.hidden = s.op === 'video' || s.op === 'nogaia'; // the video has its own time line; "Not in Gaia" uses every date
+    $('#fsec-dates-sec').hidden = epochsEl.hidden;
     $('#trail-wise-wrap').hidden = s.op !== 'video';
     $('#video-marks-wrap').hidden = s.op !== 'video';
     $('#p-visit').disabled = s.mode !== 'single'; // other modes are already one per visit
-    $('#op-hint').textContent =
-      s.op === 'blink' ? 'Pick two dates (or it uses the first and last).' : '';
+    // Blink's instruction rides in the Dates title (a row of its own did not fit small screens)
+    $('#op-hint').textContent = '';
+    $('#fsec-dates .fsec-text').textContent = s.op === 'blink' ? 'Dates · pick two to compare (or it uses the first and last)' : 'Dates';
     epochsEl.querySelectorAll('[data-epoch]').forEach((b) =>
       b.setAttribute('aria-pressed', String(s.t.includes(Number(b.dataset.epoch)))),
     );

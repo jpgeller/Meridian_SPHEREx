@@ -52,8 +52,11 @@ cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for
   "eye tracking: no control within 6% of the screen edges" checks the sky view and every 2D mode.
 - **Every clickable is at least 64 × 64 px** (eye tracking; global rule at the end of `web/src/style.css`, `--hit`). On/off
   options are `role="switch"` buttons and choices are stepping buttons (no checkboxes or drop-downs: they can't be 64 px and
-  gaze presses buttons). The 2D view is two columns (image | controls) so it fits without scrolling at ≥1280×800. The test
-  "every control is at least 64 x 64 px and reachable" checks the sky view and every 2D mode.
+  gaze presses buttons). Exception (16 Nov 2026, mouse users first): the 2D view in mouse mode on screens under 1000 px tall
+  uses 48 px (44 px under 780 px) so its five titled sections (Zoom, Detector, View, Dates, Playback) fit; eye control keeps
+  64 px. The 2D view is two columns (image | controls) and fits without scrolling at ≥1280×800 in mouse mode. The test
+  "every control is big enough and reachable" checks the sky view and every 2D mode.
+- Hints (mouse mode): one white star per section title (`data-hint-section`), not per button (`web/src/ui/hints.js`).
 - **Hints**: in input mode A (mouse) every button gets a small white star that grows on hover and explains it (`web/src/ui/hints.js`, a
   separate aria-hidden layer, never inside the buttons). Give each new button a hint: a rule in `ui/hintText.js`, a
   `data-hint`, or a `title`; `data-no-hint` opts out.
