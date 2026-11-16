@@ -23,7 +23,11 @@ cd web && npm test                            # unit tests (node:test)
 cd web && npm run test:e2e                    # browser smoke tests (Playwright, installed Chrome; API must be running)
 cd api && ./.venv/bin/python -m pytest -q     # API tests (offline; use the warmed cache)
 cd api && ./.venv/bin/python -m ingest --targets showcase   # warm the cache for the 5 demo targets (~1 h, polite to IRSA)
+cd api && ./.venv/bin/python -m export_static              # then ship them as files in web/public/data/api (~10 s, 24 MB)
 ```
+- The five challenge targets never ask the API: `web/src/core/staticApi.js` answers their `/api/...` requests from
+  `web/public/data/api/` (committed; `index.json` maps each request to its file). Re-run `export_static` after ingest or
+  after a processing change. `?static=0` bypasses the files; tests that fake a slow API for these targets use it.
 - `--timeout-graceful-shutdown 5`: without it a code reload waits for long requests (spectra) and the API hangs.
 - Use `python -m uvicorn`. macOS refused to run the venv's `uvicorn` script when the desktop app's preview launcher started it.
   The preview launcher also hung on servers inside `~/Documents`, so start the servers from a shell instead.

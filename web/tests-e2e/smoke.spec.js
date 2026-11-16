@@ -1003,7 +1003,8 @@ test('loading: a bar over the image while images load; Play pressed meanwhile st
     await new Promise((r) => setTimeout(r, 2500)); // a slow archive
     await route.continue();
   });
-  await page.goto('/?ra=269.44627&dec=4.7682&fov=2.3&band=92&view=field&ffov=0.1&mode=detector');
+  // static=0: Barnard's Star ships as static files (core/staticApi.js), which never wait on the slow archive
+  await page.goto('/?ra=269.44627&dec=4.7682&fov=2.3&band=92&view=field&ffov=0.1&mode=detector&static=0');
   const bar = page.locator('#player-loading');
   await expect(bar).toBeVisible();
   await expect(page.locator('#pl-text')).toContainText('Finding SPHEREx images');

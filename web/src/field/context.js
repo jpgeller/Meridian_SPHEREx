@@ -6,6 +6,7 @@
 // Positions use a small-field gnomonic approximation (fields are ≤ 1°).
 
 import { renderGaia, drawGaiaPicture } from './gaiaPicture.js';
+import { staticUrl } from '../staticData.js';
 
 const GAIA_EPOCH_MJD = 57388.5; // 2016.0
 const SPHEREX_SCALE = 6.15; // arcsec/px
@@ -156,7 +157,7 @@ export function createContext(player, { store, commands }) {
     }
     if (wiseImg.dataset.src !== frame.url) {
       wiseImg.dataset.src = frame.url;
-      wiseImg.src = frame.url;
+      wiseImg.src = staticUrl(frame.url); // the five challenge targets: a shipped file, no API
     }
     wiseImg.alt = `WISE W2 (4.6 µm) image of this patch, ${fmtDate(frame.date_iso)}`;
     wiseLabel.textContent = `WISE W2 · 4.6 µm · ${fmtDate(frame.date_iso)}`;

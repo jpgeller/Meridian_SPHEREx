@@ -1,4 +1,5 @@
 // App entry: core (state, commands, URL, inputs) -> sky -> controls -> status.
+import { staticData } from './staticData.js'; // first: the five challenge targets answer from static files
 import './style.css';
 import './sky/smoothTiles.js'; // before Aladin starts: smooth (bilinear) sky tiles instead of hard pixel squares
 import { store, commands, run, startCore, setSkyCoords } from './core/index.js';
@@ -26,6 +27,11 @@ const tourParams = new URLSearchParams(window.location.search); // ?tour=1 / ?to
 const { name: urlName } = startCore();
 
 let apiOk = null;
+let staticCount = 0; // answers shipped as files: with them, the five targets work without the API
+staticData.ready.then((n) => {
+  staticCount = n;
+  renderStatus();
+});
 let message = '';
 let sky = null;
 
@@ -33,7 +39,7 @@ function renderStatus(msg) {
   if (typeof msg === 'string') message = msg;
   const s = store.get();
   const loading = sky && !sky.ready ? ' · loading sky…' : '';
-  const api = apiOk === false ? ' · API not reachable' : '';
+  const api = apiOk === false && !staticCount ? ' · API not reachable' : '';
   // the view centre (Aladin's own coordinate box is off: it sat in the screen corner)
   const where = s.view === 'sky' ? ` · ${formatSexagesimal(s.ra, s.dec)} · ${s.fov >= 10 ? Math.round(s.fov) : s.fov.toFixed(2)}° wide` : '';
   statusEl.textContent = `${message || `SPHEREx DR1 · ${s.view} view`}${where}${loading}${api}`;

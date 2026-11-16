@@ -133,6 +133,18 @@ def test_frame_list_falls_back_to_an_older_copy_when_irsa_is_down(monkeypatch, t
         spherex.frames_at(1.0, 2.0)
 
 
+def test_static_export_keys_match_the_browser():
+    """Same cases as web/tests/staticApi.test.js: the exporter's keys must equal the browser's."""
+    from export_static import api_key
+
+    assert api_key("/api/cutout?id=a_D1&ra=1.00000&dec=-2.00000&fov=0.1&ext=image&v=5") == \
+        "cutout?dec=-2.00000&ext=image&fov=0.1&id=a_D1&ra=1.00000&v=5"
+    assert api_key("/api/resolve?name=Barnard's%20Star") == "resolve?name=Barnard's Star"
+    assert api_key("/api/resolve?name=Barnard%27s%20Star") == "resolve?name=Barnard's Star"
+    assert api_key("/api/context/wise?fov=0.1&band=2&ra=1&dec=2") == "context/wise?band=2&dec=2&fov=0.1&ra=1"
+    assert api_key("/api/health") == "health"
+
+
 def test_expired_frame_list_answers_at_once_and_refreshes_in_the_background(monkeypatch):
     """Judges never wait on IRSA for a place already cached: the old list comes back without a
     query, and one background refresh is scheduled (not one per request)."""
