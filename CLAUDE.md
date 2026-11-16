@@ -71,6 +71,9 @@ cd api && ./.venv/bin/python -m export_static              # then ship them as f
 - **Hints**: in input mode A (mouse) every button gets a small white star that grows on hover and explains it (`web/src/ui/hints.js`, a
   separate aria-hidden layer, never inside the buttons). Give each new button a hint: a rule in `ui/hintText.js`, a
   `data-hint`, or a `title`; `data-no-hint` opts out.
+- The guide's face is a pixel companion the person picks (key C, `choose_companion` / `set_companion`; localStorage
+  `meridian.companion`): `web/src/guide/companion.js`. Names, teams and roles: `web/public/companions/agents.json` (edit there).
+  idle.webp loops; talking.webp while the card's words are new (popup.js sends `meridian:guide-speech`); reduced motion: still PNGs.
 - UI and guide live in `web/src/ui/` and `web/src/guide/` (plan: docs/UI_AND_GUIDE_PLAN.md). They only call `run(...)`
   and read `store`. `ANTHROPIC_API_KEY` stays in `api/.env` (git-ignored; see `api/.env.example`), never in the browser.
 - The guide is proactive but cheap: `guide/interest.js` notices patterns, `guide/nudge.js` asks `/api/guide/nudge` (Claude

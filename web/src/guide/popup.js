@@ -304,6 +304,9 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
   let timer = null; // this card's auto-hide / auto-advance
   let handoffTimer = 0;
 
+  const speech = (speaking, text = '') =>
+    win.dispatchEvent(new win.CustomEvent('meridian:guide-speech', { detail: { speaking, text, thinking: pillState === 'thinking' } }));
+
   const setText = (el, text) => {
     el.textContent = text ?? '';
     el.hidden = !text;
@@ -373,6 +376,8 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
     const spoken = [c.title, c.text, c.sub, ...(c.facts ?? []).map(([k, v]) => `${k}: ${v}`)].filter(Boolean).join(' ');
     live.textContent = '';
     win.setTimeout(() => (live.textContent = `Guide: ${spoken}`), 30);
+    // the companion (companion.js) talks while these words are new; not for the "Thinking…" card
+    speech(true, [c.title, c.text].filter(Boolean).join(' '));
     // the person was already answering the card: keep the keyboard in it
     if (focusWasInside) answersEl.querySelector('button')?.focus();
     timer?.cancel();
@@ -393,6 +398,7 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
     win.clearInterval(placeTimer);
     const was = open;
     open = null;
+    speech(false);
     tabbedIn = false; // the next card gets its own first Tab
     timer?.cancel();
     timer = null;

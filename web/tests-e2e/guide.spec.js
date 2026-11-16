@@ -179,3 +179,57 @@ test('no text box or history anywhere in the guide', async ({ page }) => {
   await page.keyboard.press('a');
   expect(await card(page).locator('input, textarea, [contenteditable]').count()).toBe(0);
 });
+
+test('companion: key C opens the picker of eight; the pick is remembered, talks while the card speaks, then idles', async ({ page }) => {
+  await mockGuideApi(page);
+  await page.goto('/?tour=0');
+  await ready(page);
+  await page.evaluate(() => window.guide.companion.ready);
+  const btn = page.locator('.companion-btn');
+  await expect(btn).toBeVisible();
+  await expect(btn.locator('img')).toHaveAttribute('src', /\/companions\/agent-0502\/idle\.webp$/);
+  // the files really load (transparent 256 px loops)
+  const sizes = await page.evaluate(() =>
+    Promise.all(
+      window.guide.companion.agents().flatMap((a) => [a.idle, a.talking, a.portrait]).map(
+        (src) => new Promise((res) => {
+          const im = new Image();
+          im.onload = () => res(im.naturalWidth);
+          im.onerror = () => res(0);
+          im.src = src;
+        }),
+      ),
+    ),
+  );
+  expect(sizes).toEqual(Array(24).fill(256));
+  await page.locator('body').press('c');
+  const picker = page.locator('.companion-picker');
+  await expect(picker).toBeVisible();
+  await expect(picker.locator('.cp-agent')).toHaveText(['João Paulo', 'Halytza', 'George', 'Yassin', 'Janisha', 'Erina', 'Chyu', 'João Victor']);
+  for (const b of await picker.locator('button').all()) {
+    const r = await b.boundingBox();
+    expect(Math.min(r.width, r.height)).toBeGreaterThanOrEqual(64);
+  }
+  await picker.locator('[data-companion="agent-0505"]').click();
+  await expect(picker).toBeHidden();
+  // the hello card: the companion talks, then goes back to idle
+  await expect(card(page)).toBeVisible();
+  await expect(card(page).locator('.gp-who')).toHaveText('Yassin');
+  await expect(card(page).locator('.gp-companion')).toHaveAttribute('src', /agent-0505\/talking\.webp$/);
+  await expect(card(page).locator('.gp-companion')).toHaveAttribute('src', /agent-0505\/idle\.webp$/, { timeout: 8000 });
+  await page.reload();
+  await ready(page);
+  await page.evaluate(() => window.guide.companion.ready);
+  await expect(page.locator('.companion-btn img')).toHaveAttribute('src', /agent-0505\/idle\.webp$/);
+  await expect(page.locator('.companion-img')).toHaveCSS('image-rendering', 'pixelated');
+});
+
+test('companion: with reduced motion it shows the still portrait', async ({ browser }) => {
+  const ctx = await browser.newContext({ reducedMotion: 'reduce' });
+  const page = await ctx.newPage();
+  await page.goto('/?tour=0');
+  await ready(page);
+  await page.evaluate(() => window.guide.companion.ready);
+  await expect(page.locator('.companion-btn img')).toHaveAttribute('src', /portrait\.png$/);
+  await ctx.close();
+});

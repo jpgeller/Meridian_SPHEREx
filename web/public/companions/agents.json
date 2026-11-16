@@ -1,0 +1,90 @@
+[
+  {
+    "id": "agent-0502",
+    "name": "João Paulo",
+    "team": null,
+    "role": null,
+    "description": "Cream jacket",
+    "portrait": "agent-0502/portrait.png",
+    "speaking": "agent-0502/speaking.png",
+    "idle": "agent-0502/idle.webp",
+    "talking": "agent-0502/talking.webp"
+  },
+  {
+    "id": "agent-0503",
+    "name": "Halytza",
+    "team": null,
+    "role": null,
+    "description": "Headphones and puffer jacket",
+    "portrait": "agent-0503/portrait.png",
+    "speaking": "agent-0503/speaking.png",
+    "idle": "agent-0503/idle.webp",
+    "talking": "agent-0503/talking.webp"
+  },
+  {
+    "id": "agent-0504",
+    "name": "George",
+    "team": null,
+    "role": null,
+    "description": "Beard and brown shirt",
+    "portrait": "agent-0504/portrait.png",
+    "speaking": "agent-0504/speaking.png",
+    "idle": "agent-0504/idle.webp",
+    "talking": "agent-0504/talking.webp"
+  },
+  {
+    "id": "agent-0505",
+    "name": "Yassin",
+    "team": null,
+    "role": null,
+    "description": "Glasses and curly hair",
+    "portrait": "agent-0505/portrait.png",
+    "speaking": "agent-0505/speaking.png",
+    "idle": "agent-0505/idle.webp",
+    "talking": "agent-0505/talking.webp"
+  },
+  {
+    "id": "agent-0506",
+    "name": "Janisha",
+    "team": null,
+    "role": null,
+    "description": "Wavy hair and green sweater",
+    "portrait": "agent-0506/portrait.png",
+    "speaking": "agent-0506/speaking.png",
+    "idle": "agent-0506/idle.webp",
+    "talking": "agent-0506/talking.webp"
+  },
+  {
+    "id": "agent-0507",
+    "name": "Erina",
+    "team": null,
+    "role": null,
+    "description": "Long straight hair and necklace",
+    "portrait": "agent-0507/portrait.png",
+    "speaking": "agent-0507/speaking.png",
+    "idle": "agent-0507/idle.webp",
+    "talking": "agent-0507/talking.webp"
+  },
+  {
+    "id": "agent-0508",
+    "name": "Chyu",
+    "team": null,
+    "role": null,
+    "description": "Black hoodie",
+    "portrait": "agent-0508/portrait.png",
+    "speaking": "agent-0508/speaking.png",
+    "idle": "agent-0508/idle.webp",
+    "talking": "agent-0508/talking.webp"
+  },
+  {
+    "id": "agent-0509",
+    "name": "João Victor",
+    "team": null,
+    "role": null,
+    "description": "Wavy hair, mustache and headphones around neck",
+    "portrait": "agent-0509/portrait.png",
+    "speaking": "agent-0509/speaking.png",
+    "idle": "agent-0509/idle.webp",
+    "talking": "agent-0509/talking.webp"
+  }
+]

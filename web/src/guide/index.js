@@ -14,6 +14,7 @@
 import { createRegistry } from './registry.js';
 import { createOverlay, QUIET_SOURCES, FLY_MS } from './overlay.js';
 import { createPopup } from './popup.js';
+import { createCompanion } from './companion.js';
 import { createRunner } from './runner.js';
 import { fallbackScript } from './fallback.js';
 import { startAttention } from './attention.js';
@@ -114,6 +115,15 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
           }
         }, 150);
       }),
+  });
+  // the guide's face: the companion the person picked (key C); it talks while the card speaks
+  const companion = createCompanion({
+    commands,
+    popup,
+    greet: (a) => {
+      if (held || popup.isOpen() || runner.isRunning() || pending) return;
+      void popup.say({ title: `Hi, I'm ${a.name}!`, say: "I'll be your guide to the SPHEREx sky. Press AI Guide (key A) whenever you want me.", answers: ['got_it'], auto: 5000 });
+    },
   });
   // trigger: 'object' | 'change' | 'colours'; target: { id, name } or an id
   const fallback = (trigger, target) =>
@@ -326,6 +336,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
     say: popup.say,
     dismiss: popup.dismiss,
     popup,
+    companion,
     run: runner.runScript,
     fallback,
     stop: () => {

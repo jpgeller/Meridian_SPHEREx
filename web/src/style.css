@@ -2038,3 +2038,196 @@ button[role='switch'][aria-checked='true']::before {
   color: var(--text);
   font: inherit;
 }
+
+/* --- the guide's companion (guide/companion.js): a pixel-art helper beside the pill and in the card's header.
+   Square boxes of a fixed size (the idle and talking loops never make it jump) and nearest-neighbour scaling. --- */
+.guide-corner {
+  position: fixed;
+  z-index: 50;
+  top: var(--edge-y);
+  right: var(--edge-x);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.guide-corner .guide-pill {
+  position: static;
+}
+body.field-open .guide-corner {
+  top: calc(var(--edge-y) + 4px);
+  right: calc(var(--edge-x) + 330px);
+}
+/* the card took the corner: the companion speaks from the card's header */
+.guide-corner:has(.guide-pill[hidden]) .companion-btn {
+  display: none;
+}
+.companion-btn {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 1px solid rgba(255, 181, 71, 0.35);
+  border-radius: 50%;
+  background: var(--surface);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  cursor: pointer;
+}
+.companion-btn:hover {
+  border-color: var(--accent);
+}
+.companion-btn:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+.companion-img,
+.gp-companion,
+.cp-agent img {
+  display: block;
+  image-rendering: pixelated;
+  -webkit-user-drag: none;
+  user-select: none;
+  pointer-events: none;
+}
+.companion-btn .companion-img {
+  width: 100%;
+  height: 100%;
+}
+body[data-input='gaze'] .companion-btn {
+  width: var(--target);
+  height: var(--target);
+}
+.gp-head .gp-companion {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  margin: -6px 0 -6px -4px;
+}
+.gp-who {
+  color: var(--text);
+  font-weight: 600;
+  font-size: var(--fs-m);
+}
+.gp-who:empty {
+  display: none;
+}
+
+/* the picker: a dialog in the middle of the screen (well inside the 6% edges), eight big buttons */
+.companion-picker {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 7, 18, 0.55);
+}
+.companion-picker[hidden] {
+  display: none;
+}
+.cp-box {
+  width: min(760px, calc(100vw - 2 * var(--edge-x)));
+  max-height: calc(100vh - 2 * var(--edge-y));
+  overflow: auto;
+  box-sizing: border-box;
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  border: 1px solid rgba(255, 181, 71, 0.3);
+  border-radius: 18px;
+  background: var(--surface);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+.cp-head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.cp-sub {
+  margin: 2px 0 var(--space-3);
+  color: var(--muted);
+  font-size: var(--fs-s);
+}
+.cp-teams {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.cp-teams[hidden] {
+  display: none;
+}
+.cp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-2);
+}
+.cp-agent,
+.cp-team,
+.cp-done {
+  border: 2px solid transparent;
+  border-radius: var(--radius-l);
+  background: var(--control);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.cp-agent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-2) var(--space-2) var(--space-3);
+}
+.cp-agent img {
+  width: 128px;
+  height: 128px;
+}
+.cp-name {
+  font-weight: 600;
+  font-size: var(--fs-m);
+}
+.cp-line {
+  color: var(--muted);
+  font-size: var(--fs-s);
+}
+.cp-agent:hover,
+.cp-team:hover,
+.cp-done:hover {
+  background: var(--control-hover);
+}
+.cp-agent[aria-pressed='true'],
+.cp-team[aria-pressed='true'] {
+  border-color: var(--accent);
+}
+.cp-agent:focus-visible,
+.cp-team:focus-visible,
+.cp-done:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+.cp-team {
+  padding: 0 var(--space-4);
+}
+.cp-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-3);
+}
+.cp-done {
+  min-width: 120px;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #1a1206;
+  font-weight: 600;
+}
+.cp-done:hover {
+  background: var(--accent);
+  filter: brightness(1.08);
+}
+/* short screens: smaller pictures so the eight fit without scrolling */
+@media (max-height: 760px) {
+  .cp-agent img {
+    width: 96px;
+    height: 96px;
+  }
+}

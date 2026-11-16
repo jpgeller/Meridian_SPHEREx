@@ -73,6 +73,7 @@ test('every registered command runs once', async ({ page }) => {
       set_op: { op: 'none' },
       set_detector: { detector: 6 },
       set_show: { show: 'timelapse' },
+      set_companion: { id: 'agent-0505' },
     };
     // Field-only commands need the field view.
     const fieldOnly = new Set(['select_point', 'set_spectrum_view', 'show_sed']);
