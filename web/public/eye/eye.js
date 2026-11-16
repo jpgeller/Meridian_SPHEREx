@@ -13,6 +13,9 @@ const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const MODE = ['gaze', 'assist'].includes(params.get('mode')) ? params.get('mode') : 'gaze';
 const STORE_KEY = 'meridian.eye.engine';
+// The team's gaze engine (Yassin's laptop, through a fixed free ngrok address). Visitors need nothing else:
+// they press Start and allow the camera. ?engine=... still overrides it (tests, another engine).
+const DEFAULT_ENGINE = 'wss://crouch-bright-large.ngrok-free.dev';
 const MAX_W = 1280; // frames are sent at up to 1280 px wide: the model was trained on 1280 x 720 webcam frames
 const MIN_FRAME_MS = 66; // at most ~15 frames per second
 const DOT_MS = 1500; // the engine ignores the first 0.6 s of each dot (eyes landing), records the rest
@@ -69,10 +72,24 @@ function engineUrl(text) {
   }
 }
 const input = $('engine-url');
-input.value = params.get('engine') || localStorage.getItem(STORE_KEY) || '';
-$('engine-hint').textContent = input.value
-  ? 'Provided by the person running the engine.'
-  : 'Paste the address the engine owner gave you (it starts with wss://).';
+input.value = params.get('engine') || DEFAULT_ENGINE || localStorage.getItem(STORE_KEY) || '';
+// With a known engine the address field stays out of the way: one button, then the camera prompt.
+const engineFields = [input, $('engine-hint'), document.querySelector('label[for="engine-url"]')];
+if (input.value) {
+  engineFields.forEach((el) => el && (el.hidden = true));
+  const change = document.createElement('button');
+  change.type = 'button';
+  change.className = 'link';
+  change.textContent = 'Use a different engine';
+  change.addEventListener('click', () => {
+    engineFields.forEach((el) => el && (el.hidden = false));
+    change.remove();
+    input.focus();
+  });
+  $('consent-error').after(change);
+} else {
+  $('engine-hint').textContent = 'Paste the address the engine owner gave you (it starts with wss://).';
+}
 
 // ---------------------------------------------------------------------------------------------- status chip
 const chip = $('chip');
@@ -134,7 +151,7 @@ function connect() {
     if (engine.stopped) return;
     if (e.code === 4003) return fail('The engine refused this website. Its owner must start it with --allow-origin ' + location.origin);
     if (e.code === 4008) return status('The engine is busy with other visitors. Retrying…', true), retry();
-    status('Eye tracking: engine unreachable, retrying… (is the engine and its tunnel running?)', true);
+    status('Eye tracking is offline right now (the engine is not running). Retrying… Meridian works with mouse and keyboard meanwhile.', true);
     retry();
   };
   ws.onerror = () => {};

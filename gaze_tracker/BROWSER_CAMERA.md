@@ -3,13 +3,16 @@
 Visitors open the deployed Meridian, allow their camera, and control it with their eyes. Their browser sends
 camera frames to **your laptop**, which runs the gaze model (UniGaze + our trained head, MediaPipe head
 features, each visitor's own calibration and smoothing) and sends back where they look. Everything is free:
-Render's free tier for the website, a Cloudflare quick tunnel for your laptop.
+Render's free tier for the website, ngrok's free static domain for your laptop.
+
+**Live site:** https://meridian-spherex-xmhp.onrender.com/eye.html (the engine address
+`wss://crouch-bright-large.ngrok-free.dev` is built into the page, so visitors only press Start and allow the camera).
 
 ```
 visitor's browser  https://<app>.onrender.com/eye.html        (camera permission, calibration, Meridian)
       │  JPEG frames (wss://)                 ▲ gaze points
       ▼                                       │
-Cloudflare quick tunnel  https://<random>.trycloudflare.com   (free, no account)
+ngrok free static domain  https://crouch-bright-large.ngrok-free.dev   (free account)
       │
 your laptop:  python gaze_tracker/gaze_server.py              (GPU, the model)
 ```
@@ -23,7 +26,8 @@ the documented `gaze` / `face` messages (docs/EYE_TRACKING.md). `/` still works 
 conda activate nasa-gaze
 cd D:\Meridian_SPHEREx\gaze_tracker
 pip install -r requirements-server.txt          # adds the `websockets` package
-winget install --id Cloudflare.cloudflared       # the free tunnel (or download cloudflared.exe from Cloudflare)
+winget install --id ngrok.ngrok                  # the free tunnel
+ngrok config add-authtoken <token from dashboard.ngrok.com>
 ```
 
 ## Every time you demo (two PowerShell windows, keep both open)
@@ -33,26 +37,20 @@ Window 1, the engine (put the deployed site's address after `--allow-origin`):
 ```powershell
 conda activate nasa-gaze
 cd D:\Meridian_SPHEREx\gaze_tracker
-python gaze_server.py --allow-origin https://YOUR-APP.onrender.com
+python gaze_server.py --allow-origin https://meridian-spherex-xmhp.onrender.com
 ```
 
 Wait for `gaze engine on ws://127.0.0.1:8766/`.
 
-Window 2, the tunnel:
+Window 2, the tunnel (same address every time):
 
 ```powershell
-cloudflared tunnel --url http://localhost:8766
+ngrok http 8766 --url=crouch-bright-large.ngrok-free.dev
 ```
 
-It prints an address like `https://quiet-river-1234.trycloudflare.com` (new each time you start it).
+Then share: **https://meridian-spherex-xmhp.onrender.com/eye.html**
 
-Then share this link (replace both parts):
-
-```
-https://YOUR-APP.onrender.com/eye.html?engine=wss://quiet-river-1234.trycloudflare.com
-```
-
-The visitor clicks **Allow camera and start**, allows the camera, chooses **Calibrate** (about 4 minutes:
+The visitor clicks **Start eye tracking**, allows the camera, chooses **Calibrate** (about 4 minutes:
 100 dots, then a dot on each button) and then controls Meridian with their eyes. `&mode=assist` in the link
 makes gaze only help the AI guide (never presses anything).
 
@@ -69,8 +67,8 @@ makes gaze only help the AI guide (never presses anything).
 * **Test without the website:** run Meridian locally (`cd web && npm run dev`), start the engine, and open
   `http://localhost:5173/eye.html?engine=ws://localhost:8766` (no tunnel needed).
 * **Test without the model:** `python gaze_server.py --simulate` sends fake gaze (checks the page and the tunnel).
-* A stable address instead of a new random one each time needs a (free) Cloudflare account with your own domain,
-  or ngrok's one free static domain: `ngrok http 8766 --url=<your-static-domain>`.
+* Another engine (e.g. a Cloudflare quick tunnel) still works with `/eye.html?engine=wss://<address>`, or the page's
+  "Use a different engine" link.
 
 ## Files
 
