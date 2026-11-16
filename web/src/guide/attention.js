@@ -365,6 +365,7 @@ export function startAttention({ guide, startGuide, onMoment = () => false, stor
     if (!r) {
       ringAt = null;
       layer.classList.remove('is-on');
+      if (guide.popup?.pillState?.() === 'noticing') guide.popup.setPillState('idle');
       return;
     }
     // around a sky object: on the object; around a control or a big box: where the person looks
@@ -376,6 +377,7 @@ export function startAttention({ guide, startGuide, onMoment = () => false, stor
     fill.setAttribute('stroke-dashoffset', String(len * (1 - r.progress)));
     layer.dataset.target = r.id;
     layer.classList.toggle('is-on', !orbOut);
+    if (guide.popup?.pillState?.() === 'idle') guide.popup.setPillState('noticing');
   }
   guide.overlay.setAvoid(() => (ringAt ? [{ x: ringAt.x, y: ringAt.y, r: RING_R + 8 }] : []));
   // one indicator per spot: the dwell ring goes the moment the guide's orb arrives at a target, and

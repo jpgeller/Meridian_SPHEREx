@@ -25,6 +25,6 @@ Decisions (Nov 15, 2026):
 ## P1
 - [x] Insight-first copy
 - [x] New budgets + 5-min "Not now" + teaser auto-collapse
-- [ ] Pill states
+- [x] Pill states (teaser = compact offer card; Muted look + popup.setMuted, control is P2)
 - [ ] Dynamic pill menu
 - [ ] Arrival trigger

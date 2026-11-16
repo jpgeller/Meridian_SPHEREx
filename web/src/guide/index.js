@@ -127,6 +127,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
     const ctrl = new AbortController();
     pending = ctrl;
     overlay.clear(); // B3: the "Thinking…" card starts from a clean screen (the script re-draws its marks)
+    popup.setPillState('thinking');
     const t = describeTarget(target);
     let outcome = null;
     const cancel = (how) => {
@@ -163,6 +164,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
     } finally {
       window.removeEventListener('meridian:command', onCommand);
       if (pending === ctrl) pending = null;
+      if (popup.pillState() === 'thinking') popup.setPillState('idle');
     }
     if (outcome || ctrl.signal.aborted) {
       console.info(`[guide] /api/guide ${outcome ?? 'stopped'} (trigger=${trigger})`);
@@ -286,6 +288,14 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
     },
     true,
   );
+  // pill states: guiding while a script runs (the orb is out), back to idle when it ends
+  const runScript = runner.runScript;
+  runner.runScript = (script, o) => {
+    popup.setPillState('guiding');
+    return runScript(script, o).finally(() => {
+      if (!runner.isRunning() && popup.pillState() === 'guiding') popup.setPillState('idle');
+    });
+  };
   overlay.park(); // idle: nothing floats; the orb is in the pill
 
   const guide = {
@@ -357,7 +367,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
       }
       return startGuide('explore', target ?? null, { offer, moment });
     },
-    isBusy: () => popup.isOpen() || runner.isRunning() || !!pending,
+    isBusy: () => popup.isOpen() || runner.isRunning() || !!pending || popup.isMuted(),
     canShow: (id) => !!registry.resolve(id),
   });
   const interest = createInterest({ onMoment: (m) => void nudge.handle(m), isPresetTarget });
@@ -371,6 +381,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
   // Dwell moments: a long look at a control, at a star that is not one of the places, or replays outside
   // a place's time-lapse go to the proactive guide; places and the colours keep their local tutorials.
   const onMoment = ({ trigger, target }) => {
+    if (popup.isMuted()) return true; // Muted: no proactive offers at all
     if (trigger === 'feature') {
       void nudge.handle({ moment: `feature:${target}` });
       return true;

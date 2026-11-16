@@ -1714,3 +1714,22 @@ button[role='switch'][aria-checked='true']::before {
 .gaze-ws-chip[data-state='live'] {
   color: #7ee2a8;
 }
+
+/* AI guide pill states (spec "Pill states"): idle breathes slowly; noticing brightens; thinking spins a thin
+   arc; guiding dims the seat (the orb is out); muted is grey */
+.guide-pill[data-state='idle'] .gp-orb { animation: gp-breathe 4s ease-in-out infinite; }
+.guide-pill[data-state='noticing'] .gp-orb { animation: none; transform: scale(1.25); box-shadow: 0 0 16px rgba(255, 177, 92, 1); }
+.guide-pill[data-state='thinking'] .gp-orb,
+.guide-popup[data-state='thinking'] .gp-orb {
+  animation: gp-spin 0.9s linear infinite;
+  background: transparent;
+  box-shadow: none;
+  border: 2px solid rgba(255, 177, 92, 0.25);
+  border-top-color: #ffb15c;
+}
+.guide-pill[data-state='muted'] .gp-orb { animation: none; background: #8a8f9c; box-shadow: none; }
+.guide-pill[data-state='muted'] { color: var(--muted, #9aa3b5); }
+@keyframes gp-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .guide-pill .gp-orb, .guide-popup .gp-orb { animation: none !important; }
+}

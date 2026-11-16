@@ -274,6 +274,16 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
   pill.title = 'AI Guide (key A)';
   pill.innerHTML = '<span class="gp-orb" aria-hidden="true"></span>AI Guide';
   pill.addEventListener('click', () => onPill());
+  // pill states (spec, "Pill states"): idle | noticing | teaser | thinking | guiding | muted (CSS keys off data-state)
+  let pillState = 'idle';
+  let muted = false;
+  const setPillState = (s) => {
+    pillState = muted && s === 'idle' ? 'muted' : s;
+    pill.dataset.state = pillState;
+    card.dataset.state = pillState;
+    pill.lastChild.textContent = pillState === 'muted' ? 'Guide paused' : 'AI Guide';
+  };
+  setPillState('idle');
 
   // a separate, always-present live region: a region that appears with its text is often not read
   const live = doc.createElement('div');
@@ -391,7 +401,10 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
       card.hidden = true;
       card.classList.remove('is-leaving');
       answersEl.replaceChildren();
-      if (!open) pill.hidden = false;
+      if (!open) {
+        pill.hidden = false;
+        if (pillState === 'teaser') setPillState('idle');
+      }
     };
     if (reduced()) hide();
     else {
@@ -438,6 +451,7 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
     if (open) return Promise.resolve('busy');
     return new Promise((res) => {
       open = { kind: 'offer', resolve: res, key: k, onYes, onNo, target };
+      setPillState('teaser');
       render('offer', { title: line, sub: clipWords(sub, 20).text }, [
         { id: 'yes', label: yes },
         { id: 'no', label: no },
@@ -523,6 +537,14 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
     kind: () => open?.kind ?? null,
     spot: () => (open ? card.dataset.spot : null),
     setAutoHide,
+    setPillState,
+    pillState: () => pillState,
+    /** Muted: proactive offers paused (grey orb, "Guide paused"). The control itself is P2. */
+    setMuted(on) {
+      muted = !!on;
+      setPillState(muted ? 'muted' : 'idle');
+    },
+    isMuted: () => muted,
     autoHide: () => autoHide,
     cooldown,
     element: card,
