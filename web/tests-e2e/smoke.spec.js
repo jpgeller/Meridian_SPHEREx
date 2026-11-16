@@ -613,7 +613,8 @@ test('guide pill: waits top right with the orb inside it (nothing floats beside 
   expect(await page.evaluate(() => [...document.querySelectorAll('#guide-overlay .go-pointer')].filter((e) => !e.classList.contains('is-hidden')).length)).toBe(0);
   await expect(pill.locator('.gp-orb')).toBeVisible();
   expect(await page.evaluate(() => guide.overlay.active())).toEqual([]);
-  // key A: the menu, in the pill's place
+  // key A: the menu, in the pill's place (no model here: the fixed three)
+  await page.route('**/api/guide/nudge', (r) => r.fulfill({ json: { fallback: true, reason: 'test' } }));
   await page.keyboard.press('a');
   await expect(card).toContainText('What can I show you?');
   await expect(pill).toBeHidden();
@@ -710,7 +711,7 @@ test('guide attention: resting the mouse on Barnard\'s Star for 5 s shows the of
   await expect(ring).toHaveClass(/is-on/, { timeout: 4000 });
   await expect(ring).toHaveAttribute('data-target', 'sky:barnard');
   expect(Date.now() - t0).toBeGreaterThan(1000); // not before 1.2 s
-  await expect(card).toContainText('Want to know what this is?', { timeout: 10000 });
+  await expect(card).toContainText(/fastest-moving star|Notice this object/, { timeout: 10000 });
   await expect(card).toContainText('You have been looking at it for 5 seconds.');
   expect(Date.now() - t0).toBeGreaterThan(4500); // about 5 s (a mouse that rests that long means interest; gaze: 7 s)
   await expect(ring).not.toHaveClass(/is-on/);
@@ -751,7 +752,7 @@ test('guide attention: with ?gaze=off the mouse is ignored; gaze samples (U9 fee
     clearInterval(window.__gaze);
     window.__gaze = setInterval(() => guide.attention.feed({ x, y, t: performance.now(), confidence: 0.9 }), 33);
   }, d6);
-  await expect(card).toContainText('Wondering about these colours?', { timeout: 5000 });
+  await expect(card).toContainText(/You're on D\d/, { timeout: 5000 });
   await card.getByRole('button', { name: 'Not now' }).click();
   await expect(card).toBeHidden();
   expect(await page.evaluate(() => guide.popup.cooldown.isCooling('colours'))).toBe(true);
@@ -770,7 +771,7 @@ test('guide attention: stepping back and forth in a time-lapse offers "what chan
   for (const k of ['.', '.', ',', '.']) await page.keyboard.press(k); // 0 → 1 → 2 → 1 → 2: two turns
   await expect(card).toBeHidden();
   await page.keyboard.press(','); // a third turn
-  await expect(card).toContainText('Trying to spot what changed?');
+  await expect(card).toContainText('Something here may move between frames');
   await card.getByRole('button', { name: 'Yes, tell me' }).click();
   await expect(card).toContainText('This is the first picture');
   await expect.poll(() => page.evaluate(() => meridian.store.get().frameIndex)).toBe(0);

@@ -12,7 +12,7 @@
 //   offer({ text, sub?, onYes, onNo?, target?, key? }) -> Promise<'yes'|'no'|'timeout'|'dismissed'|'replaced'|'cooling'|'busy'>
 //        A bold question + a muted line + "Yes, tell me" / "Not now". Hides itself after AUTO_HIDE_MS
 //        if ignored (unless auto-hide is off: gaze mode, U9); then the same target (or key, or text)
-//        is not offered again for COOLDOWN_MS. "Not now" (or ✕) blocks it for the whole session.
+//        is not offered again for COOLDOWN_MS. "Not now" (or ✕) rests it for 5 minutes.
 //        Not shown while another card is open ('busy'). Offers are local: nothing here calls the API.
 //   say(step) -> Promise<answer id>
 //        step = 'text' | { say, title?, sub?, facts?: [[term, value]], answers?, step?: '1 / 3',
@@ -35,8 +35,9 @@
 
 import { hits } from './overlay.js';
 
-export const AUTO_HIDE_MS = 14000; // an ignored offer leaves by itself (the bar along the bottom shows it)
+export const AUTO_HIDE_MS = 8000; // an ignored offer leaves by itself (the bar along the bottom shows it)
 export const COOLDOWN_MS = 60000;
+export const NOT_NOW_MS = 300000; // "Not now" (or ✕) rests that offer for 5 minutes
 export const MAX_WORDS = 45; // "about 40": longer steps are cut with an ellipsis
 export const MAX_ANSWERS = 3;
 export const ANSWERS = {
@@ -273,6 +274,16 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
   pill.title = 'AI Guide (key A)';
   pill.innerHTML = '<span class="gp-orb" aria-hidden="true"></span>AI Guide';
   pill.addEventListener('click', () => onPill());
+  // pill states (spec, "Pill states"): idle | noticing | teaser | thinking | guiding | muted (CSS keys off data-state)
+  let pillState = 'idle';
+  let muted = false;
+  const setPillState = (s) => {
+    pillState = muted && s === 'idle' ? 'muted' : s;
+    pill.dataset.state = pillState;
+    card.dataset.state = pillState;
+    pill.lastChild.textContent = pillState === 'muted' ? 'Guide paused' : 'AI Guide';
+  };
+  setPillState('idle');
 
   // a separate, always-present live region: a region that appears with its text is often not read
   const live = doc.createElement('div');
@@ -390,7 +401,10 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
       card.hidden = true;
       card.classList.remove('is-leaving');
       answersEl.replaceChildren();
-      if (!open) pill.hidden = false;
+      if (!open) {
+        pill.hidden = false;
+        if (pillState === 'teaser') setPillState('idle');
+      }
     };
     if (reduced()) hide();
     else {
@@ -413,8 +427,8 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
     } else returnFocus = null;
     if (was.kind === 'offer') {
       const result = outcome === 'yes' ? 'yes' : outcome === 'close' ? 'dismissed' : outcome;
-      // "Not now" or ✕: not this object again in this session; ignored: a minute's rest
-      cooldown.mark(was.key, result === 'no' || result === 'dismissed' ? Infinity : COOLDOWN_MS);
+      // "Not now" or ✕: not this object again for 5 minutes; ignored: a minute's rest
+      cooldown.mark(was.key, result === 'no' || result === 'dismissed' ? NOT_NOW_MS : COOLDOWN_MS);
       const cb = result === 'yes' ? was.onYes : result === 'replaced' ? null : was.onNo;
       was.resolve(result);
       try {
@@ -437,6 +451,7 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
     if (open) return Promise.resolve('busy');
     return new Promise((res) => {
       open = { kind: 'offer', resolve: res, key: k, onYes, onNo, target };
+      setPillState('teaser');
       render('offer', { title: line, sub: clipWords(sub, 20).text }, [
         { id: 'yes', label: yes },
         { id: 'no', label: no },
@@ -522,6 +537,14 @@ export function createPopup({ doc = document, onPill = () => {} } = {}) {
     kind: () => open?.kind ?? null,
     spot: () => (open ? card.dataset.spot : null),
     setAutoHide,
+    setPillState,
+    pillState: () => pillState,
+    /** Muted: proactive offers paused (grey orb, "Guide paused"). The control itself is P2. */
+    setMuted(on) {
+      muted = !!on;
+      setPillState(muted ? 'muted' : 'idle');
+    },
+    isMuted: () => muted,
     autoHide: () => autoHide,
     cooldown,
     element: card,

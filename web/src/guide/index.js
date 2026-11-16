@@ -127,6 +127,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
     const ctrl = new AbortController();
     pending = ctrl;
     overlay.clear(); // B3: the "Thinking…" card starts from a clean screen (the script re-draws its marks)
+    popup.setPillState('thinking');
     const t = describeTarget(target);
     let outcome = null;
     const cancel = (how) => {
@@ -151,7 +152,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
         trigger,
         target: t,
         state,
-        facts: gatherFacts({ state, target: t, player, spectrum, wavelengths: sky.wavelengths }),
+        facts: gatherFacts({ state, target: t, player, spectrum, wavelengths: sky.wavelengths, fieldPreset: t?.id === 'field:target' ? fieldPreset() : null }),
         commands: commands.list(),
         ids: registry.list().map((x) => x.id),
         offer,
@@ -163,6 +164,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
     } finally {
       window.removeEventListener('meridian:command', onCommand);
       if (pending === ctrl) pending = null;
+      if (popup.pillState() === 'thinking') popup.setPillState('idle');
     }
     if (outcome || ctrl.signal.aborted) {
       console.info(`[guide] /api/guide ${outcome ?? 'stopped'} (trigger=${trigger})`);
@@ -257,6 +259,14 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
   async function ask() {
     guide.stop();
     overlay.clear(); // B3: the menu shows no earlier ring or label
+    // the dynamic menu: Claude's options for this view (shared visit budget); the fixed three on any failure
+    let closed = false;
+    popup.setPillState('thinking');
+    popup.say({ say: 'Thinking…', answers: ['close'] }).then((x) => (closed = x !== 'replaced'));
+    const target = centre();
+    const dyn = await nudge.menu(target ? { target } : {});
+    if (popup.pillState() === 'thinking') popup.setPillState('idle');
+    if (dyn !== null || closed) return dyn ?? 'closed';
     const a = await popup.say(menuCard());
     if (a === 'here') return hereTour();
     if (a === 'moving') return tour('motion', 'barnard');
@@ -286,6 +296,14 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
     },
     true,
   );
+  // pill states: guiding while a script runs (the orb is out), back to idle when it ends
+  const runScript = runner.runScript;
+  runner.runScript = (script, o) => {
+    popup.setPillState('guiding');
+    return runScript(script, o).finally(() => {
+      if (!runner.isRunning() && popup.pillState() === 'guiding') popup.setPillState('idle');
+    });
+  };
   overlay.park(); // idle: nothing floats; the orb is in the pill
 
   const guide = {
@@ -334,7 +352,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
         target: t,
         state,
         profile: interest.profile(),
-        facts: gatherFacts({ state, target: t, player, spectrum, wavelengths: sky.wavelengths }),
+        facts: gatherFacts({ state, target: t, player, spectrum, wavelengths: sky.wavelengths, fieldPreset: t?.id === 'field:target' ? fieldPreset() : null }),
         commands: commands.list(),
         ids: registry.list().map((x) => x.id),
       });
@@ -357,10 +375,14 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
       }
       return startGuide('explore', target ?? null, { offer, moment });
     },
-    isBusy: () => popup.isOpen() || runner.isRunning() || !!pending,
+    isBusy: () => popup.isOpen() || runner.isRunning() || !!pending || popup.isMuted(),
     canShow: (id) => !!registry.resolve(id),
   });
-  const interest = createInterest({ onMoment: (m) => void nudge.handle(m), isPresetTarget });
+  // arrival: the teaser comes 0.5 s after landing (the sky has redrawn, so the pointer finds the place)
+  const interest = createInterest({
+    onMoment: (m) => (m.moment === 'arrival' ? setTimeout(() => !popup.isMuted() && void nudge.handle(m), 500) : void nudge.handle(m)),
+    isPresetTarget,
+  });
   window.addEventListener('meridian:command', (e) => interest.command(e.detail));
   store.subscribe((s) => interest.observe(s));
   interest.observe(store.get());
@@ -371,6 +393,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
   // Dwell moments: a long look at a control, at a star that is not one of the places, or replays outside
   // a place's time-lapse go to the proactive guide; places and the colours keep their local tutorials.
   const onMoment = ({ trigger, target }) => {
+    if (popup.isMuted()) return true; // Muted: no proactive offers at all
     if (trigger === 'feature') {
       void nudge.handle({ moment: `feature:${target}` });
       return true;

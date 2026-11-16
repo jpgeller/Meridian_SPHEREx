@@ -2,15 +2,17 @@
 // offer in the top-right card, with 2-3 buttons, after the pointer has flown to what it is about.
 // Claude writes the offer (POST /api/guide/nudge, see api/guide.py); this module keeps it cheap:
 //
-//   - budget: at most one Claude call per `gapMs` (45 s), `maxPerVisit` (15) per visit (sessionStorage),
-//     never while a card, a tour or a request is busy, no two offers within `offerGapMs` (30 s);
-//     a moment's topic rests `topicMs` (3 min) after
-//     an offer; "Not now" blocks that topic for the visit.
+//   - budget: at most one Claude call per `gapMs` (15 s), `maxPerVisit` (40) per visit (sessionStorage),
+//     never while a card, a tour or a request is busy, no two offers within `offerGapMs` (15 s);
+//     a moment's topic rests `topicMs` (90 s) after an offer; "Not now" mutes that topic for 5 minutes;
+//     three "Not now" in a row -> one "Fewer suggestions?" (yes: half the rate). Ignored offers collapse after 8 s.
 //   - local fallback: no key, a timeout, an invalid reply or an empty budget -> a fixed local offer for
 //     that moment (FALLBACK below), so the guide never goes silent, at zero tokens.
 //   - options: apply (run the setup now: commands/clicks, local), tour (a built-in tour), explain
 //     (a short Claude tour about the offer: counted in the visit budget), plus "Not now".
-//   - objects (B7, moment "object", never one of the 7 places): explain asks for an object explanation
+//   - places (moment "object" with a sky:<place> target): no Claude offer -> presetOffer, the card's hook +
+//     first fact with its suggested tours (local, zero tokens).
+//   - objects (B7, moment "object", not one of the 7 places): explain asks for an object explanation
 //     (trigger "object" with the target); no Claude offer -> a local "Yes, tell me" offer naming it;
 //     visit budget spent -> the local object script (explain with local: true), no API call.
 //
@@ -19,45 +21,67 @@
 //
 // Pure apart from what is injected (unit-tested in tests/interest.test.js with fakes).
 
+import { factsFor } from '../sky/presetFacts.js';
+
 export const DEFAULTS = Object.freeze({
-  gapMs: 45000,
-  maxPerVisit: 15,
-  topicMs: 180000,
-  offerGapMs: 30000, // no two offers of any kind (Claude or local) closer than this
-  autoHideMs: 14000,
+  gapMs: 15000,
+  maxPerVisit: 40,
+  topicMs: 90000,
+  offerGapMs: 15000, // no two offers of any kind (Claude or local) closer than this
+  autoHideMs: 8000, // an ignored offer collapses after this, with no penalty
+  muteMs: 300000, // "Not now" mutes that topic for 5 minutes
+  fewerAfter: 3, // this many "Not now" in a row -> ask once "Fewer suggestions?"
 });
 const STORE_KEY = 'meridian.guide.nudges';
 
 // Local offers when Claude is not available (or the budget is spent). Same shape as a Claude reply.
 export const FALLBACK = {
-  bands: { title: '102 infrared colours', line: 'You are trying different bands. Want a quick tour of what each detector shows?', point: 'band-ribbon',
+  bands: { title: '102 infrared colours', line: 'Notice how the sky changes from D1 to D6: cold dust and ices only glow at the long end. Tour the bands?', point: 'band-ribbon',
     options: [{ label: 'Tour the bands', kind: 'tour', tour: 'colours' }, { label: 'Try D6 (coldest)', kind: 'apply', actions: [{ click: 'band-d6' }] }] },
-  colours: { title: 'Colours are a choice', line: 'These colours paint infrared light. The Ices view shows cold, icy places well.', point: 'colour-views',
+  colours: { title: 'Colours are a choice', line: 'These colours paint invisible infrared light. See how the Ices view lights up cold, icy places?', point: 'colour-views',
     options: [{ label: 'Try the Ices view', kind: 'apply', actions: [{ cmd: 'set_color', args: { color: 'ice' } }] }, { label: 'Tour the colours', kind: 'tour', tour: 'colours' }] },
-  timelapse_start: { title: 'Real pictures, real dates', line: 'Each frame is a real SPHEREx picture of this spot. The change video makes motion easy to follow.', point: 'op-video',
+  timelapse_start: { title: 'Real pictures, real dates', line: 'Each frame is a real SPHEREx picture, taken on its own date. Watch the change video?', point: 'op-video',
     options: [{ label: 'Play the change video', kind: 'apply', actions: [{ click: 'op-video' }, { click: 'play' }] }, { label: 'Play the pictures', kind: 'apply', actions: [{ click: 'play' }] }] },
-  compare: { title: 'Ways to compare dates', line: 'Blink flips two dates to catch brightness changes; the change video follows things that move.', point: 'op-blink',
+  compare: { title: 'Ways to compare dates', line: 'Blink flips two dates, so brightness changes jump out. Try it?', point: 'op-blink',
     options: [{ label: 'Try Blink', kind: 'apply', actions: [{ click: 'op-blink' }] }, { label: 'Try the change video', kind: 'apply', actions: [{ click: 'op-video' }] }] },
-  motion: { title: 'Looking for a change?', line: 'The change video slides between the real pictures from 2010 to 2026, so motion is easy to see.', point: 'op-video',
+  motion: { title: 'Looking for a change?', line: 'Something here may move between frames. The change video spans 2010 to 2026. Play it?', point: 'op-video',
     options: [{ label: 'Play the change video', kind: 'apply', actions: [{ click: 'op-video' }, { click: 'play' }] }, { label: 'Show a moving star', kind: 'tour', tour: 'motion:barnard' }] },
-  zoomed: { title: 'See the real pictures', line: 'You are zoomed in. The real SPHEREx pictures of this spot are sharper, one per visit.', point: 'open-field',
+  zoomed: { title: 'See the real pictures', line: 'The real SPHEREx pictures of this spot are sharper, one per visit. Open them?', point: 'open-field',
     options: [{ label: 'Open the pictures', kind: 'apply', actions: [{ click: 'open-field' }] }, { label: 'Show a moving star', kind: 'tour', tour: 'motion:barnard' }] },
-  object_search: { title: 'Found it', line: 'This is where your search points. Zoom in and open the real pictures to see it in SPHEREx.', point: 'sky:target',
+  object_search: { title: 'Found it', line: 'Look here: this is where your search points. Open its real SPHEREx pictures?', point: 'sky:target',
     options: [{ label: 'Open the pictures', kind: 'apply', actions: [{ click: 'open-field' }] }, { label: 'What am I seeing?', kind: 'tour', tour: 'where' }] },
 };
 // a moment's topic: features share one per control, objects one per object
-export const topicOf = ({ moment, target } = {}) => (moment === 'object' && target?.id ? `object:${target.id}` : String(moment ?? ''));
+export const topicOf = ({ moment, target } = {}) =>
+  (moment === 'object' || moment === 'arrival') && target?.id ? `${moment}:${target.id}` : String(moment ?? '');
 // B7: an object (not one of the places) always gets an offer to explain it, named when we know its name
 export function objectOffer(target) {
   const name = typeof target?.name === 'string' && target.name.trim() ? target.name.trim() : null;
   return {
     title: name ?? 'This star',
-    line: `You've been looking at ${name ?? 'this star'}. Tell you what catalogs say about it?`,
+    line: `Look here: ${name ?? 'this star'}. Show you what catalogs list for it?`,
     point: target?.id ?? '',
     options: [{ label: 'Yes, tell me', kind: 'explain' }],
   };
 }
-const fallbackFor = (m) => (m?.moment === 'object' ? objectOffer(m.target) : FALLBACK[m?.moment] ?? null); // features: stay quiet
+// One of the 7 places (sky:<place>): the local offer opens with its fact card's hook and first fact, and its
+// buttons are the card's suggested actions as local tours (zero tokens), plus its own tour ("Tell me more").
+export function presetOffer(target) {
+  const card = factsFor(target?.id);
+  if (!card) return null;
+  const tours = (card.suggested_actions ?? []).map((a) => ({ label: a.label, kind: 'tour', tour: `${a.tour}:${card.id}` }));
+  if (!tours.some((o) => o.tour === `identify:${card.id}`)) tours.push({ label: 'Tell me more', kind: 'tour', tour: `identify:${card.id}` });
+  return { title: card.name, line: `${card.hook} ${card.facts[0]}`, point: target.id, options: tours.slice(0, 2) };
+}
+// Arrival at a place (spec, "Arrival trigger"): the card's hook plus its first suggested action, local (zero tokens)
+export function arrivalOffer(target) {
+  const card = factsFor(target?.id);
+  const first = card?.suggested_actions?.[0];
+  if (!card || !first) return null;
+  const offer = presetOffer(target);
+  return { ...offer, line: `${card.hook} ${first.label}?` };
+}
+const fallbackFor = (m) => (m?.moment === 'object' ? presetOffer(m.target) ?? objectOffer(m.target) : FALLBACK[m?.moment] ?? null); // features: stay quiet
 
 /**
  * @param {Object} o
@@ -81,7 +105,9 @@ export function createNudge({
   let lastShown = -Infinity;
   let pending = false;
   const rested = new Map(); // topic -> until
-  const blocked = new Set(); // "Not now" for this visit
+  const blocked = new Map(); // topic -> muted until ("Not now": 5 minutes)
+  let declines = 0; // "Not now" in a row
+  let askedFewer = false;
   const readCount = () => {
     try {
       return Number(storage?.getItem?.(STORE_KEY)) || 0;
@@ -154,15 +180,31 @@ export function createNudge({
     const i = /^o(\d)$/.exec(answer)?.[1];
     if (i == null) {
       overlay.clear();
-      if (answer === 'not_now') blocked.add(topicOf(m));
+      if (answer === 'not_now' && m.moment !== 'menu') {
+        blocked.set(topicOf(m), now() + o.muteMs);
+        declines += 1;
+        if (declines >= o.fewerAfter && !askedFewer) {
+          askedFewer = true;
+          const a = await say({ title: 'Fewer suggestions?', say: 'I can offer things half as often.', answers: [{ id: 'fewer', label: 'Yes, fewer' }, { id: 'keep', label: 'Keep as is' }] });
+          if (a === 'fewer') o = { ...o, gapMs: o.gapMs * 2, offerGapMs: o.offerGapMs * 2, topicMs: o.topicMs * 2 };
+        }
+      }
       return answer;
     }
+    declines = 0;
     return act(opts[Number(i)], offer, m);
   }
 
   async function handle(m) {
     const topic = topicOf(m);
-    if (!m?.moment || blocked.has(topic) || (rested.get(topic) ?? 0) > now() || pending || isBusy()) return 'skip';
+    if (!m?.moment || (blocked.get(topic) ?? 0) > now() || (rested.get(topic) ?? 0) > now() || pending || isBusy()) return 'skip';
+    if (m.moment === 'arrival') {
+      // the person just chose this place: a local teaser at once (no Claude call, no offer gap)
+      const offer = arrivalOffer(m.target);
+      if (!offer) return 'skip';
+      rested.set(topic, now() + o.topicMs);
+      return show(offer, m);
+    }
     if (now() - lastShown < o.offerGapMs) return 'skip';
     rested.set(topic, now() + o.topicMs);
     let offer = null;
@@ -186,9 +228,34 @@ export function createNudge({
     return show(offer, m);
   }
 
+  /**
+   * The pill (dynamic menu, spec "Context model"): Claude's options for what is on screen now, shown like an
+   * offer. Counts in the visit budget (not the gap: the person asked). -> outcome, or null when Claude is not
+   * available or the budget is spent (the caller shows the fixed menu).
+   */
+  async function menu(m = {}) {
+    if (calls >= o.maxPerVisit || pending) return null;
+    pending = true;
+    countCall();
+    let reply = null;
+    try {
+      reply = await ask(buildBody({ ...m, moment: 'menu' }));
+    } catch (err) {
+      log('menu failed', err);
+    } finally {
+      pending = false;
+    }
+    if (!reply || reply.fallback || !Array.isArray(reply.options) || !reply.options.length) {
+      log(`menu: fixed menu (${reply?.reason ?? 'no reply'})`);
+      return null;
+    }
+    return show(reply, { ...m, moment: 'menu' });
+  }
+
   return {
     handle,
-    snapshot: () => ({ calls, lastCall, pending, blocked: [...blocked], rested: Object.fromEntries(rested), budget: budgetReason() }),
+    menu,
+    snapshot: () => ({ calls, lastCall, pending, blocked: Object.fromEntries(blocked), declines, rested: Object.fromEntries(rested), budget: budgetReason() }),
     configure: (x = {}) => (o = { ...o, ...x }),
     reset() {
       calls = 0;
@@ -197,6 +264,8 @@ export function createNudge({
       writeCount(0);
       rested.clear();
       blocked.clear();
+      declines = 0;
+      askedFewer = false;
     },
   };
 }

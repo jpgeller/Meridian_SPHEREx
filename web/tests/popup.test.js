@@ -161,14 +161,14 @@ function fakeClock() {
   };
 }
 
-test('createTimer: fires after 14 s; pause keeps the time left; cancel stops it', () => {
+test('createTimer: fires after 8 s; pause keeps the time left; cancel stops it', () => {
   const clock = fakeClock();
   let fired = 0;
   const timer = createTimer(AUTO_HIDE_MS, () => fired++, clock);
-  assert.equal(AUTO_HIDE_MS, 14000);
+  assert.equal(AUTO_HIDE_MS, 8000);
   timer.start();
   assert.equal(timer.running(), true);
-  clock.advance(13999);
+  clock.advance(7999);
   assert.equal(fired, 0);
   clock.advance(1);
   assert.equal(fired, 1);
@@ -176,7 +176,7 @@ test('createTimer: fires after 14 s; pause keeps the time left; cancel stops it'
 
   // hover / focus on the card pauses it
   timer.start();
-  clock.advance(8000);
+  clock.advance(2000);
   timer.pause();
   clock.advance(60000);
   assert.equal(fired, 1, 'paused: no hide');

@@ -103,7 +103,8 @@ test('gatherFacts: band, preset, time-lapse, movers with a target match, spectru
   assert.ok(JSON.stringify(f).length < 2000, 'facts stay small');
   // the sky view: no field facts; a preset target brings its note
   const sky = gatherFacts({ state: { view: 'sky', band: 40 }, target: 'sky:barnard', player, spectrum });
-  assert.equal(sky.preset.label, "Barnard's Star");
+  assert.equal(sky.preset.name, "Barnard's Star");
+  assert.ok(sky.preset.hook && !sky.preset.sources, 'only the prompt card, no URLs');
   assert.equal(sky.timelapse, undefined);
   assert.equal(sky.band.wavelength_um, undefined);
   // a spectrum of another field is not used

@@ -196,6 +196,7 @@ class HeadTracker:
         self.last_ms = -1
         self.state = None
         self.features = None
+        self.landmarks = None  # the last MediaPipe face landmarks (Meridian's face panel draws them)
         from src.smoothing import OneEuroFilter
         self.filter = OneEuroFilter(min_cutoff=1.0, beta=5.0, d_cutoff=1.0)   # rotation units: calm when still
 
@@ -210,9 +211,11 @@ class HeadTracker:
         if not res.face_landmarks:
             self.state = None
             self.features = None
+            self.landmarks = None
             self.filter.reset()
             return None
         p = res.face_landmarks[0]
+        self.landmarks = p
         h_img, w_img = frame_bgr.shape[:2]
         pt = lambda i: np.array([p[i].x * w_img, p[i].y * h_img])
         a, b, n = pt(self.EYE_R_OUTER), pt(self.EYE_L_OUTER), pt(self.NOSE)

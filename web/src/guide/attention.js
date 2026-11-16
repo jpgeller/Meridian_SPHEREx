@@ -52,16 +52,25 @@ export const DEFAULTS = Object.freeze({
 export const MOUSE_DWELL_MS = 5000; // the mouse rests on a star or a control this long -> an offer
 
 export const TEXTS = Object.freeze({
-  object: 'Want to know what this is?',
-  change: 'Trying to spot what changed?',
-  colours: 'Wondering about these colours?',
+  object: 'Notice this object. Let me show you what it is.',
+  change: 'Something here may move between frames. Let me circle it.',
+  colours: 'Notice how cold dust and ices glow brighter toward D6.',
 });
-// the muted second line of an offer (wireframe v4): why the guide is asking now
+// the muted second line of an offer (wireframe v4): the offer, then why the guide is asking now
 export const SUBS = Object.freeze({
-  object: (s) => `You have been looking at it for ${s} seconds.`,
-  colours: (s) => `You have been looking at the colours for ${s} seconds.`,
-  change: () => 'You have replayed these pictures a few times.',
+  object: (s) => `Show you? You have been looking at it for ${s} seconds.`,
+  colours: (s) => `Show you? You have been looking at the colours for ${s} seconds.`,
+  change: () => 'Watch it? You replayed these pictures a few times.',
 });
+// insight first (spec, voice rules): a place opens with its fact card's hook, the bands with the detector in view
+const ACTION = { pm: 'Watch it move between SPHEREx visits?', var: 'See how it changes between visits?', none: 'See what the colours show here?' };
+export function offerText(trigger, { card = null, motion = null, detector = null, secs = null } = {}) {
+  const why = secs ? ` You have been looking at it for ${secs} seconds.` : '';
+  if (trigger === 'object' && card?.hook) return { text: card.hook, sub: `${ACTION[motion] ?? 'Show you more?'}${why}` };
+  if (trigger === 'colours' && detector === 6) return { text: "You're on D6, where cold dust and ices glow brightest.", sub: null };
+  if (trigger === 'colours' && detector) return { text: `You're on D${detector}. ${TEXTS.colours}`, sub: null };
+  return { text: TEXTS[trigger], sub: null };
+}
 
 // a fly_to started by the person (or a preset): the sky is about to move
 const MOVES = new Set(['fly_to', 'go_preset']);
@@ -358,6 +367,7 @@ export function startAttention({ guide, startGuide, onMoment = () => false, stor
     if (!r) {
       ringAt = null;
       layer.classList.remove('is-on');
+      if (guide.popup?.pillState?.() === 'noticing') guide.popup.setPillState('idle');
       return;
     }
     // around a sky object: on the object; around a control or a big box: where the person looks
@@ -369,6 +379,7 @@ export function startAttention({ guide, startGuide, onMoment = () => false, stor
     fill.setAttribute('stroke-dashoffset', String(len * (1 - r.progress)));
     layer.dataset.target = r.id;
     layer.classList.toggle('is-on', !orbOut);
+    if (guide.popup?.pillState?.() === 'idle') guide.popup.setPillState('noticing');
   }
   guide.overlay.setAvoid(() => (ringAt ? [{ x: ringAt.x, y: ringAt.y, r: RING_R + 8 }] : []));
   // one indicator per spot: the dwell ring goes the moment the guide's orb arrives at a target, and
@@ -390,9 +401,13 @@ export function startAttention({ guide, startGuide, onMoment = () => false, stor
     guide.overlay.circle(mark);
     guide.overlay.pointAt(mark);
     const secs = Math.round(dwellMs / 1000);
+    const pid = trigger === 'object' ? String(target ?? '').replace(/^(sky|field):/, '') : null;
+    const note = pid ? guide.notes?.(pid) : null;
+    const band = store.get().band;
+    const words = offerText(trigger, { card: note, motion: note?.motion, detector: Number.isInteger(band) ? Math.floor((band - 1) / 17) + 1 : null, secs });
     const res = await guide.offer({
-      text: TEXTS[trigger],
-      sub: SUBS[trigger]?.(secs),
+      text: words.text,
+      sub: words.sub ?? SUBS[trigger]?.(secs),
       key,
       // the card keeps clear of an object; colours and change share one cool-down key each
       target: trigger === 'object' ? target : undefined,

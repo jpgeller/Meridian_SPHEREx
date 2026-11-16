@@ -15,6 +15,7 @@ import { startGaze } from './input/gaze.js';
 import { createInputModeButton } from './ui/inputModeButton.js';
 import { createHints } from './ui/hints.js';
 import { startGazeSocket } from './input/gazeSocket.js';
+import { createCalibration } from './input/calibration.js';
 
 const statusEl = document.querySelector('#status');
 // The guide's attention follows the mouse in input mode A (a 5 s rest = interest); ?gaze=off turns that off.
@@ -68,6 +69,10 @@ window.meridian.hints = createHints({ store });
 window.meridian.gazeSocket = startGazeSocket(new URLSearchParams(window.location.search).get('gaze_ws'), {
   getInput: () => store.get().input,
 });
+// with a tracker connected: "calibrate for much higher precision, or use it as it is?", and the calibration itself
+if (window.meridian.gazeSocket) {
+  window.meridian.calibration = createCalibration({ store, commands, socket: window.meridian.gazeSocket });
+}
 store.subscribe(() => renderStatus());
 
 if (urlName) run('fly_to', { target: urlName, fov: store.get().fov < 5 ? store.get().fov : undefined }, 'url');

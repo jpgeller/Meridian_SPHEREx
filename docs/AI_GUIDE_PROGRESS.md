@@ -20,11 +20,11 @@ Decisions (Nov 15, 2026):
 - [x] Remove idle arrow; orb docks in pill
 
 ## P0 preset fact cards
-- [ ] Fact cards for the 7 Places, sent as `facts.preset`; richer local Place tours
+- [x] Fact cards for the 7 Places, sent as `facts.preset`; richer local Place tours
 
 ## P1
-- [ ] Insight-first copy
-- [ ] New budgets + 5-min "Not now" + teaser auto-collapse
-- [ ] Pill states
-- [ ] Dynamic pill menu
-- [ ] Arrival trigger
+- [x] Insight-first copy
+- [x] New budgets + 5-min "Not now" + teaser auto-collapse
+- [x] Pill states (teaser = compact offer card; Muted look + popup.setMuted, control is P2)
+- [x] Dynamic pill menu (via /api/guide/nudge moment "menu"; fixed three as fallback)
+- [x] Arrival trigger (local teaser: hook + first suggested action, 0.5 s after landing)

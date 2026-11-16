@@ -114,7 +114,7 @@ test('mode B: a replay of recorded-like samples drives the dwell ring and the co
   await expect(ring).toHaveClass(/is-on/, { timeout: 4000 });
   await expect(ring).toHaveAttribute('data-target', 'band-d6');
   await expect(page.locator('.gaze-dot')).toBeVisible();
-  await expect(card(page)).toContainText('Wondering about these colours?', { timeout: 5000 });
+  await expect(card(page)).toContainText(/You're on D\d/, { timeout: 5000 });
   expect(await page.evaluate(() => meridian.store.get().band)).toBe(40); // looked at D6 for seconds: not pressed
   expect(await page.evaluate(() => window.__replay)).toBe('done');
   // gaze never answers in B: the card stays until the person answers
@@ -148,7 +148,7 @@ test('mode C: a glance does nothing, a 0.8 s look opens the time-lapse, and the 
   await page.evaluate(() => guide.attention.configure({ ringDelayMs: 200, dwellMs: 1500 }));
   const t = await page.evaluate(() => guide.resolve('field:target'));
   await page.evaluate(({ x, y }) => __gaze(x, y, 2200), t);
-  await expect(card(page)).toContainText('Want to know what this is?');
+  await expect(card(page)).toContainText(/fastest-moving star|Notice this object/);
   const yes = await page.evaluate(() => __centre('[data-guide="guide-popup"] .gp-answers button', 'Yes'));
   await page.evaluate(([x, y]) => __gaze(x, y, 1200), yes);
   // the time-lapse of WISE 0855: the guide knows the place and tells its own notes
@@ -156,7 +156,7 @@ test('mode C: a glance does nothing, a 0.8 s look opens the time-lapse, and the 
   await expect(card(page)).toContainText('Brown dwarf');
   // still looking where Yes was: whatever button is there now (Next) is not pressed until the eyes leave
   await page.evaluate(([x, y]) => __gaze(x, y, 1500), yes);
-  await expect(card(page).locator('.gp-step')).toHaveText('1 / 2');
+  await expect(card(page).locator('.gp-step')).toHaveText('1 / 4');
   await page.evaluate(() => __gaze(640, 300, 300));
   await page.evaluate(() => __gaze(...__centre('[data-guide="guide-popup"] .gp-answers button', 'Stop'), 1200));
   await expect(card(page)).toBeHidden();
@@ -184,7 +184,7 @@ test('mode C: sky edges pan (panels stay 6% clear of them), a colour button pres
   await page.evaluate(() => guide.attention.configure({ ringDelayMs: 300, dwellMs: 2500 }));
   await page.evaluate(() => __gaze(...__centre('[data-guide="band-d6"]'), 3200));
   expect(await page.evaluate(() => meridian.store.get().band)).toBe(93);
-  await expect(card(page)).toContainText('Wondering about these colours?');
+  await expect(card(page)).toContainText(/You're on D\d/);
   await card(page).getByRole('button', { name: 'Not now' }).click();
   // rest zone: bottom-left corner (the guide card has the top right, Aladin's logo the bottom right)
   await page.evaluate(() => __gaze(30, 790, 1300));

@@ -218,6 +218,33 @@ bridge.command("zoom_in")            # optional: any Meridian command
   screen) or `--fake buttons` (visits each button the page reports), then open
   `http://localhost:5173/?gaze_ws=8765&input=assist`.
 
+## Running Yassin's tracker with Meridian (`gaze_tracker/meridian_live.py`)
+
+```
+python gaze_tracker/meridian_live.py --screen 2560x1600      # camera + UniGaze model (Windows, NVIDIA GPU)
+python gaze_tracker/meridian_live.py --head                  # + head steering (his 6x6 test: 90 % vs 25 %)
+python gaze_tracker/meridian_live.py --simulate              # no camera / model: fake gaze + face (tests the UI)
+```
+then open `http://localhost:5173/?gaze_ws=8765` full screen (F11). Pipeline: webcam → UniGaze + trained head →
+layer 1 (HeadStabiliser: 100 dots, gaze + head pose + light) → layer 2 (ButtonCalibration: dots on Meridian's
+buttons) → median-of-5 + One Euro + blink hold → the page (dwell, snap, press). The grid demo is not used; the raw
+model output is never sent. MediaPipe's face landmarks go to the face panel as the 68-point mesh (`face` messages).
+
+When the tracker connects, the page asks once: **calibrate for much higher precision, or use it as it is**
+(`web/src/input/calibration.js`; commands `calibrate_eyes`, `calibrate_buttons`, `skip_calibration`,
+`stop_calibration`; Space pauses, Esc stops). The page shows the dots and tells the tracker which is on screen:
+`{type: 'calib', action: 'start' | 'dot' | 'pause' | 'resume' | 'end' | 'cancel', layer, id, look, x, y}` (page px;
+the tracker converts with the `hello` it received). The tracker answers `{type: 'calib_result', layer, report}` and
+`{type: 'tracker', calibration: {stabiliser, buttons}}`. Each layer is switched on only if it beats "without it" on
+dots it did not learn from (layer 1: 5 %, layer 2: 10 %). Afterwards the page switches to full eye control (C).
+
+**What to expect (16 Nov 2026, simulation on Meridian's real button layout at 2560×1600 / 150 %):** after layer 1
+the error is ~126 px (Yassin's measurement), about two 64 px buttons. Layer 2 can only remove the part of that error
+that repeats at the same spot; with "always press the nearest button" it raised correct presses from ~25–35 % to
+~52–64 % if the error is mostly random from look to look (as Yassin's README says), ~80 % if mostly systematic.
+Wrong presses stay at 20–48 %. So 64 px buttons will NOT work reliably by calibration alone: use mode B (gaze helps
+the guide), head steering (`--head`), or larger gaze targets for full control.
+
 ## Notes from building it
 
 - Put any rest or pause zone away from the bottom-right corner. Aladin's logo is there, and its
