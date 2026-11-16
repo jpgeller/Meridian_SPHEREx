@@ -15,6 +15,7 @@ import {
   AUTO_HIDE_MS,
   COOLDOWN_MS,
   MAX_WORDS,
+  CARD_HTML,
 } from '../src/guide/popup.js';
 
 test('clipWords: short text untouched (spaces tidied), long text cut with an ellipsis', () => {
@@ -198,4 +199,14 @@ test('createTimer: fires after 14 s; pause keeps the time left; cancel stops it'
   assert.equal(fired, 2);
   clock.advance(8000);
   assert.equal(fired, 3);
+});
+
+test('card markup (B4): the words sit inside the fixed-height body, the answers and bar after it', () => {
+  const body = /<div class="gp-body">(.*?)<\/div>/.exec(CARD_HTML);
+  assert.ok(body, 'a .gp-body wrapper');
+  for (const cls of ['gp-title', 'gp-text', 'gp-sub', 'gp-facts']) assert.match(body[1], new RegExp(`class="${cls}"`));
+  assert.doesNotMatch(body[1], /gp-answers|gp-bar|<button/);
+  const after = CARD_HTML.slice(body.index + body[0].length);
+  assert.match(after, /^<div class="gp-answers"><\/div>/, 'the answers follow the body directly');
+  assert.ok(CARD_HTML.indexOf('gp-head') < body.index, 'the header comes before the body');
 });

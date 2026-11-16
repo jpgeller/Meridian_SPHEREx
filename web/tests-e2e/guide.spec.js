@@ -22,7 +22,7 @@ const recordCommands = (page) =>
     addEventListener('meridian:command', (e) => e.detail.ok && __seen.push([e.detail.name, e.detail.source]));
   });
 
-test('Something moving: the guide flies to Barnard\'s Star, opens the time-lapse, plays it, draws the trail, asks "Is that clear?"', async ({ page }) => {
+test('Something moving: the guide flies to Barnard\'s Star, opens the time-lapse, plays it, draws the trail, ends with its choices', async ({ page }) => {
   await page.goto('/?fov=60');
   await ready(page);
   await mockGuideApi(page);
@@ -48,13 +48,13 @@ test('Something moving: the guide flies to Barnard\'s Star, opens the time-lapse
   await expect.poll(() => page.evaluate(() => meridian.store.get().playing)).toBe(true);
   expect(await page.evaluate(() => guide.overlay.active())).toContain('circle:field:target');
   await next(page).click();
-  // 5 / 5: the change video, with the honest caveat
+  // 5 / 5: the change video, with the honest caveat; the last step carries the end choices itself (B2):
+  // no Next, no separate "Is that clear?" card
   await expect(card(page)).toContainText('change video');
   await expect(card(page).locator('.gp-sub')).toContainText('hint, not proof');
   await expect.poll(() => page.evaluate(() => meridian.store.get().op)).toBe('video');
-  await next(page).click();
-  await expect(card(page).locator('.gp-title')).toHaveText('Is that clear?');
   await expect(card(page).locator('.gp-answers button')).toHaveText(['Got it', 'Show me again', 'Back to sky']);
+  await expect(card(page)).not.toContainText('Is that clear?');
   // everything above went through the real buttons and commands, reported as the guide's
   const seen = await page.evaluate(() => __seen);
   for (const name of ['go_preset', 'open_field', 'set_frame', 'toggle_play', 'set_show']) {
@@ -77,22 +77,25 @@ test('colours tour: the pointer presses D1, then D6; the band changes through th
   await next(page).click();
   await expect(card(page).locator('.gp-title')).toHaveText('D1');
   await expect.poll(() => page.evaluate(() => meridian.store.get().band)).toBe(8);
-  // the pointer is on D1 (above the button, pointing down at it)
+  // the orb holds beside D1 (at its top-right corner, outside the box, so "D1" stays readable)
   const d1 = await page.evaluate(() => guide.resolve('band-d1'));
   const t1 = await tipOf(page);
-  expect(Math.abs(t1.x - d1.x)).toBeLessThan(d1.rect.w / 2 + 2);
+  expect(Math.abs(t1.x - (d1.rect.x + d1.rect.w))).toBeLessThan(12);
+  expect(Math.abs(t1.y - d1.rect.y)).toBeLessThan(12);
+  expect(t1.x > d1.rect.x + d1.rect.w || t1.y < d1.rect.y).toBe(true);
   await next(page).click();
   await expect(card(page).locator('.gp-title')).toHaveText('D6');
   await expect.poll(() => page.evaluate(() => meridian.store.get().band)).toBe(93);
   await next(page).click();
+  // 4 / 4: the last step shows the end choices itself (B2); the colours flow never offers itself again (B1)
   await expect(card(page)).toContainText('display choice');
-  await next(page).click();
-  await expect(card(page).locator('.gp-answers button')).toHaveText(['Got it', 'Show me an example', 'Show me again']);
+  await expect(card(page).locator('.gp-answers button')).toHaveText(['Got it', 'Show me an example']);
+  await expect(card(page)).not.toContainText('Is that clear?');
   await card(page).getByRole('button', { name: 'Got it' }).click();
   await expect(card(page)).toBeHidden();
 });
 
-test('a click on a sky object asks the guide: name, kind, facts, then "Want to see how it moves?"', async ({ page }) => {
+test('a click on a sky object asks the guide: name, kind, then facts with "Want to see how it moves?"', async ({ page }) => {
   await page.goto('/?ra=269.45&dec=4.74&fov=3');
   await ready(page);
   await expect.poll(() => page.evaluate(() => guide.resolve('sky:barnard')), { timeout: 15000 }).not.toBeNull();
@@ -107,9 +110,10 @@ test('a click on a sky object asks the guide: name, kind, facts, then "Want to s
   expect(Math.hypot(tip.x - star.x, tip.y - star.y)).toBeLessThan(60);
   expect(await page.evaluate(() => guide.overlay.active().sort())).toEqual(['circle:sky:barnard', 'pointer']);
   await next(page).click();
+  // 2 / 2: the facts; the last step asks the end question in its sub line and shows its answers (B2)
   await expect(card(page).locator('.gp-facts')).toContainText('5.96 light-years');
-  await next(page).click();
-  await expect(card(page).locator('.gp-title')).toHaveText('Want to see how it moves?');
+  await expect(card(page).locator('.gp-sub')).toHaveText('Want to see how it moves?');
+  await expect(card(page).locator('.gp-answers button')).toHaveText(['Show me', 'Got it']);
   // Esc ends it; the pointer flies home beside the pill
   await page.keyboard.press('Escape');
   await expect(card(page)).toBeHidden();

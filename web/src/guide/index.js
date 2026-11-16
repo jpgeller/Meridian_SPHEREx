@@ -58,13 +58,14 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
     viewport: () => ({ w: window.innerWidth, h: window.innerHeight }),
     events: window,
   });
-  // the pointer parks just left of the pill (or of the card while it is open), as in wireframe v4
+  // the guide's orb lives in the pill (or in the card's header while the card is open): it leaves from
+  // there and docks there again (docs/fix-and-improvements-ai-guide.md, "Guide presence")
   const getHome = () => {
-    const card = document.querySelector('.guide-popup:not([hidden])')?.getBoundingClientRect();
-    // beside the card's lower-left corner (clear of the search bar), or beside the pill
-    if (card?.width > 0) return { x: card.left - 30, y: card.bottom - 26 };
-    const pill = document.querySelector('.guide-pill:not([hidden])')?.getBoundingClientRect();
-    return pill?.width > 0 ? { x: pill.left - 30, y: pill.top + pill.height / 2 } : null;
+    for (const sel of ['.guide-popup:not([hidden]) .gp-orb', '.guide-pill:not([hidden]) .gp-orb']) {
+      const b = document.querySelector(sel)?.getBoundingClientRect();
+      if (b?.width > 0) return { x: b.left + b.width / 2, y: b.top + b.height / 2 };
+    }
+    return null;
   };
   const overlay = createOverlay({ locate: registry.locate, doc: document, events: window, getHome });
   // the pop-up asks "would I cover this?": for that question it looks through itself
@@ -125,6 +126,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
     pending?.abort();
     const ctrl = new AbortController();
     pending = ctrl;
+    overlay.clear(); // B3: the "Thinking…" card starts from a clean screen (the script re-draws its marks)
     const t = describeTarget(target);
     let outcome = null;
     const cancel = (how) => {
@@ -162,12 +164,17 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
       window.removeEventListener('meridian:command', onCommand);
       if (pending === ctrl) pending = null;
     }
-    if (outcome || ctrl.signal.aborted) return outcome ?? 'stopped';
+    if (outcome || ctrl.signal.aborted) {
+      console.info(`[guide] /api/guide ${outcome ?? 'stopped'} (trigger=${trigger})`);
+      return outcome ?? 'stopped';
+    }
     if (reply.steps) {
+      // B7: say every time where the explanation came from
+      console.info(`[guide] /api/guide trigger=${trigger} source=${reply.source ?? 'unknown'} model=${reply.model ?? '?'} cached=${Boolean(reply.cached)}`);
       const how = await runner.runScript(pointFirst(reply.steps, trigger, t), { trigger, target: t });
       if (how !== 'empty') return how;
-      console.info('[guide] nothing valid in the reply; playing the local script');
-    } else console.info(`[guide] using the local script (${reply.reason})`);
+      console.info('[guide] /api/guide fallback (nothing valid in the reply): local script');
+    } else console.info(`[guide] /api/guide fallback (${reply.reason}): local script (trigger=${trigger})`);
     if (trigger === 'explore') return tour('where'); // a proactive offer's topic: a plain local word instead
     return fallback(trigger, target);
   }
@@ -201,12 +208,13 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
     if (kind === 'identify') return identifyTour(id, { inField: field });
     if (kind === 'motion') return motionTour(id, { inField: field, atTarget: presetIdOf(centre()?.id) === id });
     if (kind === 'change') return changeTour();
-    if (kind === 'colours') return coloursTour({ inField: field });
+    if (kind === 'colours') return coloursTour({ inField: field, id });
     if (kind === 'example') return exampleTour();
     if (kind === 'where') return whereTour({ fov: s.fov, detector: detectorOf(s.band).detector });
     return null;
   }
-  /** Play a tour, then follow the closing card's answer (Show me -> motion, Show me again, an example…). */
+  /** Play a tour, then follow the closing card's answer (Show me -> motion, or colours for a place that does
+   * not move, keeping the place id for its colour note; Show me again, an example…). */
   async function tour(kind, id = null) {
     guide.stop();
     await null; // let the command that asked for this finish first (its event must not end the new tour)
@@ -248,6 +256,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
   /** The pill (key A): "What can I show you?" */
   async function ask() {
     guide.stop();
+    overlay.clear(); // B3: the menu shows no earlier ring or label
     const a = await popup.say(menuCard());
     if (a === 'here') return hereTour();
     if (a === 'moving') return tour('motion', 'barnard');
@@ -277,7 +286,7 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
     },
     true,
   );
-  overlay.park(); // idle: the pointer waits beside the pill
+  overlay.park(); // idle: nothing floats; the orb is in the pill
 
   const guide = {
     ask,
@@ -334,9 +343,18 @@ export function createGuide({ store, commands, sky, player, spectrum = null, gaz
     overlay,
     runScript: runner.runScript,
     tour: (kind, id) => tour(kind, id),
-    explain: async ({ offer, moment, target }) => {
+    // B7: an object moment asks for an object explanation (no offer text: same request, same cache, as a click);
+    // local: the visit budget is spent, so the local object script plays with no API call
+    explain: async ({ offer, moment, target, trigger = 'explore', local = false }) => {
       guide.stop();
       await null;
+      if (trigger === 'object') {
+        if (local) {
+          console.info('[guide] object explanation: visit budget spent; local script (no /api/guide call)');
+          return fallback('object', target);
+        }
+        return startGuide('object', target);
+      }
       return startGuide('explore', target ?? null, { offer, moment });
     },
     isBusy: () => popup.isOpen() || runner.isRunning() || !!pending,
