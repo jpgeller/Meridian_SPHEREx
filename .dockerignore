@@ -1,0 +1,14 @@
+.git
+.github
+docs
+**/node_modules
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+web/dist
+web/test-results
+web/playwright-report
+api/cache
+api/.env
+.DS_Store

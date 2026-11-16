@@ -6,6 +6,7 @@ A Real sky explorer for NASA's SPHEREx mission (NASA Space Apps 2026). Fly throu
 - **Build plan, with notes on what was learned at each step:** [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md)
 - **Working notes and verified data facts:** [CLAUDE.md](CLAUDE.md)
 - **Eye tracking (hand-off to the partner team):** [docs/EYE_TRACKING.md](docs/EYE_TRACKING.md)
+- **Deploying it:** [docs/DEPLOY.md](docs/DEPLOY.md)
 
 ## Quick start
 
@@ -47,6 +48,24 @@ cd api && ./.venv/bin/python -m pytest -q   # API tests
 | Sky viewer | Aladin Lite (CDS) |
 
 > This publication makes use of data products from the Spectro-Photometer for the History of the Universe, Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion Laboratory and the California Institute of Technology, and is funded by the National Aeronautics and Space Administration.
+
+## Deploy
+
+One service: the `Dockerfile` builds the front end and the FastAPI app serves it at `/` with the
+API at `/api/*`. Connect the repo to Render, Fly or Railway once and every push to `main`
+redeploys. Mount a persistent volume at `/app/api/cache` and warm it first — see
+[docs/DEPLOY.md](docs/DEPLOY.md).
+
+```bash
+docker build -t meridian . && docker run -p 8000:8000 --env-file api/.env meridian
+```
+
+## Licence
+
+Meridian is released under the **GNU General Public License v3.0** ([LICENSE](LICENSE)). It
+bundles Aladin Lite 3.8.2, which is distributed under the GPL v3, so the combined work is GPL v3
+too. The data products themselves belong to their respective missions and archives (see the Data
+table above and the SPHEREx acknowledgement).
 
 ## Credits
 

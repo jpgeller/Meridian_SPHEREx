@@ -34,7 +34,8 @@ load_env_file(Path(__file__).with_name(".env"))
 
 import numpy as np
 from fastapi import FastAPI, HTTPException, Query, Response
-from fastapi.responses import PlainTextResponse, RedirectResponse
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 import colormix
 from fastapi.concurrency import run_in_threadpool
@@ -53,11 +54,21 @@ import spherex
 app = FastAPI(title="Meridian API", version="0.0.1")
 app.include_router(guide.router)  # POST /api/guide (AI guide, UI plan U7)
 
-# The Vite dev server proxies /api, but allow direct calls from it too.
+# The Vite dev server proxies /api, but allow direct calls from it too. In production the built
+# front end is served from this same app (see the static mount at the end of this file), so the
+# browser is same-origin and CORS does not apply; CORS_ORIGINS is only for a split deployment
+# (front end on a static host, API elsewhere): comma-separated origins, or "*" for any.
+# POST must be allowed: the AI guide is POST /api/guide.
+_origins_env = os.environ.get("CORS_ORIGINS", "").strip()
+CORS_ORIGINS = (
+    ["*"] if _origins_env == "*"
+    else [o.strip() for o in _origins_env.split(",") if o.strip()]
+    or ["http://localhost:5173", "http://127.0.0.1:5173"]
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_methods=["GET"],
+    allow_origins=CORS_ORIGINS,
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["X-Width", "X-Height", "X-Meta"],
 )
@@ -339,3 +350,26 @@ async def mix_allsky(mix: str, order: str, tile: str):
     if png is None:
         raise HTTPException(status_code=404, detail="no data")
     return Response(png, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
+
+
+# --- built front end (production) -------------------------------------------------------
+# One service, one URL: `cd web && npm run build` puts the site in web/dist, and this mount
+# serves it at /. Keep this LAST so every /api route above wins over the static files.
+# In development the Vite dev server serves the front end instead and web/dist may not exist.
+WEB_DIST = Path(os.environ.get("WEB_DIST", Path(__file__).resolve().parent.parent / "web" / "dist"))
+
+if (WEB_DIST / "index.html").is_file():
+    app.mount("/assets", StaticFiles(directory=WEB_DIST / "assets"), name="assets")
+
+    @app.get("/")
+    @app.get("/{path:path}")
+    def spa(path: str = "") -> FileResponse:
+        """Serve index.html for any non-/api path (all app state lives in the query string)."""
+        # An /api path that reached here matched no route above: answer 404, not the page.
+        # Otherwise a mistyped API call gets 200 + HTML and the front end fails silently.
+        if path.startswith("api/") or path == "api":
+            raise HTTPException(status_code=404, detail="no such API route")
+        candidate = (WEB_DIST / path).resolve()
+        if path and candidate.is_file() and candidate.is_relative_to(WEB_DIST.resolve()):
+            return FileResponse(candidate)
+        return FileResponse(WEB_DIST / "index.html")
